@@ -8,3 +8,10 @@ dist/
 
 # Screenshots locais de teste (não versionar)
 print/
+prints/
+PRINTS/
+PRINTS_TEST/
+**/print/
+**/prints/
+**/PRINTS/
+**/PRINTS_TEST/
