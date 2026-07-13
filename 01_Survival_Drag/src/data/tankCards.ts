@@ -4,11 +4,11 @@ export interface TankCard {
   description: string;
 }
 
-/** Cartas exclusivas da build Tanque — sempre 3 opções, escolhe 1 */
 export const TANK_CARDS: TankCard[] = [
-  { id: 'shield', name: 'Escudo', description: '+25 HP máximo e +10 HP agora' },
-  { id: 'toxic', name: 'Campo Tóxico', description: '+40% dano e +20% área da aura' },
-  { id: 'vampirism', name: 'Vampirismo', description: 'Cura 3 HP ao matar inimigo' },
+  { id: 'shield', name: 'Escudo', description: '+30 HP máx · +1 órbita protetora' },
+  { id: 'toxic', name: 'Campo Tóxico', description: 'Pulso maior · +50% dano de pulso' },
+  { id: 'vampirism', name: 'Vampirismo', description: 'Cura 4 HP por kill · +15% velocidade' },
+  { id: 'magnet', name: 'Magnetismo', description: '+60% alcance de XP · órbitas +15% dano' },
 ];
 
 export function pickTankCards(count = 3): TankCard[] {

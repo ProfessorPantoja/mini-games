@@ -1,20 +1,15 @@
 import Phaser from 'phaser';
-import {
-  FLOOR_COLOR,
-  HITBOX_OFFSET_X,
-  HITBOX_OFFSET_Y,
-  HITBOX_RADIUS,
-  SPRITE_SCALE,
-} from '../data/assets';
+import { FLOOR_COLOR } from '../data/assets';
 import { pickTankCards, type TankCard } from '../data/tankCards';
 
-const WORLD_SIZE = 2400;
-const PLAYER_SPEED = 140;
-const INVULN_MS = 800;
-const MAGNET_RANGE = 120;
-const PICKUP_RANGE = 24;
-const MIN_SPAWN_DISTANCE = 180;
-const CONTACT_DISTANCE = 22;
+const WORLD_SIZE = 3200;
+const PLAYER_SPEED = 200;
+const INVULN_MS = 600;
+const MAGNET_BASE = 100;
+const PICKUP_RANGE = 20;
+const CONTACT_RANGE = 28;
+const ORBIT_RADIUS = 52;
+const ORBIT_SPEED = 2.2;
 
 type EnemyType = 'slime' | 'skeleton' | 'golem';
 
@@ -25,18 +20,20 @@ interface EnemyConfig {
   damage: number;
   xp: number;
   scale: number;
+  tint?: number;
 }
 
 const ENEMY_TYPES: Record<EnemyType, EnemyConfig> = {
-  slime: { texture: 'enemySlime', hp: 1, speed: 55, damage: 5, xp: 1, scale: SPRITE_SCALE },
-  skeleton: { texture: 'enemySkeleton', hp: 2, speed: 90, damage: 8, xp: 2, scale: SPRITE_SCALE },
-  golem: { texture: 'enemyGolem', hp: 5, speed: 40, damage: 15, xp: 5, scale: SPRITE_SCALE },
+  slime: { texture: 'enemySlime', hp: 1, speed: 75, damage: 4, xp: 1, scale: 1.1 },
+  skeleton: { texture: 'enemySkeleton', hp: 2, speed: 115, damage: 7, xp: 2, scale: 1.2 },
+  golem: { texture: 'enemyGolem', hp: 6, speed: 48, damage: 12, xp: 5, scale: 1.6 },
 };
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private enemies!: Phaser.Physics.Arcade.Group;
   private xpGems!: Phaser.Physics.Arcade.Group;
+  private orbs: Phaser.GameObjects.Image[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
@@ -45,25 +42,38 @@ export class GameScene extends Phaser.Scene {
     D: Phaser.Input.Keyboard.Key;
   };
 
-  private hp = 150;
-  private maxHp = 150;
+  private hp = 120;
+  private maxHp = 120;
   private level = 1;
   private xp = 0;
-  private xpToNext = 5;
+  private xpToNext = 4;
   private elapsed = 0;
   private invulnUntil = 0;
   private isLevelUpOpen = false;
+  private kills = 0;
 
-  private auraRadius = 70;
-  private auraDamage = 1;
-  private auraTickMs = 450;
-  private auraTimer = 0;
+  private orbitCount = 2;
+  private orbitAngle = 0;
+  private orbitDamage = 1;
+  private orbitHitCooldown = new Map<Phaser.GameObjects.GameObject, number>();
+
+  private pulseRadius = 0;
+  private pulseMaxRadius = 95;
+  private pulseDamage = 2;
+  private pulseIntervalMs = 1100;
+  private pulseTimer = 0;
+  private pulseActive = false;
+
+  private magnetRange = MAGNET_BASE;
   private vampirismHeal = 0;
+  private speedMult = 1;
 
   private auraGfx!: Phaser.GameObjects.Graphics;
+  private hpBarGfx!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
   private cardOverlay?: Phaser.GameObjects.Container;
   private spawnTimer = 0;
+  private trailTimer = 0;
 
   constructor() {
     super('GameScene');
@@ -72,23 +82,22 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-    this.add
-      .rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, FLOOR_COLOR)
-      .setOrigin(0.5);
+    this.add.rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, FLOOR_COLOR).setOrigin(0.5);
 
     this.player = this.physics.add
       .sprite(WORLD_SIZE / 2, WORLD_SIZE / 2, 'player')
-      .setScale(SPRITE_SCALE)
+      .setDepth(20)
       .setCollideWorldBounds(true);
-    this.setupCharacterBody(this.player);
+    this.player.setCircle(12);
 
     this.enemies = this.physics.add.group();
     this.xpGems = this.physics.add.group();
 
-    this.auraGfx = this.add.graphics().setDepth(5);
+    this.auraGfx = this.add.graphics().setDepth(8);
+    this.hpBarGfx = this.add.graphics().setScrollFactor(0).setDepth(110);
 
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as typeof this.wasd;
@@ -99,40 +108,54 @@ export class GameScene extends Phaser.Scene {
     this.hudText = this.add
       .text(12, 12, '', {
         fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffffff',
-        backgroundColor: '#000000aa',
-        padding: { x: 8, y: 6 },
+        fontSize: '13px',
+        color: '#e8fff0',
+        backgroundColor: '#0a1210cc',
+        padding: { x: 10, y: 8 },
       })
       .setScrollFactor(0)
       .setDepth(100);
 
+    this.rebuildOrbits();
     this.updateHud();
-    this.drawAura();
   }
 
   update(_time: number, delta: number): void {
     if (this.physics.world.isPaused || this.isLevelUpOpen) return;
 
-    this.elapsed += delta / 1000;
+    const dt = delta / 1000;
+    this.elapsed += dt;
     this.spawnTimer += delta;
-    this.auraTimer += delta;
+    this.pulseTimer += delta;
+    this.trailTimer += delta;
 
-    const spawnInterval = Math.max(400, 1800 - this.elapsed * 30);
+    const spawnInterval = Math.max(280, 1400 - this.elapsed * 35);
+    const burst = this.elapsed > 30 ? Phaser.Math.Between(1, 3) : 1;
     if (this.spawnTimer >= spawnInterval) {
-      this.spawnEnemy();
+      for (let i = 0; i < burst; i++) this.spawnEnemy();
       this.spawnTimer = 0;
     }
 
-    if (this.auraTimer >= this.auraTickMs) {
-      this.tickAuraDamage();
-      this.auraTimer = 0;
+    if (this.pulseTimer >= this.pulseIntervalMs) {
+      this.triggerPulse();
+      this.pulseTimer = 0;
+    }
+
+    if (this.pulseActive) {
+      this.pulseRadius += 280 * dt;
+      if (this.pulseRadius >= this.pulseMaxRadius) {
+        this.pulseActive = false;
+        this.pulseRadius = 0;
+      } else {
+        this.applyPulseDamage();
+      }
     }
 
     this.movePlayer();
     this.chasePlayer();
+    this.updateOrbits(delta);
     this.attractXpGems();
-    this.drawAura();
+    this.drawEffects();
     this.updateHud();
   }
 
@@ -150,21 +173,72 @@ export class GameScene extends Phaser.Scene {
     if (down) vy += 1;
 
     if (vx !== 0 && vy !== 0) {
-      const norm = Math.SQRT1_2;
-      vx *= norm;
-      vy *= norm;
+      vx *= Math.SQRT1_2;
+      vy *= Math.SQRT1_2;
     }
 
-    this.player.setVelocity(vx * PLAYER_SPEED, vy * PLAYER_SPEED);
+    const speed = PLAYER_SPEED * this.speedMult;
+    this.player.setVelocity(vx * speed, vy * speed);
+
+    if ((vx !== 0 || vy !== 0) && this.trailTimer > 40) {
+      this.trailTimer = 0;
+      const trail = this.add.image(this.player.x, this.player.y, 'particle').setAlpha(0.35).setTint(0x66ccff).setDepth(5);
+      this.tweens.add({ targets: trail, alpha: 0, scale: 2, duration: 220, onComplete: () => trail.destroy() });
+    }
   }
 
   private chasePlayer(): void {
     this.enemies.children.each((child) => {
       const enemy = child as Phaser.Physics.Arcade.Sprite;
       if (!enemy.active) return true;
-
       const speed = enemy.getData('speed') as number;
       this.physics.moveToObject(enemy, this.player, speed);
+      return true;
+    });
+  }
+
+  private updateOrbits(delta: number): void {
+    this.orbitAngle += ORBIT_SPEED * (delta / 1000);
+    const step = (Math.PI * 2) / this.orbitCount;
+
+    this.orbs.forEach((orb, index) => {
+      const angle = this.orbitAngle + step * index;
+      const x = this.player.x + Math.cos(angle) * ORBIT_RADIUS;
+      const y = this.player.y + Math.sin(angle) * ORBIT_RADIUS;
+      orb.setPosition(x, y);
+
+      this.enemies.children.each((child) => {
+        const enemy = child as Phaser.Physics.Arcade.Sprite;
+        if (!enemy.active) return true;
+
+        const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+        if (dist <= 18) {
+          const last = this.orbitHitCooldown.get(enemy) ?? 0;
+          if (this.time.now - last > 180) {
+            this.orbitHitCooldown.set(enemy, this.time.now);
+            this.damageEnemy(enemy, this.orbitDamage, true);
+          }
+        }
+        return true;
+      });
+    });
+  }
+
+  private triggerPulse(): void {
+    this.pulseActive = true;
+    this.pulseRadius = 18;
+    this.cameras.main.shake(80, 0.004);
+  }
+
+  private applyPulseDamage(): void {
+    this.enemies.children.each((child) => {
+      const enemy = child as Phaser.Physics.Arcade.Sprite;
+      if (!enemy.active) return true;
+
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      if (Math.abs(dist - this.pulseRadius) < 22) {
+        this.damageEnemy(enemy, this.pulseDamage, false);
+      }
       return true;
     });
   }
@@ -175,8 +249,8 @@ export class GameScene extends Phaser.Scene {
       if (!gem.active) return true;
 
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, gem.x, gem.y);
-      if (dist < MAGNET_RANGE) {
-        this.physics.moveToObject(gem, this.player, 220);
+      if (dist < this.magnetRange) {
+        this.physics.moveToObject(gem, this.player, 280 + (this.magnetRange - dist));
       } else {
         gem.setVelocity(0, 0);
       }
@@ -184,38 +258,47 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private drawAura(): void {
+  private drawEffects(): void {
     this.auraGfx.clear();
-    this.auraGfx.fillStyle(0x44ff66, 0.12);
-    this.auraGfx.fillCircle(this.player.x, this.player.y, this.auraRadius);
-    this.auraGfx.lineStyle(2, 0x66ff88, 0.35);
-    this.auraGfx.strokeCircle(this.player.x, this.player.y, this.auraRadius);
+
+    if (this.pulseActive) {
+      this.auraGfx.lineStyle(3, 0x66ff99, 0.55 - this.pulseRadius / (this.pulseMaxRadius * 2));
+      this.auraGfx.strokeCircle(this.player.x, this.player.y, this.pulseRadius);
+    }
+
+    this.auraGfx.fillStyle(0x44ff88, 0.06);
+    this.auraGfx.fillCircle(this.player.x, this.player.y, ORBIT_RADIUS + 10);
+
+    const barW = 180;
+    const barH = 10;
+    const bx = 12;
+    const by = 108;
+    this.hpBarGfx.clear();
+    this.hpBarGfx.fillStyle(0x000000, 0.5);
+    this.hpBarGfx.fillRoundedRect(bx, by, barW, barH, 4);
+    const pct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
+    this.hpBarGfx.fillStyle(pct > 0.35 ? 0x44ff88 : 0xff5555, 0.95);
+    this.hpBarGfx.fillRoundedRect(bx, by, barW * pct, barH, 4);
   }
 
-  private tickAuraDamage(): void {
-    this.enemies.children.each((child) => {
-      const enemy = child as Phaser.Physics.Arcade.Sprite;
-      if (!enemy.active) return true;
-
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-      if (dist <= this.auraRadius) {
-        this.damageEnemy(enemy, this.auraDamage);
-      }
-      return true;
-    });
-  }
-
-  private damageEnemy(enemy: Phaser.Physics.Arcade.Sprite, amount: number): void {
+  private damageEnemy(enemy: Phaser.Physics.Arcade.Sprite, amount: number, knockback: boolean): void {
     if (!enemy.active) return;
 
     let hp = (enemy.getData('hp') as number) - amount;
     enemy.setData('hp', hp);
-    enemy.setTint(0xaaffaa);
-    this.time.delayedCall(80, () => enemy.clearTint());
+    enemy.setTint(0xffffff);
+    this.time.delayedCall(60, () => enemy.clearTint());
 
-    if (hp <= 0) {
-      this.killEnemy(enemy);
+    if (knockback) {
+      const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+      enemy.setVelocity(Math.cos(angle) * 160, Math.sin(angle) * 160);
+      this.time.delayedCall(120, () => enemy.setVelocity(0, 0));
     }
+
+    const spark = this.add.image(enemy.x, enemy.y, 'particle').setTint(0xaaffcc).setDepth(30);
+    this.tweens.add({ targets: spark, alpha: 0, scale: 3, duration: 150, onComplete: () => spark.destroy() });
+
+    if (hp <= 0) this.killEnemy(enemy);
   }
 
   private killEnemy(enemy: Phaser.Physics.Arcade.Sprite): void {
@@ -223,15 +306,30 @@ export class GameScene extends Phaser.Scene {
     const x = enemy.x;
     const y = enemy.y;
     enemy.destroy();
+    this.orbitHitCooldown.delete(enemy);
+    this.kills += 1;
 
     if (this.vampirismHeal > 0) {
       this.hp = Math.min(this.maxHp, this.hp + this.vampirismHeal);
     }
 
+    for (let i = 0; i < 6; i++) {
+      const p = this.add.image(x, y, 'particle').setTint(0x66ffaa).setDepth(15);
+      const a = Math.random() * Math.PI * 2;
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(a) * Phaser.Math.Between(20, 50),
+        y: y + Math.sin(a) * Phaser.Math.Between(20, 50),
+        alpha: 0,
+        duration: 260,
+        onComplete: () => p.destroy(),
+      });
+    }
+
     const gem = this.xpGems.create(x, y, 'xpGem') as Phaser.Physics.Arcade.Sprite;
-    gem.setScale(1.5);
     gem.setCircle(6);
     gem.setData('value', xpValue);
+    this.tweens.add({ targets: gem, scale: { from: 0.5, to: 1.2 }, duration: 180, yoyo: true });
   }
 
   private onCollectXp(
@@ -247,6 +345,9 @@ export class GameScene extends Phaser.Scene {
     this.xp += gem.getData('value') as number;
     gem.destroy();
 
+    const pop = this.add.image(this.player.x, this.player.y - 20, 'particle').setTint(0x88ffcc).setScrollFactor(0).setDepth(120);
+    this.tweens.add({ targets: pop, y: pop.y - 18, alpha: 0, duration: 300, onComplete: () => pop.destroy() });
+
     while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.levelUp();
@@ -255,7 +356,7 @@ export class GameScene extends Phaser.Scene {
 
   private levelUp(): void {
     this.level += 1;
-    this.xpToNext = Math.floor(this.xpToNext * 1.4) + 2;
+    this.xpToNext = Math.floor(this.xpToNext * 1.35) + 2;
     this.openCardSelection();
   }
 
@@ -270,84 +371,77 @@ export class GameScene extends Phaser.Scene {
     this.cardOverlay = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
 
     const backdrop = this.add
-      .rectangle(cam.width / 2, cam.height / 2, cam.width, cam.height, 0x000000, 0.65)
+      .rectangle(cam.width / 2, cam.height / 2, cam.width, cam.height, 0x000000, 0.72)
       .setScrollFactor(0);
     this.cardOverlay.add(backdrop);
 
     const title = this.add
-      .text(cam.width / 2, 70, `LEVEL UP!  Nível ${this.level}`, {
+      .text(cam.width / 2, 64, `LEVEL UP  ·  ${this.level}`, {
         fontFamily: 'monospace',
-        fontSize: '22px',
-        color: '#ffffff',
+        fontSize: '26px',
+        color: '#88ffcc',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);
     this.cardOverlay.add(title);
 
-    const subtitle = this.add
-      .text(cam.width / 2, 105, 'Escolha 1 carta (build Tanque)', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#cccccc',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0);
-    this.cardOverlay.add(subtitle);
-
-    const cardWidth = 200;
-    const gap = 24;
+    const cardWidth = 210;
+    const gap = 20;
     const totalWidth = cards.length * cardWidth + (cards.length - 1) * gap;
     const startX = cam.width / 2 - totalWidth / 2 + cardWidth / 2;
 
     cards.forEach((card, index) => {
       const x = startX + index * (cardWidth + gap);
-      const y = cam.height / 2 + 20;
+      const y = cam.height / 2 + 10;
       const box = this.add
-        .rectangle(x, y, cardWidth, 160, 0x1a3a2a, 1)
-        .setStrokeStyle(2, 0x66ff88)
+        .rectangle(x, y, cardWidth, 170, 0x142820, 1)
+        .setStrokeStyle(2, 0x55ff99)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0);
 
+      const keyHint = this.add
+        .text(x, y - 58, `[ ${index + 1} ]`, { fontFamily: 'monospace', fontSize: '14px', color: '#55ff99' })
+        .setOrigin(0.5)
+        .setScrollFactor(0);
+
       const name = this.add
-        .text(x, y - 40, card.name, {
-          fontFamily: 'monospace',
-          fontSize: '16px',
-          color: '#ffffff',
-          align: 'center',
-          wordWrap: { width: cardWidth - 20 },
-        })
+        .text(x, y - 28, card.name, { fontFamily: 'monospace', fontSize: '17px', color: '#ffffff', align: 'center', wordWrap: { width: cardWidth - 16 } })
         .setOrigin(0.5)
         .setScrollFactor(0);
 
       const desc = this.add
-        .text(x, y + 10, card.description, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: '#aaffcc',
-          align: 'center',
-          wordWrap: { width: cardWidth - 20 },
-        })
+        .text(x, y + 18, card.description, { fontFamily: 'monospace', fontSize: '12px', color: '#a8ffcc', align: 'center', wordWrap: { width: cardWidth - 16 } })
         .setOrigin(0.5)
         .setScrollFactor(0);
 
-      box.on('pointerdown', () => this.applyCard(card));
+      const pick = () => this.applyCard(card);
+      box.on('pointerdown', pick);
+      this.input.keyboard?.once(`keydown-${index + 1}`, pick);
 
-      this.cardOverlay!.add([box, name, desc]);
+      this.cardOverlay!.add([box, keyHint, name, desc]);
     });
   }
 
   private applyCard(card: TankCard): void {
     switch (card.id) {
       case 'shield':
-        this.maxHp += 25;
-        this.hp = Math.min(this.maxHp, this.hp + 10);
+        this.maxHp += 30;
+        this.hp = Math.min(this.maxHp, this.hp + 20);
+        this.orbitCount = Math.min(6, this.orbitCount + 1);
+        this.rebuildOrbits();
         break;
       case 'toxic':
-        this.auraDamage = Math.max(1, Math.round(this.auraDamage * 1.4));
-        this.auraRadius = Math.round(this.auraRadius * 1.2);
+        this.pulseDamage = Math.round(this.pulseDamage * 1.5);
+        this.pulseMaxRadius = Math.round(this.pulseMaxRadius * 1.25);
+        this.pulseIntervalMs = Math.max(700, this.pulseIntervalMs - 120);
         break;
       case 'vampirism':
-        this.vampirismHeal += 3;
+        this.vampirismHeal += 4;
+        this.speedMult += 0.15;
+        break;
+      case 'magnet':
+        this.magnetRange = Math.round(this.magnetRange * 1.6);
+        this.orbitDamage += 1;
         break;
     }
 
@@ -355,57 +449,69 @@ export class GameScene extends Phaser.Scene {
     this.cardOverlay = undefined;
     this.isLevelUpOpen = false;
     this.physics.resume();
+    this.cameras.main.flash(200, 80, 255, 160, false);
     this.updateHud();
+  }
+
+  private rebuildOrbits(): void {
+    this.orbs.forEach((o) => o.destroy());
+    this.orbs = [];
+    for (let i = 0; i < this.orbitCount; i++) {
+      const orb = this.add.image(this.player.x, this.player.y, 'orb').setDepth(18);
+      this.orbs.push(orb);
+    }
   }
 
   private spawnEnemy(): void {
     const roll = Math.random();
     let type: EnemyType = 'slime';
-    if (this.elapsed > 20 && roll > 0.55) type = 'skeleton';
-    if (this.elapsed > 45 && roll > 0.82) type = 'golem';
+    if (this.elapsed > 18 && roll > 0.5) type = 'skeleton';
+    if (this.elapsed > 40 && roll > 0.78) type = 'golem';
 
     const config = ENEMY_TYPES[type];
-    const margin = 80;
+    const cam = this.cameras.main;
+    const margin = 40;
+    const left = cam.scrollX - margin;
+    const right = cam.scrollX + cam.width + margin;
+    const top = cam.scrollY - margin;
+    const bottom = cam.scrollY + cam.height + margin;
     const side = Phaser.Math.Between(0, 3);
+
     let x = this.player.x;
     let y = this.player.y;
-
     switch (side) {
       case 0:
-        x = Phaser.Math.Clamp(this.player.x + Phaser.Math.Between(300, 500), margin, WORLD_SIZE - margin);
-        y = this.player.y - Phaser.Math.Between(250, 400);
+        x = Phaser.Math.Between(left, right);
+        y = top;
         break;
       case 1:
-        x = Phaser.Math.Clamp(this.player.x + Phaser.Math.Between(300, 500), margin, WORLD_SIZE - margin);
-        y = this.player.y + Phaser.Math.Between(250, 400);
+        x = Phaser.Math.Between(left, right);
+        y = bottom;
         break;
       case 2:
-        x = this.player.x - Phaser.Math.Between(250, 400);
-        y = Phaser.Math.Clamp(this.player.y + Phaser.Math.Between(300, 500), margin, WORLD_SIZE - margin);
+        x = left;
+        y = Phaser.Math.Between(top, bottom);
         break;
       default:
-        x = this.player.x + Phaser.Math.Between(250, 400);
-        y = Phaser.Math.Clamp(this.player.y + Phaser.Math.Between(300, 500), margin, WORLD_SIZE - margin);
+        x = right;
+        y = Phaser.Math.Between(top, bottom);
     }
 
-    x = Phaser.Math.Clamp(x, margin, WORLD_SIZE - margin);
-    y = Phaser.Math.Clamp(y, margin, WORLD_SIZE - margin);
-
-    const dist = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
-    if (dist < MIN_SPAWN_DISTANCE) return;
+    x = Phaser.Math.Clamp(x, 40, WORLD_SIZE - 40);
+    y = Phaser.Math.Clamp(y, 40, WORLD_SIZE - 40);
 
     const enemy = this.enemies.create(x, y, config.texture) as Phaser.Physics.Arcade.Sprite;
-    this.setupCharacterBody(enemy, config.scale);
+    enemy.setScale(config.scale);
+    enemy.setCircle(10 * config.scale);
+    enemy.setDepth(12);
     enemy.setData('hp', config.hp);
     enemy.setData('speed', config.speed);
     enemy.setData('damage', config.damage);
     enemy.setData('xp', config.xp);
     enemy.setData('type', type);
-  }
 
-  private setupCharacterBody(sprite: Phaser.Physics.Arcade.Sprite, scale = SPRITE_SCALE): void {
-    sprite.setScale(scale);
-    sprite.setCircle(HITBOX_RADIUS, HITBOX_OFFSET_X, HITBOX_OFFSET_Y);
+    enemy.setAlpha(0);
+    this.tweens.add({ targets: enemy, alpha: 1, duration: 180 });
   }
 
   private mustBeTouching(
@@ -414,8 +520,7 @@ export class GameScene extends Phaser.Scene {
   ): boolean {
     const player = playerObj as Phaser.Physics.Arcade.Sprite;
     const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
-    const dist = Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y);
-    return dist <= CONTACT_DISTANCE * SPRITE_SCALE;
+    return Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y) <= CONTACT_RANGE;
   }
 
   private onPlayerHitEnemy(
@@ -429,17 +534,19 @@ export class GameScene extends Phaser.Scene {
     const now = this.time.now;
     if (now < this.invulnUntil) return;
 
-    const damage = enemy.getData('damage') as number;
-    this.hp -= damage;
+    this.hp -= enemy.getData('damage') as number;
     this.invulnUntil = now + INVULN_MS;
 
-    player.setTint(0xff6666);
-    this.time.delayedCall(120, () => player.clearTint());
+    player.setTint(0xff8888);
+    this.time.delayedCall(100, () => player.clearTint());
+    this.cameras.main.shake(120, 0.012);
 
     if (this.hp <= 0) {
       this.hp = 0;
       this.physics.pause();
-      this.hudText.setText('GAME OVER\nTempo: ' + Math.floor(this.elapsed) + 's\nR para reiniciar');
+      this.hudText.setText(
+        ['GAME OVER', `Sobreviveu ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}  LV ${this.level}`, 'R para reiniciar'].join('\n'),
+      );
       this.input.keyboard?.once('keydown-R', () => this.scene.restart());
     }
   }
@@ -447,12 +554,11 @@ export class GameScene extends Phaser.Scene {
   private updateHud(): void {
     this.hudText.setText(
       [
-        'TITÃ — Build Tanque (MVP)',
-        `HP ${this.hp}/${this.maxHp}`,
-        `LV ${this.level}  XP ${this.xp}/${this.xpToNext}`,
-        `Aura ${this.auraDamage} dmg  ${Math.round(this.auraRadius)}px`,
+        'SURVIVAL DRAG — Build Tanque',
+        `HP ${Math.ceil(this.hp)}/${this.maxHp}   LV ${this.level}`,
+        `XP ${this.xp}/${this.xpToNext}   Kills ${this.kills}`,
+        `Órbitas ${this.orbitCount} (${this.orbitDamage} dmg)  Pulso ${this.pulseDamage}`,
         `Tempo ${Math.floor(this.elapsed)}s`,
-        'WASD / Setas para mover',
       ].join('\n'),
     );
   }
