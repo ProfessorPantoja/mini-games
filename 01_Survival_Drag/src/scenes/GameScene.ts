@@ -127,10 +127,11 @@ export class GameScene extends Phaser.Scene {
   private chasePlayer(): void {
     this.enemies.children.each((child) => {
       const enemy = child as Phaser.Physics.Arcade.Sprite;
-      if (!enemy.active) return;
+      if (!enemy.active) return true;
 
       const speed = enemy.getData('speed') as number;
       this.physics.moveToObject(enemy, this.player, speed);
+      return true;
     });
   }
 
@@ -178,8 +179,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPlayerHitEnemy(
-    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile,
-    enemyObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile,
+    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
+    enemyObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
   ): void {
     const player = playerObj as Phaser.Physics.Arcade.Sprite;
     const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
