@@ -9,7 +9,7 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.6.0";
+  const GAME_VERSION = "1.6.1";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   /** Ranking local da missão curta (MVP). Sobe para 10 depois. */
@@ -166,6 +166,7 @@
     missionComplete: false,
     endless: false,
     runStart: 0,
+    runEnd: 0, // congela o cronômetro no fim da run
     maxWeaponLevel: 1,
     bombsUsed: 0,
     bossesKilled: 0,
@@ -1442,22 +1443,47 @@
 
   function runElapsed() {
     if (!game.runStart) return 0;
-    return (performance.now() - game.runStart) / 1000;
+    const end = game.runEnd || performance.now();
+    return (end - game.runStart) / 1000;
   }
 
-  /** Rank da run — missão curta (5 waves): limiares calibrados para MVP */
+  function freezeRunTime() {
+    if (!game.runEnd) game.runEnd = performance.now();
+  }
+
+  /**
+   * Rank da run — C < B < A < S < S+
+   * S+ = elite (missão limpa + zero damage) — o flex de verdade
+   */
   function calcRank() {
+    if (game.missionComplete && isZeroDamage()) return "S+";
+
     let score = game.score;
     if (game.missionComplete) score += 6000;
     score += game.maxCombo * 80;
     score += game.maxWeaponLevel * 1200;
     score += game.bossesKilled * 2500;
-    if (game.hitsTaken === 0 && game.missionComplete) score += 8000;
     if (score >= 32000) return "S";
     if (score >= 16000) return "A";
     if (score >= 7000) return "B";
     if (game.missionComplete) return "B";
     return "C";
+  }
+
+  /**
+   * Estrelas 0–3 (destaque visual separado do letter rank)
+   * 1★ completou · 2★ rank alto · 3★ zero damage na missão
+   */
+  function calcStars() {
+    let stars = 0;
+    if (game.missionComplete) stars = 1;
+    const letter = calcRank();
+    if (game.missionComplete && (letter === "A" || letter === "S" || letter === "S+")) {
+      stars = 2;
+    }
+    if (game.missionComplete && isZeroDamage()) stars = 3;
+    else if (!game.missionComplete && game.score >= 20000) stars = Math.max(stars, 1);
+    return stars;
   }
 
   function isZeroDamage() {
@@ -1520,6 +1546,7 @@
       zeroDamage: isZeroDamage(),
       completed: !!game.missionComplete,
       rank: calcRank(),
+      stars: calcStars(),
       date: new Date().toISOString(),
     };
   }
@@ -1550,7 +1577,19 @@
   function setRankEl(el, rank) {
     if (!el) return;
     el.textContent = rank;
-    el.className = "rank-letter rank-" + rank;
+    const cls = "rank-" + String(rank).replace("+", "plus");
+    el.className = "rank-letter " + cls;
+  }
+
+  function setStarsEl(containerId, n) {
+    const box = $(containerId);
+    if (!box) return;
+    const stars = clamp(n | 0, 0, 3);
+    box.innerHTML = [0, 1, 2]
+      .map((i) => `<span class="star${i < stars ? " on" : ""}">★</span>`)
+      .join("");
+    box.classList.toggle("perfect", stars === 3);
+    box.setAttribute("aria-label", `${stars} de 3 estrelas`);
   }
 
   function applyPowerup(type) {
@@ -2040,12 +2079,15 @@
         const fl = flagMeta(e.flag);
         const zd = e.zeroDamage ? '<span class="zd-tag">0 DMG</span>' : "";
         const done = e.completed ? "" : '<span class="fail-tag">DNF</span>';
+        const starN = clamp(e.stars | 0, 0, 3);
+        const starStr = "★".repeat(starN) + "☆".repeat(3 - starN);
+        const rankL = e.rank || "—";
         return `<div class="rank-row">
           <span class="rank-pos">#${i + 1}</span>
           <span class="rank-flag" title="${fl.name}">${fl.emoji}</span>
-          <span class="rank-name">${escapeHtml(e.name)}</span>
+          <span class="rank-name">${escapeHtml(e.name)} <span class="rank-letter-sm">${escapeHtml(rankL)}</span></span>
           <span class="rank-score">${Number(e.score).toLocaleString("pt-BR")}</span>
-          <span class="rank-meta">${formatTime(e.time)} · W${e.wave}${zd}${done}</span>
+          <span class="rank-meta"><span class="rank-stars-sm">${starStr}</span> · ${formatTime(e.time)} · W${e.wave}${zd}${done}</span>
         </div>`;
       })
       .join("");
@@ -2067,9 +2109,11 @@
 
   function showVictory() {
     state = "victory";
+    freezeRunTime();
     AudioSys.waveClear();
     const rank = calcRank();
     setRankEl($("victory-rank"), rank);
+    setStarsEl("victory-stars", calcStars());
     fillRunStats("victory");
     prepareRankForm("victory");
 
@@ -2213,6 +2257,7 @@
     game.missionComplete = false;
     game.endless = false;
     game.runStart = performance.now();
+    game.runEnd = 0;
     game.maxWeaponLevel = 1;
     game.bombsUsed = 0;
     game.bossesKilled = 0;
@@ -2296,6 +2341,7 @@
 
   function endGame() {
     state = "over";
+    freezeRunTime();
     AudioSys.stopMusic();
     AudioSys.gameOver();
     if (player) burst(player.x, player.y, "#00f0ff", 50, 300, 0.8);
@@ -2309,6 +2355,7 @@
 
     const rank = calcRank();
     setRankEl($("over-rank"), rank);
+    setStarsEl("over-stars", calcStars());
     fillRunStats("over");
     prepareRankForm("over");
     $("over-new-record")?.classList.toggle("hidden", !isNew);
@@ -2500,7 +2547,17 @@
     D: "right",
   };
 
+  function isTypingInField() {
+    const t = document.activeElement;
+    if (!t) return false;
+    const tag = (t.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || t.isContentEditable;
+  }
+
   window.addEventListener("keydown", (e) => {
+    // Campo de nome / ranking: não engolir teclas do teclado
+    if (isTypingInField()) return;
+
     if (keyMap[e.key] != null) {
       input[keyMap[e.key]] = true;
       e.preventDefault();
@@ -2535,6 +2592,7 @@
   });
 
   window.addEventListener("keyup", (e) => {
+    if (isTypingInField()) return;
     if (keyMap[e.key] != null) input[keyMap[e.key]] = false;
     if (e.key === " " || e.code === "Space") input.fire = false;
   });
