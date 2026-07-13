@@ -9,7 +9,7 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.4.1";
+  const GAME_VERSION = "1.5.0";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   const MISSION_WAVE = 10; // limpar o setor
@@ -701,52 +701,58 @@
 
   // ─── Enemies ─────────────────────────────────────────────
   function enemyDefs(wave) {
-    // Modo fácil/diversão: escala suave, inimigos mais frágeis
+    // Modo fácil: cada tipo com identidade (movimento/tiro), ainda generoso
     const scale = 0.75 + (wave - 1) * 0.035;
     return {
+      // Desce devagar em coluna — “soldado de linha”
       grunt: {
-        hp: 1.6 * scale,
-        speed: 55 + wave * 2,
+        hp: 2.2 * scale,
+        speed: 48 + wave * 1.5,
         score: 100,
         r: 14,
         color: "#ff5c7a",
         kind: "grunt",
       },
+      // Zigzag largo — difícil de mirar no spray
       zigzag: {
-        hp: 1.5 * scale,
-        speed: 80 + wave * 2.5,
+        hp: 2 * scale,
+        speed: 75 + wave * 2,
         score: 150,
         r: 12,
         color: "#ffd166",
         kind: "zigzag",
       },
+      // Lento, tanque, ocasionalmente um tiro lento
       tank: {
-        hp: 6 * scale,
-        speed: 32 + wave * 0.6,
-        score: 300,
+        hp: 9 * scale,
+        speed: 28 + wave * 0.5,
+        score: 320,
         r: 20,
         color: "#8b5cff",
         kind: "tank",
       },
+      // Fica no meio e atira (cadência mansa no fácil)
       shooter: {
-        hp: 3 * scale,
-        speed: 42 + wave * 1.2,
-        score: 250,
+        hp: 3.5 * scale,
+        speed: 38 + wave,
+        score: 260,
         r: 15,
         color: "#ff2bd6",
         kind: "shooter",
       },
+      // Persegue o jogador
       kamikaze: {
-        hp: 1.2 * scale,
-        speed: 120 + wave * 3.5,
+        hp: 1.8 * scale,
+        speed: 100 + wave * 2.5,
         score: 200,
         r: 11,
         color: "#ff8844",
         kind: "kamikaze",
       },
+      // Rápido, órbita lateral
       drone: {
-        hp: 0.9 * scale,
-        speed: 70 + wave * 2,
+        hp: 1.4 * scale,
+        speed: 65 + wave * 1.5,
         score: 80,
         r: 10,
         color: "#00f0ff",
@@ -755,20 +761,34 @@
     };
   }
 
-  function spawnEnemy(type, x, y) {
+  function spawnEnemy(type, x, y, opts = {}) {
     const defs = enemyDefs(game.wave);
     const d = defs[type] || defs.grunt;
-    enemies.push({
+    const e = {
       ...d,
       x: x ?? rand(30, W - 30),
       y: y ?? -30,
       maxHp: d.hp,
       hp: d.hp,
       t: rand(0, Math.PI * 2),
-      fireCd: rand(0.5, 1.5),
-      phase: 0,
+      fireCd: rand(0.8, 2),
+      phase: rand(0, Math.PI * 2),
       hitFlash: 0,
-    });
+      swarm: !!opts.swarm,
+    };
+
+    // Enxame: mais vida, hitbox menor, desce mais devagar, cor própria
+    // Ainda dá para limpar — só não some em 1 segundo de spray
+    if (e.swarm) {
+      e.hp = e.maxHp = 4.2 + game.wave * 0.15;
+      e.r = 8;
+      e.speed = (d.speed || 60) * 0.55;
+      e.score = 55;
+      e.color = type === "grunt" ? "#9dff8a" : "#5dffc8";
+      e.kind = type; // mantém AI base + flag swarm no update
+    }
+
+    enemies.push(e);
   }
 
   function buildWave(n) {
@@ -824,9 +844,9 @@
         const col = i % 10;
         const row = Math.floor(i / 10);
         q.push({
-          delay: swarmStart + row * 0.18 + col * 0.03,
-          type: chance(0.75) ? "drone" : "grunt",
-          x: 36 + col * 44 + rand(-6, 6),
+          delay: swarmStart + row * 0.22 + col * 0.04,
+          type: chance(0.7) ? "drone" : "grunt",
+          x: 36 + col * 44 + rand(-8, 8),
           swarm: true,
         });
       }
@@ -891,7 +911,10 @@
           continue;
         }
         if (s.boss) spawnBoss();
-        else spawnEnemy(s.type, s.x, s.swarm ? -15 - rand(0, 40) : -20);
+        else
+          spawnEnemy(s.type, s.x, s.swarm ? -15 - rand(0, 50) : -20, {
+            swarm: !!s.swarm,
+          });
       }
     }
 
@@ -905,40 +928,66 @@
         continue;
       }
 
-      switch (e.kind) {
-        case "zigzag":
-          e.x += Math.sin(e.t * 4) * 120 * dt;
-          e.y += e.speed * dt;
-          break;
-        case "tank":
-          e.y += e.speed * dt;
-          e.x += Math.sin(e.t * 1.2) * 30 * dt;
-          break;
-        case "shooter":
-          e.y += e.speed * 0.7 * dt;
-          e.x += Math.sin(e.t * 2) * 50 * dt;
-          e.fireCd -= dt;
-          if (e.fireCd <= 0 && e.y > 20 && e.y < H * 0.65) {
-            e.fireCd = Math.max(1.1, 2.0 - game.wave * 0.04);
-            aimShoot(e, 150 + game.wave * 2, "#ff4d6d");
-          }
-          break;
-        case "kamikaze":
-          if (player) {
-            const a = Math.atan2(player.y - e.y, player.x - e.x);
-            e.x += Math.cos(a) * e.speed * dt;
-            e.y += Math.sin(a) * e.speed * 0.85 * dt + 40 * dt;
-          } else {
+      // Identidade por tipo (+ comportamento extra se for enxame)
+      if (e.swarm) {
+        // Nuvem viva: sobe/desce pouco, oscila forte — exige varredura
+        e.x += Math.sin(e.t * 5.5 + e.phase) * 160 * dt;
+        e.y += e.speed * dt + Math.sin(e.t * 3 + e.phase) * 25 * dt;
+      } else {
+        switch (e.kind) {
+          case "zigzag":
+            e.x += Math.sin(e.t * 4.2) * 140 * dt;
             e.y += e.speed * dt;
-          }
-          break;
-        case "drone":
-          e.y += e.speed * dt;
-          e.x += Math.cos(e.t * 5 + e.phase) * 80 * dt;
-          break;
-        default:
-          e.y += e.speed * dt;
-          e.x += Math.sin(e.t * 2) * 20 * dt;
+            break;
+          case "tank":
+            e.y += e.speed * dt;
+            e.x += Math.sin(e.t * 1.1) * 22 * dt;
+            e.fireCd -= dt;
+            // tiro raro e lento (fácil de desviar)
+            if (e.fireCd <= 0 && e.y > 40 && e.y < H * 0.55) {
+              e.fireCd = 2.4;
+              spawnBullet(e.x, e.y + 12, 0, 120, 7, "#b48cff", false);
+            }
+            break;
+          case "shooter":
+            e.y += e.speed * 0.55 * dt;
+            e.x += Math.sin(e.t * 1.6) * 40 * dt;
+            e.fireCd -= dt;
+            if (e.fireCd <= 0 && e.y > 30 && e.y < H * 0.6) {
+              e.fireCd = Math.max(1.35, 2.1 - game.wave * 0.03);
+              // leque de 3 tiros lentos (identidade) — ainda fácil
+              for (let a = -1; a <= 1; a++) {
+                const ang = Math.PI / 2 + a * 0.22;
+                spawnBullet(
+                  e.x,
+                  e.y + 10,
+                  Math.cos(ang) * 140,
+                  Math.sin(ang) * 140,
+                  5,
+                  "#ff4d6d",
+                  false
+                );
+              }
+            }
+            break;
+          case "kamikaze":
+            if (player) {
+              const a = Math.atan2(player.y - e.y, player.x - e.x);
+              e.x += Math.cos(a) * e.speed * 0.9 * dt;
+              e.y += Math.sin(a) * e.speed * 0.75 * dt + 35 * dt;
+            } else {
+              e.y += e.speed * dt;
+            }
+            break;
+          case "drone":
+            e.y += e.speed * 0.85 * dt;
+            e.x += Math.cos(e.t * 4.5 + e.phase) * 95 * dt;
+            break;
+          default:
+            // grunt: desce em leve “S”
+            e.y += e.speed * dt;
+            e.x += Math.sin(e.t * 1.5 + e.phase) * 28 * dt;
+        }
       }
 
       e.x = clamp(e.x, e.r, W - e.r);
@@ -2228,6 +2277,10 @@
       if (state === "playing") toggleAutoFire();
       e.preventDefault();
     }
+    if (e.key === "m" || e.key === "M") {
+      toggleMuteUI();
+      e.preventDefault();
+    }
     if (e.key === "b" || e.key === "B" || e.key === "Shift") {
       if (state === "playing") useBomb();
       e.preventDefault();
@@ -2372,6 +2425,25 @@
     }
   }
 
+  function toggleMuteUI() {
+    const muted = AudioSys.toggleMute();
+    updateMuteUI();
+    if (!muted) AudioSys.uiClick();
+  }
+
+  function updateMuteUI() {
+    const muted = AudioSys.isMuted();
+    const menu = $("btn-mute");
+    const hud = $("btn-mute-hud");
+    if (menu) menu.textContent = muted ? "SOM: OFF" : "SOM: ON";
+    if (hud) {
+      hud.textContent = muted ? "🔇" : "🔊";
+      hud.classList.toggle("off", muted);
+    }
+    // reaplica gain se contexto já existe
+    AudioSys.setMuted(muted);
+  }
+
   function updateAutoFireUI() {
     const on = !!input.autoFire;
     const hudBtn = $("btn-autofire");
@@ -2404,30 +2476,6 @@
     if (state === "playing" || state === "pause") toggleAutoFire();
   });
 
-  // FOGO no mobile: segurar o botão
-  const fireBtn = $("btn-touch-fire");
-  if (fireBtn) {
-    const down = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      input.fire = true;
-      fireBtn.classList.add("held");
-    };
-    const up = (e) => {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      input.fire = false;
-      fireBtn.classList.remove("held");
-    };
-    fireBtn.addEventListener("touchstart", down, { passive: false });
-    fireBtn.addEventListener("touchend", up, { passive: false });
-    fireBtn.addEventListener("touchcancel", up, { passive: false });
-    fireBtn.addEventListener("mousedown", down);
-    window.addEventListener("mouseup", up);
-  }
-
   function applyVersionLabels() {
     const label = `v${GAME_VERSION}`;
     const titleVer = $("title-version");
@@ -2443,8 +2491,19 @@
   }
 
   // ─── Boot ────────────────────────────────────────────────
+  $("btn-mute")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    toggleMuteUI();
+  });
+  $("btn-mute-hud")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMuteUI();
+  });
+
   applyVersionLabels();
   updateAutoFireUI();
+  updateMuteUI();
   initStars();
   refreshTitleHi();
   refreshAchievementsUI();

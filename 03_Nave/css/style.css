@@ -459,17 +459,9 @@ body {
   box-shadow: 0 0 16px rgba(255, 209, 102, 0.3);
 }
 
-.touch-fire {
-  width: 70px;
-  height: 70px;
-  border-color: rgba(0, 240, 255, 0.85);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
-}
-
-.touch-fire:active,
-.touch-fire.held {
-  background: rgba(0, 240, 255, 0.28);
-  transform: scale(0.96);
+.touch-auto {
+  width: 64px;
+  height: 64px;
 }
 
 .touch-auto.on {
@@ -986,8 +978,29 @@ body {
 }
 
 .wave-block { text-align: center; }
-.hi-block { text-align: right; }
+.hi-block { text-align: right; position: relative; }
 .hi-block .value { color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, 0.45); }
+
+.mute-hud-btn {
+  pointer-events: auto;
+  display: block;
+  margin-left: auto;
+  margin-top: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mute-hud-btn.off {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
 
 .lives {
   display: flex;

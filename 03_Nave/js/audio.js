@@ -37,9 +37,27 @@ const AudioSys = (() => {
   }
 
   function setMuted(v) {
-    muted = v;
+    muted = !!v;
+    try {
+      localStorage.setItem("neonstrike_muted", muted ? "1" : "0");
+    } catch (_) {}
     if (master) master.gain.value = muted ? 0 : 0.7;
   }
+
+  function toggleMute() {
+    ensure();
+    setMuted(!muted);
+    return muted;
+  }
+
+  function isMuted() {
+    return muted;
+  }
+
+  // restaura preferência
+  try {
+    if (localStorage.getItem("neonstrike_muted") === "1") muted = true;
+  } catch (_) {}
 
   function tone(freq, type, dur, vol, dest, slideTo) {
     if (!ctx || muted) return;
@@ -236,6 +254,8 @@ const AudioSys = (() => {
   return {
     unlock,
     setMuted,
+    toggleMute,
+    isMuted,
     shoot,
     hit,
     explosion,

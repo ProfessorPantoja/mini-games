@@ -44,6 +44,7 @@
             <div class="hud-block hi-block">
               <span class="label">HI-SCORE</span>
               <span id="hud-hiscore" class="value">0</span>
+              <button type="button" id="btn-mute-hud" class="mute-hud-btn" title="Som (M)">🔊</button>
             </div>
           </div>
 
@@ -133,13 +134,14 @@
               <span class="t1">NEON</span>
               <span class="t2">STRIKE</span>
             </h1>
-            <p class="version-line" id="title-version">v1.4.0</p>
-            <p class="tagline">Tiro manual/auto · Enxames · Missão wave 10</p>
+            <p class="version-line" id="title-version">v1.5.0</p>
+            <p class="tagline">Enxames · Identidade · Missão wave 10</p>
           </div>
 
           <div class="menu-actions">
             <button id="btn-start" class="btn primary pulse">INICIAR MISSÃO</button>
             <button id="btn-how" class="btn ghost">COMO JOGAR</button>
+            <button id="btn-mute" class="btn ghost" type="button">SOM: ON</button>
           </div>
 
           <div class="title-stats">
@@ -190,10 +192,10 @@
           <ul class="howto">
             <li><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> — Mover a nave</li>
             <li><kbd>Toque</kbd> — Arraste o dedo: a nave se move, mas não cola no dedo</li>
-            <li><kbd>Espaço</kbd> / <kbd>FOGO</kbd> — Segure para atirar</li>
-            <li><kbd>T</kbd> / <kbd>AUTO</kbd> — Liga/desliga tiro automático</li>
-            <li><kbd>B</kbd> / <kbd>BOMBA</kbd> — Bomba (limpa a tela)</li>
-            <li><kbd>V</kbd> / <kbd>ESP</kbd> — Especial (barra cheia)</li>
+            <li><kbd>T</kbd> / <kbd>AUTO</kbd> — Liga/desliga o tiro</li>
+            <li><kbd>Espaço</kbd> — Atalho: segure para atirar (PC)</li>
+            <li><kbd>B</kbd> / <kbd>BOMBA</kbd> — Bomba</li>
+            <li><kbd>V</kbd> / <kbd>ESP</kbd> — Especial</li>
             <li><kbd>P</kbd> / <kbd>Esc</kbd> — Pausar</li>
           </ul>
           <div class="howto-grid">
@@ -278,7 +280,7 @@
       </aside>
     </div>
 
-    <footer class="credits" id="footer-version">v1.4.0</footer>
+    <footer class="credits" id="footer-version">v1.5.0</footer>
   </div>
 
   <script src="js/audio.js"></script>
