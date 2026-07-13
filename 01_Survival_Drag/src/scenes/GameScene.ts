@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
-import { FLOOR_COLOR } from '../data/assets';
 import { ENEMY_TYPES, type EnemyDefinition, type EnemyTier, type EnemyType } from '../data/enemies';
 import { pickTankCards, type TankCard } from '../data/tankCards';
 import { WORLD_SIZE, type WorldZone } from '../data/worldMap';
 import { CombatFeedback } from '../effects/CombatFeedback';
 import { MapDirector } from '../systems/MapDirector';
+import { sfx } from '../systems/Sfx';
 
 const PLAYER_SPEED = 200;
 const INVULN_MS = 600;
@@ -78,13 +78,21 @@ export class GameScene extends Phaser.Scene {
   private hudTimer = 0;
   private pulseHitSet = new Set<Phaser.GameObjects.GameObject>();
   private enemyList: Phaser.GameObjects.Image[] = [];
+  private invulnBlinkTimer = 0;
+  private lastHitSfxAt = 0;
 
   constructor() {
     super('GameScene');
   }
 
   create(): void {
-    this.add.rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, FLOOR_COLOR).setOrigin(0.5);
+    this.resetRunState();
+
+    // Chão com grama tileada (em vez de retângulo liso)
+    this.add
+      .tileSprite(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, 'grass')
+      .setOrigin(0.5)
+      .setDepth(0);
 
     this.mapDirector = new MapDirector(this);
     this.enemies = this.add.group();
@@ -101,9 +109,14 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.cameras.main.fadeIn(350, 0, 0, 0);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as typeof this.wasd;
+
+    // Garante áudio desbloqueado se o jogador veio do menu
+    sfx.unlock();
+    this.input.once('pointerdown', () => sfx.unlock());
 
     this.hudText = this.add
       .text(12, 12, '', {
@@ -118,6 +131,48 @@ export class GameScene extends Phaser.Scene {
 
     this.rebuildOrbits();
     this.updateHud();
+  }
+
+  /** Phaser reusa a instância no restart — precisa zerar o run */
+  private resetRunState(): void {
+    this.hp = 120;
+    this.maxHp = 120;
+    this.level = 1;
+    this.xp = 0;
+    this.xpToNext = 4;
+    this.elapsed = 0;
+    this.invulnUntil = 0;
+    this.isLevelUpOpen = false;
+    this.isGameOver = false;
+    this.isVictory = false;
+    this.kills = 0;
+    this.pendingLevelUps = 0;
+    this.levelUpTimer = undefined;
+    this.knockbackX = 0;
+    this.knockbackY = 0;
+    this.orbitCount = 2;
+    this.orbitAngle = 0;
+    this.orbitDamage = 1;
+    this.orbitHitCooldown.clear();
+    this.pulseRadius = 0;
+    this.pulseMaxRadius = 95;
+    this.pulseDamage = 2;
+    this.pulseIntervalMs = 1100;
+    this.pulseTimer = 0;
+    this.pulseActive = false;
+    this.magnetRange = MAGNET_BASE;
+    this.vampirismHeal = 0;
+    this.speedMult = 1;
+    this.spawnTimer = 0;
+    this.trailTimer = 0;
+    this.clearedEliteZones.clear();
+    this.hudTimer = 0;
+    this.pulseHitSet.clear();
+    this.enemyList = [];
+    this.orbs = [];
+    this.invulnBlinkTimer = 0;
+    this.lastHitSfxAt = 0;
+    this.cardOverlay = undefined;
   }
 
   update(_time: number, delta: number): void {
@@ -163,6 +218,7 @@ export class GameScene extends Phaser.Scene {
     this.updateOrbits(delta);
     this.attractXpGems(dt);
     this.checkPlayerContact();
+    this.updateInvulnBlink(delta);
     this.drawEffects();
 
     this.hudTimer += delta;
@@ -172,6 +228,24 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.handleMapEvents(delta);
+  }
+
+  /** Pisca vermelho enquanto está invulnerável após tomar dano */
+  private updateInvulnBlink(delta: number): void {
+    if (this.time.now >= this.invulnUntil) {
+      if (this.player.alpha < 1) this.player.setAlpha(1);
+      this.player.clearTint();
+      return;
+    }
+
+    this.invulnBlinkTimer += delta;
+    if (this.invulnBlinkTimer > 70) {
+      this.invulnBlinkTimer = 0;
+      const on = this.player.alpha > 0.6;
+      this.player.setAlpha(on ? 0.35 : 1);
+      if (on) this.player.setTint(0xff6666);
+      else this.player.clearTint();
+    }
   }
 
   private countEnemies(): number {
@@ -186,6 +260,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (events.triggerAmbush) {
+      sfx.ambush();
       this.spawnAmbush();
     }
 
@@ -304,6 +379,7 @@ export class GameScene extends Phaser.Scene {
     this.pulseActive = true;
     this.pulseRadius = 18;
     this.pulseHitSet.clear();
+    sfx.pulse();
   }
 
   private applyPulseDamage(): void {
@@ -348,6 +424,7 @@ export class GameScene extends Phaser.Scene {
 
   private collectGem(gem: Phaser.GameObjects.Image): void {
     this.addXp(gem.getData('value') as number);
+    sfx.xpPickup();
     gem.destroy();
   }
 
@@ -375,6 +452,8 @@ export class GameScene extends Phaser.Scene {
 
     this.pendingLevelUps -= 1;
     this.level += 1;
+    sfx.levelUp();
+    this.combatFx.screenShake('light');
     this.openCardSelection();
   }
 
@@ -436,6 +515,11 @@ export class GameScene extends Phaser.Scene {
     const dmgColor = enemy.getData('tier') === 'tank' ? '#ffcc88' : '#a8ffcc';
     this.combatFx.showDamageNumber(enemy.x, enemy.y, amount, dmgColor);
     this.combatFx.hitPunch(enemy, hitColor);
+    // Evita spam de bip com várias órbitas
+    if (this.time.now - this.lastHitSfxAt > 55) {
+      this.lastHitSfxAt = this.time.now;
+      sfx.hit();
+    }
 
     if (knockback) {
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
@@ -457,6 +541,7 @@ export class GameScene extends Phaser.Scene {
     const y = enemy.y;
     enemy.destroy();
     this.combatFx.deathBurst(x, y, tier, deathColor);
+    sfx.kill(tier);
     this.orbitHitCooldown.delete(enemy);
     this.kills += 1;
 
@@ -466,6 +551,7 @@ export class GameScene extends Phaser.Scene {
         this.clearedEliteZones.add(zoneId);
         this.spawnBonusGems(x, y, 8);
         this.showBanner(`ELITE DERROTADO — ${zone.label}`, 0xcc66ff);
+        this.combatFx.screenShake('medium');
       }
     }
 
@@ -473,6 +559,8 @@ export class GameScene extends Phaser.Scene {
       this.isVictory = true;
       this.mapDirector.setVictory();
       this.spawnBonusGems(x, y, 20);
+      sfx.victory();
+      this.combatFx.screenShake('heavy');
       this.showBanner('CHEFÃO DERROTADO — VITÓRIA!', 0xff8844);
       this.time.delayedCall(1800, () => {
         this.hudText.setText(['VITÓRIA!', `Tempo ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}`, 'R para jogar de novo'].join('\n'));
@@ -554,6 +642,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private applyCard(card: TankCard): void {
+    sfx.cardPick();
     switch (card.id) {
       case 'shield':
         this.maxHp += 30;
@@ -661,6 +750,8 @@ export class GameScene extends Phaser.Scene {
 
   private spawnBoss(): void {
     const zone = this.mapDirector.getBossZone();
+    sfx.boss();
+    this.combatFx.screenShake('heavy');
     this.showBanner('CHEFÃO APARECEU!', 0xff6622);
     this.spawnEnemyAt(zone.x, zone.y, 'golem', {
       texture: 'boss',
@@ -761,19 +852,23 @@ export class GameScene extends Phaser.Scene {
       if (dx * dx + dy * dy > rangeSq) continue;
 
       this.invulnUntil = now + INVULN_MS;
+      this.invulnBlinkTimer = 0;
       this.hp -= enemy.getData('damage') as number;
 
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       this.knockbackX = (dx / dist) * 320;
       this.knockbackY = (dy / dist) * 320;
-      this.player.setTint(0xff8888);
-      this.time.delayedCall(100, () => {
-        if (this.player.active) this.player.clearTint();
-      });
+      this.player.setTint(0xff6666);
+      sfx.playerHurt();
+      this.combatFx.screenShake('medium');
+      this.combatFx.hurtFlash();
 
       if (this.hp <= 0) {
         this.hp = 0;
         this.isGameOver = true;
+        sfx.gameOver();
+        this.player.setAlpha(1);
+        this.player.setTint(0x666666);
         this.hudText.setText(
           ['GAME OVER', `Sobreviveu ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}  LV ${this.level}`, 'R para reiniciar'].join('\n'),
         );

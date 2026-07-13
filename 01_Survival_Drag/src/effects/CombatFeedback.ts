@@ -27,12 +27,12 @@ export class CombatFeedback {
   }
 
   hitPunch(target: Phaser.GameObjects.Image, hitColor: number): void {
-    const base = target.getData('baseScale') as number ?? target.scaleX;
+    const base = (target.getData('baseScale') as number) ?? target.scaleX;
     target.setTint(hitColor);
     this.scene.tweens.add({
       targets: target,
       scaleX: base * 1.3,
-      scaleY: base * 1.3,
+      scaleY: base * 0.75,
       duration: 70,
       yoyo: true,
       ease: 'Quad.easeOut',
@@ -43,6 +43,18 @@ export class CombatFeedback {
         }
       },
     });
+  }
+
+  /** Treme a câmera levemente — impacto de hit/morte/dano no player */
+  screenShake(intensity: 'light' | 'medium' | 'heavy' = 'light'): void {
+    const map = { light: 0.004, medium: 0.008, heavy: 0.016 };
+    const dur = { light: 60, medium: 100, heavy: 180 };
+    this.scene.cameras.main.shake(dur[intensity], map[intensity]);
+  }
+
+  /** Flash vermelho na borda da tela ao tomar dano */
+  hurtFlash(): void {
+    this.scene.cameras.main.flash(120, 180, 40, 40, false, undefined, this);
   }
 
   deathBurst(x: number, y: number, tier: EnemyTier, color: number): void {
@@ -76,6 +88,7 @@ export class CombatFeedback {
         duration: 280,
         onComplete: () => ring.destroy(),
       });
+      this.screenShake(tier === 'tank' ? 'medium' : 'light');
     }
   }
 }
