@@ -58,6 +58,11 @@
     mx: W / 2,
     my: H * 0.75,
     pointer: false,
+    // Toque/mouse: arraste RELATIVO (nave não vai para o dedo)
+    dragActive: false,
+    lastPx: 0,
+    lastPy: 0,
+    dragLean: 0,
   };
 
   const game = {
@@ -276,17 +281,9 @@
     let dx = 0;
     let dy = 0;
 
-    if (input.pointer) {
-      const tx = input.mx;
-      const ty = input.my;
-      const ddx = tx - player.x;
-      const ddy = ty - player.y;
-      const d = Math.hypot(ddx, ddy);
-      if (d > 4) {
-        dx = ddx / d;
-        dy = ddy / d;
-      }
-    } else {
+    // Teclado sempre funciona. Toque/mouse move a nave no handler de drag
+    // (relativo) — NÃO atrai a nave para a posição do dedo.
+    if (!input.dragActive) {
       if (input.left) dx -= 1;
       if (input.right) dx += 1;
       if (input.up) dy -= 1;
@@ -296,12 +293,15 @@
         dx /= l;
         dy /= l;
       }
+      const spd = player.speed * (game.speedBoost > 0 ? 1.45 : 1);
+      player.x = clamp(player.x + dx * spd * dt, 18, W - 18);
+      player.y = clamp(player.y + dy * spd * dt, 40, H - 24);
+      player.angle = lerp(player.angle, dx * 0.35, 0.2);
+    } else {
+      // Inclinação visual suave no arraste
+      player.angle = lerp(player.angle, clamp(input.dragLean, -0.4, 0.4), 0.25);
+      input.dragLean *= 0.85;
     }
-
-    const spd = player.speed * (game.speedBoost > 0 ? 1.45 : 1);
-    player.x = clamp(player.x + dx * spd * dt, 18, W - 18);
-    player.y = clamp(player.y + dy * spd * dt, 40, H - 24);
-    player.angle = lerp(player.angle, dx * 0.35, 0.2);
 
     thruster(player.x, player.y + 14);
     if (game.speedBoost > 0) thruster(player.x + 6, player.y + 12);
@@ -1837,35 +1837,75 @@
     if (e.key === " " || e.code === "Space") input.fire = false;
   });
 
-  function pointerPos(e) {
+  /** Coordenadas do ponteiro no espaço do jogo (0..W, 0..H). */
+  function pointerCoords(e) {
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    input.mx = ((clientX - rect.left) / rect.width) * W;
-    input.my = ((clientY - rect.top) / rect.height) * H;
+    const t =
+      e.touches && e.touches[0]
+        ? e.touches[0]
+        : e.changedTouches && e.changedTouches[0]
+          ? e.changedTouches[0]
+          : e;
+    return {
+      x: ((t.clientX - rect.left) / rect.width) * W,
+      y: ((t.clientY - rect.top) / rect.height) * H,
+    };
+  }
+
+  /**
+   * Toque/arraste RELATIVO:
+   * - ao tocar, a nave NÃO vai para o dedo (fica onde está)
+   * - ao arrastar, a nave se desloca pelo mesmo delta do dedo
+   */
+  function onPointerDown(e) {
+    const p = pointerCoords(e);
+    input.pointer = true;
+    input.fire = true;
+    input.dragActive = true;
+    input.lastPx = p.x;
+    input.lastPy = p.y;
+    input.mx = p.x;
+    input.my = p.y;
+    input.dragLean = 0;
+    if (state === "title") startGame();
+  }
+
+  function onPointerMove(e) {
+    if (!input.dragActive) return;
+    const p = pointerCoords(e);
+    const dx = p.x - input.lastPx;
+    const dy = p.y - input.lastPy;
+    input.lastPx = p.x;
+    input.lastPy = p.y;
+    input.mx = p.x;
+    input.my = p.y;
+    input.dragLean = lerp(input.dragLean, dx * 0.12, 0.5);
+
+    if (player && state === "playing") {
+      player.x = clamp(player.x + dx, 18, W - 18);
+      player.y = clamp(player.y + dy, 40, H - 24);
+    }
+  }
+
+  function onPointerUp() {
+    input.pointer = false;
+    input.fire = false;
+    input.dragActive = false;
+    input.dragLean = 0;
   }
 
   canvas.addEventListener("mousedown", (e) => {
-    input.pointer = true;
-    input.fire = true;
-    pointerPos(e);
-    if (state === "title") startGame();
+    onPointerDown(e);
   });
-  window.addEventListener("mouseup", () => {
-    input.pointer = false;
-    input.fire = false;
-  });
+  window.addEventListener("mouseup", onPointerUp);
   canvas.addEventListener("mousemove", (e) => {
-    if (input.pointer) pointerPos(e);
+    if (input.dragActive) onPointerMove(e);
   });
 
   canvas.addEventListener(
     "touchstart",
     (e) => {
-      input.pointer = true;
-      input.fire = true;
-      pointerPos(e);
-      if (state === "title") startGame();
+      onPointerDown(e);
       e.preventDefault();
     },
     { passive: false }
@@ -1873,15 +1913,22 @@
   canvas.addEventListener(
     "touchmove",
     (e) => {
-      pointerPos(e);
+      onPointerMove(e);
       e.preventDefault();
     },
     { passive: false }
   );
-  canvas.addEventListener("touchend", () => {
-    input.pointer = false;
-    input.fire = false;
-  });
+  // touchend no window: dedo pode sair do canvas e ainda soltar
+  window.addEventListener(
+    "touchend",
+    (e) => {
+      if (!input.dragActive) return;
+      onPointerUp();
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+  window.addEventListener("touchcancel", onPointerUp);
 
   // UI buttons
   $("btn-start").addEventListener("click", startGame);
