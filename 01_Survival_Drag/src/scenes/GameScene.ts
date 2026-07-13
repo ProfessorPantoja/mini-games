@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { FLOOR_COLOR } from '../data/assets';
 import { pickTankCards, type TankCard } from '../data/tankCards';
-
-const WORLD_SIZE = 3200;
+import { WORLD_SIZE, type WorldZone } from '../data/worldMap';
+import { MapDirector } from '../systems/MapDirector';
 const PLAYER_SPEED = 200;
 const INVULN_MS = 600;
 const MAGNET_BASE = 100;
@@ -74,6 +74,8 @@ export class GameScene extends Phaser.Scene {
   private cardOverlay?: Phaser.GameObjects.Container;
   private spawnTimer = 0;
   private trailTimer = 0;
+  private mapDirector!: MapDirector;
+  private clearedEliteZones = new Set<string>();
 
   constructor() {
     super('GameScene');
@@ -83,6 +85,8 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
     this.add.rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, FLOOR_COLOR).setOrigin(0.5);
+
+    this.mapDirector = new MapDirector(this);
 
     this.player = this.physics.add
       .sprite(WORLD_SIZE / 2, WORLD_SIZE / 2, 'player')
@@ -157,6 +161,24 @@ export class GameScene extends Phaser.Scene {
     this.attractXpGems();
     this.drawEffects();
     this.updateHud();
+    this.handleMapEvents(delta);
+  }
+
+  private handleMapEvents(delta: number): void {
+    const events = this.mapDirector.update(this.elapsed, this.player, delta);
+
+    if (events.enteredElite && !this.clearedEliteZones.has(events.enteredElite.id)) {
+      this.spawnEliteEncounter(events.enteredElite);
+    }
+
+    if (events.triggerAmbush) {
+      this.spawnAmbush();
+    }
+
+    if (events.enteredBoss && !this.mapDirector.isBossSpawned()) {
+      this.spawnBoss();
+      this.mapDirector.setBossSpawned();
+    }
   }
 
   private movePlayer(): void {
@@ -272,7 +294,7 @@ export class GameScene extends Phaser.Scene {
     const barW = 180;
     const barH = 10;
     const bx = 12;
-    const by = 108;
+    const by = 152;
     this.hpBarGfx.clear();
     this.hpBarGfx.fillStyle(0x000000, 0.5);
     this.hpBarGfx.fillRoundedRect(bx, by, barW, barH, 4);
@@ -303,11 +325,33 @@ export class GameScene extends Phaser.Scene {
 
   private killEnemy(enemy: Phaser.Physics.Arcade.Sprite): void {
     const xpValue = enemy.getData('xp') as number;
+    const role = enemy.getData('role') as string | undefined;
+    const zoneId = enemy.getData('zoneId') as string | undefined;
     const x = enemy.x;
     const y = enemy.y;
     enemy.destroy();
     this.orbitHitCooldown.delete(enemy);
     this.kills += 1;
+
+    if (role === 'elite' && zoneId) {
+      const zone = this.mapDirector.markEliteCleared(zoneId);
+      if (zone) {
+        this.clearedEliteZones.add(zoneId);
+        this.spawnBonusGems(x, y, 8);
+        this.showBanner(`ELITE DERROTADO — ${zone.label}`, 0xcc66ff);
+      }
+    }
+
+    if (role === 'boss') {
+      this.mapDirector.setVictory();
+      this.spawnBonusGems(x, y, 20);
+      this.showBanner('CHEFÃO DERROTADO — VITÓRIA!', 0xff8844);
+      this.physics.pause();
+      this.time.delayedCall(2200, () => {
+        this.hudText.setText(['VITÓRIA!', `Tempo ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}`, 'R para jogar de novo'].join('\n'));
+        this.input.keyboard?.once('keydown-R', () => this.scene.restart());
+      });
+    }
 
     if (this.vampirismHeal > 0) {
       this.hp = Math.min(this.maxHp, this.hp + this.vampirismHeal);
@@ -462,13 +506,116 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private showBanner(text: string, color: number): void {
+    const cam = this.cameras.main;
+    const banner = this.add
+      .text(cam.width / 2, 90, text, {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: `#${color.toString(16).padStart(6, '0')}cc`,
+        padding: { x: 12, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(160)
+      .setAlpha(0);
+
+    this.tweens.add({ targets: banner, alpha: 1, duration: 200, yoyo: true, hold: 900, onComplete: () => banner.destroy() });
+    this.cameras.main.flash(180, (color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff, false);
+  }
+
+  private spawnBonusGems(x: number, y: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const gem = this.xpGems.create(
+        x + Phaser.Math.Between(-40, 40),
+        y + Phaser.Math.Between(-40, 40),
+        'xpGem',
+      ) as Phaser.Physics.Arcade.Sprite;
+      gem.setCircle(6);
+      gem.setData('value', 3);
+    }
+  }
+
+  private spawnEliteEncounter(zone: WorldZone): void {
+    this.showBanner(`ELITE — ${zone.label}`, 0xaa44ff);
+
+    const elite = this.spawnEnemyAt(zone.x, zone.y, 'golem', {
+      texture: 'elite',
+      hp: 22,
+      speed: 62,
+      damage: 14,
+      xp: 12,
+      scale: 2.2,
+      role: 'elite',
+      zoneId: zone.id,
+    });
+
+    elite.setTint(0xdd88ff);
+
+    for (let i = 0; i < 7; i++) {
+      const angle = (Math.PI * 2 * i) / 7;
+      const x = zone.x + Math.cos(angle) * 90;
+      const y = zone.y + Math.sin(angle) * 90;
+      this.spawnEnemyAt(x, y, i % 2 === 0 ? 'skeleton' : 'slime');
+    }
+  }
+
+  private spawnAmbush(): void {
+    for (let i = 0; i < 10; i++) {
+      const angle = (Math.PI * 2 * i) / 10;
+      const x = this.player.x + Math.cos(angle) * Phaser.Math.Between(160, 220);
+      const y = this.player.y + Math.sin(angle) * Phaser.Math.Between(160, 220);
+      this.spawnEnemyAt(x, y, Math.random() > 0.4 ? 'skeleton' : 'slime');
+    }
+    this.cameras.main.shake(200, 0.01);
+  }
+
+  private spawnBoss(): void {
+    const zone = this.mapDirector.getBossZone();
+    this.showBanner('CHEFÃO APARECEU!', 0xff6622);
+
+    this.spawnEnemyAt(zone.x, zone.y, 'golem', {
+      texture: 'boss',
+      hp: 90,
+      speed: 38,
+      damage: 18,
+      xp: 30,
+      scale: 3.2,
+      role: 'boss',
+    });
+  }
+
+  private spawnEnemyAt(
+    x: number,
+    y: number,
+    type: EnemyType,
+    overrides?: Partial<EnemyConfig> & { texture?: string; role?: string; zoneId?: string },
+  ): Phaser.Physics.Arcade.Sprite {
+    const base = ENEMY_TYPES[type];
+    const config = { ...base, ...overrides };
+    const enemy = this.enemies.create(x, y, config.texture ?? base.texture) as Phaser.Physics.Arcade.Sprite;
+    enemy.setScale(config.scale);
+    enemy.setCircle(10 * config.scale);
+    enemy.setDepth(12);
+    enemy.setData('hp', config.hp);
+    enemy.setData('speed', config.speed);
+    enemy.setData('damage', config.damage);
+    enemy.setData('xp', config.xp);
+    enemy.setData('type', type);
+    if (overrides?.role) enemy.setData('role', overrides.role);
+    if (overrides?.zoneId) enemy.setData('zoneId', overrides.zoneId);
+    enemy.setAlpha(0);
+    this.tweens.add({ targets: enemy, alpha: 1, duration: 180 });
+    return enemy;
+  }
+
   private spawnEnemy(): void {
     const roll = Math.random();
     let type: EnemyType = 'slime';
     if (this.elapsed > 18 && roll > 0.5) type = 'skeleton';
     if (this.elapsed > 40 && roll > 0.78) type = 'golem';
 
-    const config = ENEMY_TYPES[type];
     const cam = this.cameras.main;
     const margin = 40;
     const left = cam.scrollX - margin;
@@ -500,18 +647,7 @@ export class GameScene extends Phaser.Scene {
     x = Phaser.Math.Clamp(x, 40, WORLD_SIZE - 40);
     y = Phaser.Math.Clamp(y, 40, WORLD_SIZE - 40);
 
-    const enemy = this.enemies.create(x, y, config.texture) as Phaser.Physics.Arcade.Sprite;
-    enemy.setScale(config.scale);
-    enemy.setCircle(10 * config.scale);
-    enemy.setDepth(12);
-    enemy.setData('hp', config.hp);
-    enemy.setData('speed', config.speed);
-    enemy.setData('damage', config.damage);
-    enemy.setData('xp', config.xp);
-    enemy.setData('type', type);
-
-    enemy.setAlpha(0);
-    this.tweens.add({ targets: enemy, alpha: 1, duration: 180 });
+    this.spawnEnemyAt(x, y, type);
   }
 
   private mustBeTouching(
@@ -541,7 +677,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(100, () => player.clearTint());
     this.cameras.main.shake(120, 0.012);
 
-    if (this.hp <= 0) {
+    if (this.hp <= 0 && this.mapDirector.getPhase() !== 'victory') {
       this.hp = 0;
       this.physics.pause();
       this.hudText.setText(
@@ -552,13 +688,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHud(): void {
+    const phase = this.mapDirector.getPhase();
+    const phaseLabel = phase === 'boss' ? 'Fase: Chefão' : phase === 'victory' ? 'Fase: Vitória' : 'Fase: Explorar';
+
     this.hudText.setText(
       [
         'SURVIVAL DRAG — Build Tanque',
         `HP ${Math.ceil(this.hp)}/${this.maxHp}   LV ${this.level}`,
         `XP ${this.xp}/${this.xpToNext}   Kills ${this.kills}`,
         `Órbitas ${this.orbitCount} (${this.orbitDamage} dmg)  Pulso ${this.pulseDamage}`,
-        `Tempo ${Math.floor(this.elapsed)}s`,
+        `${phaseLabel}   Tempo ${Math.floor(this.elapsed)}s`,
       ].join('\n'),
     );
   }
