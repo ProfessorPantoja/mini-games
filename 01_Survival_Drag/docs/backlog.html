@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Survival Drag — Status & Backlog</title>
+  <style>
+    :root {
+      --bg: #0d1210;
+      --card: #142018;
+      --border: #2a4a38;
+      --text: #e8fff0;
+      --muted: #8aafa0;
+      --green: #55ff99;
+      --yellow: #ffdd66;
+      --orange: #ff8844;
+      --purple: #cc66ff;
+      --blue: #3d8bfd;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 32px 20px 64px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    h1 { color: var(--green); font-size: 1.6rem; margin-bottom: 6px; }
+    .sub { color: var(--muted); margin-bottom: 28px; font-size: 0.9rem; }
+    h2 {
+      font-size: 1.05rem;
+      margin: 28px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .done h2 { color: var(--green); }
+    .todo h2 { color: var(--yellow); }
+    .later h2 { color: var(--purple); }
+    ul { list-style: none; }
+    li {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .tag {
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .tag.ok { background: #1a4030; color: var(--green); }
+    .tag.p1 { background: #403010; color: var(--yellow); }
+    .tag.p2 { background: #2a1a40; color: var(--purple); }
+    .tag.p3 { background: #1a2a40; color: var(--blue); }
+    .prompt {
+      background: #0a1810;
+      border-left: 3px solid var(--green);
+      padding: 14px 16px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    .build {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .build strong { display: block; margin-bottom: 6px; }
+    .build.tank strong { color: var(--green); }
+    .build.melee strong { color: var(--orange); }
+    .build.ranged strong { color: var(--blue); }
+    .build p { color: var(--muted); font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+  <h1>Survival Drag</h1>
+  <p class="sub">Status da build Tanque + backlog · atualizado 2026-07-13</p>
+
+  <section class="done">
+    <h2>✓ Feito agora (polish da build Tanque)</h2>
+    <ul>
+      <li><span class="tag ok">OK</span> Tela inicial com botão <strong>JOGAR</strong> (Enter/Espaço)</li>
+      <li><span class="tag ok">OK</span> Sons procedurais: hit, dano no player, kill, XP, level up, emboscada, chefão, vitória, game over</li>
+      <li><span class="tag ok">OK</span> Juice: screen shake, flash vermelho ao tomar dano, piscar de invulnerabilidade, punch “achatado” no hit</li>
+      <li><span class="tag ok">OK</span> Chão com grama tileada (não mais retângulo liso)</li>
+      <li><span class="tag ok">OK</span> Reset correto ao reiniciar com R (HP/level/cartas zerados)</li>
+    </ul>
+  </section>
+
+  <section class="done">
+    <h2>✓ Já existia (core jogável)</h2>
+    <ul>
+      <li><span class="tag ok">OK</span> Movimento WASD/setas, cavaleiro azul, poderes auto (órbitas + pulso)</li>
+      <li><span class="tag ok">OK</span> Inimigos slime / esqueleto / golem com HP bar e feedback de dano</li>
+      <li><span class="tag ok">OK</span> Colisão com knockback + invulnerabilidade (sem travar)</li>
+      <li><span class="tag ok">OK</span> XP, level up, 4 cartas da build Tanque</li>
+      <li><span class="tag ok">OK</span> Minimapa, elites, emboscadas, chefão e vitória</li>
+    </ul>
+  </section>
+
+  <section class="todo">
+    <h2>Próximos passos sugeridos</h2>
+    <ul>
+      <li><span class="tag p1">P1</span> <strong>Build Batedor</strong> — melee curto, impacto por golpe, cartas de combo/knockback</li>
+      <li><span class="tag p1">P1</span> <strong>Build Atirador</strong> — projéteis, kiting, cartas de perfuração/cadência</li>
+      <li><span class="tag p1">P1</span> Tela de seleção de build (Tanque / Batedor / Atirador) antes do jogo</li>
+      <li><span class="tag p2">P2</span> Mais fases / mapas além do único world 3200²</li>
+      <li><span class="tag p2">P2</span> Sprites Kenney (tile dungeon) no lugar dos círculos coloridos</li>
+      <li><span class="tag p2">P2</span> Mais juice: partículas de grama, trail de pulso, numbers crit</li>
+      <li><span class="tag p3">P3</span> Música de fundo loop + volume mute no menu</li>
+      <li><span class="tag p3">P3</span> Mais armas visuais além de órbitas/pulso</li>
+    </ul>
+  </section>
+
+  <section class="later">
+    <h2>As 3 builds</h2>
+    <div class="grid">
+      <div class="build tank">
+        <strong>1. Tanque (pronta)</strong>
+        <p>No meio da horda, órbitas + pulso, cartas de vida/área/cura. Movimento mais pesado.</p>
+      </div>
+      <div class="build melee">
+        <strong>2. Batedor (planejada)</strong>
+        <p>Corpo a corpo, soco/impacto, sensação de hit a cada golpe. Cartas: dano melee, AS, knockback, combo.</p>
+      </div>
+      <div class="build ranged">
+        <strong>3. Atirador (planejada)</strong>
+        <p>Projéteis longe, kiting. Cartas: multi-shot, perfuração, cadência, alcance.</p>
+      </div>
+    </div>
+  </section>
+
+  <h2 style="color:var(--muted);margin-top:28px">Frase curta (prompt)</h2>
+  <div class="prompt">
+    Jogo de sobrevivência top-down: movo o herói, poderes automáticos (órbitas + pulso), inimigos diferentes (pequeno/rápido/tanque com barra de HP), dano com números e feedback visual, colisão empurra e tira vida sem travar, XP e cartas ao subir nível (primeira build Tanque), minimapa com elites previsíveis e emboscadas surpresa, chefão como objetivo final. Depois: build Batedor e build Atirador.
+  </div>
+
+  <p class="sub" style="margin-top:28px">Rodar: <code style="color:var(--green)">cd 01_Survival_Drag && npm run dev</code></p>
+</body>
+</html>
