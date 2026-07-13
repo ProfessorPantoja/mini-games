@@ -22,6 +22,8 @@ export class MapDirector {
   private nextAmbushMs = 50000;
   private objectiveText?: Phaser.GameObjects.Text;
   private ambushBanner?: Phaser.GameObjects.Text;
+  private lastObjectiveText = '';
+  private minimapFrame = 0;
 
   private worldGfx: Phaser.GameObjects.Graphics;
   private minimapGfx: Phaser.GameObjects.Graphics;
@@ -32,6 +34,7 @@ export class MapDirector {
     this.worldGfx = scene.add.graphics().setDepth(2);
     this.minimapGfx = scene.add.graphics().setScrollFactor(0).setDepth(105);
     this.arrowGfx = scene.add.graphics().setDepth(9);
+    this.drawWorldStatic();
 
     this.objectiveText = scene.add
       .text(12, 128, '', {
@@ -82,8 +85,11 @@ export class MapDirector {
       const elitesDone = this.elitesCleared >= ELITES_TO_UNLOCK_BOSS;
       const timeDone = elapsedSec >= BOSS_UNLOCK_TIME_SEC;
       if (elitesDone || timeDone) {
-        this.bossUnlocked = true;
-        this.phase = 'boss';
+        if (!this.bossUnlocked) {
+          this.bossUnlocked = true;
+          this.phase = 'boss';
+          this.drawWorldStatic();
+        }
       }
     }
 
@@ -112,7 +118,6 @@ export class MapDirector {
       this.showAmbushBanner();
     }
 
-    this.drawWorld(player);
     this.drawMinimap(player);
     this.drawObjectiveArrow(player);
     this.updateObjectiveText();
@@ -130,12 +135,14 @@ export class MapDirector {
       this.bossUnlocked = true;
       this.phase = 'boss';
     }
+    this.drawWorldStatic();
     return zone;
   }
 
   setVictory(): void {
     this.phase = 'victory';
     this.getBossZone().cleared = true;
+    this.drawWorldStatic();
   }
 
   private getObjectivePoint(): { x: number; y: number; label: string } {
@@ -160,21 +167,21 @@ export class MapDirector {
   private updateObjectiveText(): void {
     if (!this.objectiveText) return;
 
+    let text = '';
     if (this.phase === 'victory') {
-      this.objectiveText.setText('OBJETIVO: Chefão derrotado — você venceu!');
-      return;
+      text = 'OBJETIVO: Chefão derrotado — você venceu!';
+    } else if (this.phase === 'boss' && this.bossUnlocked) {
+      text = `OBJETIVO: Derrote o Chefão (${this.getBossZone().label})`;
+    } else {
+      const left = ELITES_TO_UNLOCK_BOSS - this.elitesCleared;
+      const obj = this.getObjectivePoint();
+      text = `OBJETIVO: Vá até ${obj.label}  ·  Elites restantes: ${left}  ·  Chefão em ${BOSS_UNLOCK_TIME_SEC}s`;
     }
 
-    if (this.phase === 'boss' && this.bossUnlocked) {
-      this.objectiveText.setText(`OBJETIVO: Derrote o Chefão (${this.getBossZone().label})`);
-      return;
+    if (text !== this.lastObjectiveText) {
+      this.lastObjectiveText = text;
+      this.objectiveText.setText(text);
     }
-
-    const left = ELITES_TO_UNLOCK_BOSS - this.elitesCleared;
-    const obj = this.getObjectivePoint();
-    this.objectiveText.setText(
-      `OBJETIVO: Vá até ${obj.label}  ·  Elites restantes: ${left}  ·  Chefão em ${BOSS_UNLOCK_TIME_SEC}s`,
-    );
   }
 
   private showAmbushBanner(): void {
@@ -204,10 +211,11 @@ export class MapDirector {
     });
   }
 
-  private drawWorld(player: Phaser.Physics.Arcade.Sprite): void {
+  private drawWorldStatic(): void {
     this.worldGfx.clear();
 
     for (const zone of this.zones) {
+      if (zone.cleared && zone.type !== 'spawn') continue;
       const alpha = zone.type === 'boss' && !this.bossUnlocked ? 0.04 : 0.09;
       this.worldGfx.fillStyle(zone.color, alpha);
       this.worldGfx.fillCircle(zone.x, zone.y, zone.radius);
@@ -222,19 +230,11 @@ export class MapDirector {
         this.worldGfx.strokeCircle(zone.x, zone.y, zone.radius);
       }
     }
-
-    const nearZone = this.zones.find((z) => {
-      const d = Phaser.Math.Distance.Between(player.x, player.y, z.x, z.y);
-      return d < z.radius && (z.type === 'elite' || z.type === 'boss');
-    });
-
-    if (nearZone) {
-      this.worldGfx.fillStyle(0xffffff, 0.03);
-      this.worldGfx.fillCircle(nearZone.x, nearZone.y, nearZone.radius * 0.5);
-    }
   }
 
   private drawMinimap(player: Phaser.Physics.Arcade.Sprite): void {
+    this.minimapFrame += 1;
+    if (this.minimapFrame % 4 !== 0) return;
     const cam = this.scene.cameras.main;
     const mx = cam.width - MINIMAP_SIZE - MINIMAP_MARGIN;
     const my = cam.height - MINIMAP_SIZE - MINIMAP_MARGIN;

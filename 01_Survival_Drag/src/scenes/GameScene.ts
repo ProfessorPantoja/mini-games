@@ -10,6 +10,10 @@ const PICKUP_RANGE = 20;
 const CONTACT_RANGE = 28;
 const ORBIT_RADIUS = 52;
 const ORBIT_SPEED = 2.2;
+const MAX_ENEMIES = 70;
+const MAX_XP_GEMS = 50;
+const HUD_EVERY_MS = 120;
+const ORBIT_HIT_RANGE = 18;
 
 type EnemyType = 'slime' | 'skeleton' | 'golem';
 
@@ -76,6 +80,9 @@ export class GameScene extends Phaser.Scene {
   private trailTimer = 0;
   private mapDirector!: MapDirector;
   private clearedEliteZones = new Set<string>();
+  private hudTimer = 0;
+  private pulseHitSet = new Set<Phaser.GameObjects.GameObject>();
+  private enemyList: Phaser.Physics.Arcade.Sprite[] = [];
 
   constructor() {
     super('GameScene');
@@ -133,10 +140,16 @@ export class GameScene extends Phaser.Scene {
     this.pulseTimer += delta;
     this.trailTimer += delta;
 
-    const spawnInterval = Math.max(280, 1400 - this.elapsed * 35);
-    const burst = this.elapsed > 30 ? Phaser.Math.Between(1, 3) : 1;
-    if (this.spawnTimer >= spawnInterval) {
-      for (let i = 0; i < burst; i++) this.spawnEnemy();
+    this.refreshEnemyList();
+
+    const enemyCount = this.enemyList.length;
+    const spawnInterval = Math.max(350, 1500 - this.elapsed * 30);
+    const burst = enemyCount < 40 && this.elapsed > 30 ? 2 : 1;
+    if (this.spawnTimer >= spawnInterval && enemyCount < MAX_ENEMIES) {
+      for (let i = 0; i < burst; i++) {
+        if (this.enemies.countActive(true) >= MAX_ENEMIES) break;
+        this.spawnEnemy();
+      }
       this.spawnTimer = 0;
     }
 
@@ -150,6 +163,7 @@ export class GameScene extends Phaser.Scene {
       if (this.pulseRadius >= this.pulseMaxRadius) {
         this.pulseActive = false;
         this.pulseRadius = 0;
+        this.pulseHitSet.clear();
       } else {
         this.applyPulseDamage();
       }
@@ -160,7 +174,13 @@ export class GameScene extends Phaser.Scene {
     this.updateOrbits(delta);
     this.attractXpGems();
     this.drawEffects();
-    this.updateHud();
+
+    this.hudTimer += delta;
+    if (this.hudTimer >= HUD_EVERY_MS) {
+      this.hudTimer = 0;
+      this.updateHud();
+    }
+
     this.handleMapEvents(delta);
   }
 
@@ -202,77 +222,104 @@ export class GameScene extends Phaser.Scene {
     const speed = PLAYER_SPEED * this.speedMult;
     this.player.setVelocity(vx * speed, vy * speed);
 
-    if ((vx !== 0 || vy !== 0) && this.trailTimer > 40) {
+    if ((vx !== 0 || vy !== 0) && this.trailTimer > 80) {
       this.trailTimer = 0;
-      const trail = this.add.image(this.player.x, this.player.y, 'particle').setAlpha(0.35).setTint(0x66ccff).setDepth(5);
-      this.tweens.add({ targets: trail, alpha: 0, scale: 2, duration: 220, onComplete: () => trail.destroy() });
+      const trail = this.add.image(this.player.x, this.player.y, 'particle').setAlpha(0.3).setTint(0x66ccff).setDepth(5);
+      this.tweens.add({ targets: trail, alpha: 0, scale: 1.6, duration: 180, onComplete: () => trail.destroy() });
     }
   }
 
-  private chasePlayer(): void {
+  private refreshEnemyList(): void {
+    this.enemyList.length = 0;
     this.enemies.children.each((child) => {
       const enemy = child as Phaser.Physics.Arcade.Sprite;
-      if (!enemy.active) return true;
-      const speed = enemy.getData('speed') as number;
-      this.physics.moveToObject(enemy, this.player, speed);
+      if (enemy.active) this.enemyList.push(enemy);
       return true;
     });
+  }
+
+  private chasePlayer(): void {
+    const cam = this.cameras.main;
+    const pad = 120;
+    const left = cam.scrollX - pad;
+    const right = cam.scrollX + cam.width + pad;
+    const top = cam.scrollY - pad;
+    const bottom = cam.scrollY + cam.height + pad;
+    const px = this.player.x;
+    const py = this.player.y;
+
+    for (const enemy of this.enemyList) {
+      if (enemy.x < left || enemy.x > right || enemy.y < top || enemy.y > bottom) continue;
+      const speed = enemy.getData('speed') as number;
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, px, py);
+      enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    }
   }
 
   private updateOrbits(delta: number): void {
     this.orbitAngle += ORBIT_SPEED * (delta / 1000);
     const step = (Math.PI * 2) / this.orbitCount;
+    const orbPositions: { x: number; y: number }[] = [];
 
-    this.orbs.forEach((orb, index) => {
+    for (let index = 0; index < this.orbs.length; index++) {
       const angle = this.orbitAngle + step * index;
       const x = this.player.x + Math.cos(angle) * ORBIT_RADIUS;
       const y = this.player.y + Math.sin(angle) * ORBIT_RADIUS;
-      orb.setPosition(x, y);
+      this.orbs[index].setPosition(x, y);
+      orbPositions.push({ x, y });
+    }
 
-      this.enemies.children.each((child) => {
-        const enemy = child as Phaser.Physics.Arcade.Sprite;
-        if (!enemy.active) return true;
+    const now = this.time.now;
+    for (const enemy of this.enemyList) {
+      for (const orb of orbPositions) {
+        const dx = orb.x - enemy.x;
+        const dy = orb.y - enemy.y;
+        if (dx * dx + dy * dy > ORBIT_HIT_RANGE * ORBIT_HIT_RANGE) continue;
 
-        const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
-        if (dist <= 18) {
-          const last = this.orbitHitCooldown.get(enemy) ?? 0;
-          if (this.time.now - last > 180) {
-            this.orbitHitCooldown.set(enemy, this.time.now);
-            this.damageEnemy(enemy, this.orbitDamage, true);
-          }
+        const last = this.orbitHitCooldown.get(enemy) ?? 0;
+        if (now - last > 180) {
+          this.orbitHitCooldown.set(enemy, now);
+          this.damageEnemy(enemy, this.orbitDamage, true, false);
         }
-        return true;
-      });
-    });
+        break;
+      }
+    }
   }
 
   private triggerPulse(): void {
     this.pulseActive = true;
     this.pulseRadius = 18;
+    this.pulseHitSet.clear();
     this.cameras.main.shake(80, 0.004);
   }
 
   private applyPulseDamage(): void {
-    this.enemies.children.each((child) => {
-      const enemy = child as Phaser.Physics.Arcade.Sprite;
-      if (!enemy.active) return true;
-
+    for (const enemy of this.enemyList) {
+      if (this.pulseHitSet.has(enemy)) continue;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
       if (Math.abs(dist - this.pulseRadius) < 22) {
-        this.damageEnemy(enemy, this.pulseDamage, false);
+        this.pulseHitSet.add(enemy);
+        this.damageEnemy(enemy, this.pulseDamage, false, false);
       }
-      return true;
-    });
+    }
   }
 
   private attractXpGems(): void {
+    const px = this.player.x;
+    const py = this.player.y;
+    const rangeSq = this.magnetRange * this.magnetRange;
+
     this.xpGems.children.each((child) => {
       const gem = child as Phaser.Physics.Arcade.Sprite;
       if (!gem.active) return true;
 
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, gem.x, gem.y);
-      if (dist < this.magnetRange) {
-        this.physics.moveToObject(gem, this.player, 280 + (this.magnetRange - dist));
+      const dx = px - gem.x;
+      const dy = py - gem.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < rangeSq) {
+        const dist = Math.sqrt(distSq) || 1;
+        const speed = 220 + (this.magnetRange - dist);
+        gem.setVelocity((dx / dist) * speed, (dy / dist) * speed);
       } else {
         gem.setVelocity(0, 0);
       }
@@ -303,22 +350,30 @@ export class GameScene extends Phaser.Scene {
     this.hpBarGfx.fillRoundedRect(bx, by, barW * pct, barH, 4);
   }
 
-  private damageEnemy(enemy: Phaser.Physics.Arcade.Sprite, amount: number, knockback: boolean): void {
+  private damageEnemy(
+    enemy: Phaser.Physics.Arcade.Sprite,
+    amount: number,
+    knockback: boolean,
+    showSpark = true,
+  ): void {
     if (!enemy.active) return;
 
-    let hp = (enemy.getData('hp') as number) - amount;
+    const hp = (enemy.getData('hp') as number) - amount;
     enemy.setData('hp', hp);
     enemy.setTint(0xffffff);
-    this.time.delayedCall(60, () => enemy.clearTint());
+    this.time.delayedCall(50, () => {
+      if (enemy.active) enemy.clearTint();
+    });
 
     if (knockback) {
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-      enemy.setVelocity(Math.cos(angle) * 160, Math.sin(angle) * 160);
-      this.time.delayedCall(120, () => enemy.setVelocity(0, 0));
+      enemy.setVelocity(Math.cos(angle) * 140, Math.sin(angle) * 140);
     }
 
-    const spark = this.add.image(enemy.x, enemy.y, 'particle').setTint(0xaaffcc).setDepth(30);
-    this.tweens.add({ targets: spark, alpha: 0, scale: 3, duration: 150, onComplete: () => spark.destroy() });
+    if (showSpark && hp > 0 && Math.random() < 0.35) {
+      const spark = this.add.image(enemy.x, enemy.y, 'particle').setTint(0xaaffcc).setDepth(30);
+      this.tweens.add({ targets: spark, alpha: 0, scale: 2, duration: 120, onComplete: () => spark.destroy() });
+    }
 
     if (hp <= 0) this.killEnemy(enemy);
   }
@@ -357,23 +412,24 @@ export class GameScene extends Phaser.Scene {
       this.hp = Math.min(this.maxHp, this.hp + this.vampirismHeal);
     }
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 3; i++) {
       const p = this.add.image(x, y, 'particle').setTint(0x66ffaa).setDepth(15);
       const a = Math.random() * Math.PI * 2;
       this.tweens.add({
         targets: p,
-        x: x + Math.cos(a) * Phaser.Math.Between(20, 50),
-        y: y + Math.sin(a) * Phaser.Math.Between(20, 50),
+        x: x + Math.cos(a) * Phaser.Math.Between(16, 36),
+        y: y + Math.sin(a) * Phaser.Math.Between(16, 36),
         alpha: 0,
-        duration: 260,
+        duration: 200,
         onComplete: () => p.destroy(),
       });
     }
 
-    const gem = this.xpGems.create(x, y, 'xpGem') as Phaser.Physics.Arcade.Sprite;
-    gem.setCircle(6);
-    gem.setData('value', xpValue);
-    this.tweens.add({ targets: gem, scale: { from: 0.5, to: 1.2 }, duration: 180, yoyo: true });
+    if (this.xpGems.countActive(true) < MAX_XP_GEMS) {
+      const gem = this.xpGems.create(x, y, 'xpGem') as Phaser.Physics.Arcade.Sprite;
+      gem.setCircle(6);
+      gem.setData('value', xpValue);
+    }
   }
 
   private onCollectXp(
@@ -526,7 +582,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnBonusGems(x: number, y: number, count: number): void {
-    for (let i = 0; i < count; i++) {
+    const slots = MAX_XP_GEMS - this.xpGems.countActive(true);
+    const spawnCount = Math.min(count, slots);
+    for (let i = 0; i < spawnCount; i++) {
       const gem = this.xpGems.create(
         x + Phaser.Math.Between(-40, 40),
         y + Phaser.Math.Between(-40, 40),
@@ -562,8 +620,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnAmbush(): void {
-    for (let i = 0; i < 10; i++) {
-      const angle = (Math.PI * 2 * i) / 10;
+    if (this.enemies.countActive(true) >= MAX_ENEMIES - 8) return;
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
       const x = this.player.x + Math.cos(angle) * Phaser.Math.Between(160, 220);
       const y = this.player.y + Math.sin(angle) * Phaser.Math.Between(160, 220);
       this.spawnEnemyAt(x, y, Math.random() > 0.4 ? 'skeleton' : 'slime');
