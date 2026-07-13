@@ -119,15 +119,41 @@
           <div class="title-stats">
             <div><span class="k">RECORDE</span><span id="title-hiscore" class="v">0</span></div>
             <div><span class="k">MISSÃO</span><span class="v">SETOR 7 · W10</span></div>
+            <div><span class="k">DIFICULDADE</span><span class="v">FÁCIL</span></div>
           </div>
 
-          <div class="achievements-strip" id="title-achievements" title="Conquistas desbloqueadas">
+          <div class="achievements-strip" id="title-achievements" title="Conquistas">
+            <span class="ach-pip locked" data-ach="first_blood" title="Primeiro abate">💥</span>
             <span class="ach-pip locked" data-ach="first_boss" title="Primeiro boss">👾</span>
-            <span class="ach-pip locked" data-ach="max_power" title="Arma no máximo L3">⬆</span>
-            <span class="ach-pip locked" data-ach="sector_clear" title="Setor limpo (wave 10)">★</span>
+            <span class="ach-pip locked" data-ach="max_power" title="Arma L3">⬆</span>
+            <span class="ach-pip locked" data-ach="combo_10" title="Combo ×10">🔥</span>
+            <span class="ach-pip locked" data-ach="overdrive" title="Usar especial">⚡</span>
+            <span class="ach-pip locked" data-ach="bomber" title="Usar bomba">💣</span>
+            <span class="ach-pip locked" data-ach="scavenger" title="5 power-ups">🎁</span>
+            <span class="ach-pip locked" data-ach="wave_5" title="Wave 5">5️⃣</span>
+            <span class="ach-pip locked" data-ach="sector_clear" title="Setor limpo">★</span>
+            <span class="ach-pip locked" data-ach="ace" title="25 mil pontos">🏅</span>
+            <span class="ach-pip locked" data-ach="endless_pilot" title="Endless wave 15">∞</span>
           </div>
 
-          <p class="hint-start">Objetivo: wave 10 limpa o setor · depois pode seguir endless</p>
+          <p class="hint-start">Modo fácil · wave 10 limpa o setor · depois endless</p>
+          <div class="screen-ornament bot"></div>
+        </div>
+
+        <!-- Abertura da missão -->
+        <div id="screen-intro" class="screen intro-screen hidden">
+          <div class="screen-ornament top"></div>
+          <p class="eyebrow">TRANSMISSÃO · COMANDO</p>
+          <h2 class="intro-title">SETOR 7</h2>
+          <div class="intro-lines" id="intro-lines">
+            <p class="intro-line">As defesas orbitais caíram.</p>
+            <p class="intro-line">Ondas hostis avançam pelo corredor neon.</p>
+            <p class="intro-line">Sua missão: limpar <strong>10 waves</strong> e neutralizar os chefes.</p>
+            <p class="intro-line accent">Armas sobem de nível. Energia regenera entre ondas.</p>
+            <p class="intro-line">Este é o modo <strong>FÁCIL</strong> — foque em se divertir.</p>
+          </div>
+          <button id="btn-intro-go" class="btn primary pulse">DECOLAR</button>
+          <button id="btn-intro-skip" class="btn ghost">PULAR INTRO</button>
           <div class="screen-ornament bot"></div>
         </div>
 

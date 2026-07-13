@@ -456,20 +456,24 @@ body {
 /* Conquistas no título */
 .achievements-strip {
   display: flex;
-  gap: 12px;
-  margin-top: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  max-width: 340px;
 }
 
 .ach-pip {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border-radius: 8px;
   border: 1px solid rgba(0, 240, 255, 0.35);
   background: rgba(0, 240, 255, 0.1);
-  font-size: 1rem;
+  font-size: 0.9rem;
   box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+  cursor: default;
 }
 
 .ach-pip.locked {
@@ -478,6 +482,52 @@ body {
   box-shadow: none;
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* Intro / abertura */
+.intro-screen {
+  gap: 14px;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.intro-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.28em;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.intro-lines {
+  width: min(340px, 94%);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 6px 0 8px;
+}
+
+.intro-line {
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: introFade 0.55s ease forwards;
+}
+
+.intro-line strong { color: var(--white); }
+.intro-line.accent { color: var(--gold); }
+
+.intro-line:nth-child(1) { animation-delay: 0.15s; }
+.intro-line:nth-child(2) { animation-delay: 0.45s; }
+.intro-line:nth-child(3) { animation-delay: 0.75s; }
+.intro-line:nth-child(4) { animation-delay: 1.05s; }
+.intro-line:nth-child(5) { animation-delay: 1.35s; }
+
+@keyframes introFade {
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .rank-wrap {

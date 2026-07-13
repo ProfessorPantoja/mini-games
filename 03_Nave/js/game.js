@@ -41,13 +41,24 @@
     pause: $("screen-pause"),
     over: $("screen-over"),
     victory: $("screen-victory"),
+    intro: $("screen-intro"),
   };
   const hud = $("hud");
 
+  // Conquistas pensadas para o modo FÁCIL (fáceis de desbloquear)
+  // Dificuldade normal/hard no futuro = regras separadas, não mexer nisto.
   const ACH_META = {
+    first_blood: { id: "first_blood", name: "Primeiro abate" },
     first_boss: { id: "first_boss", name: "Primeiro boss" },
     max_power: { id: "max_power", name: "Arma L3" },
+    combo_10: { id: "combo_10", name: "Combo ×10" },
+    overdrive: { id: "overdrive", name: "Overdrive" },
+    bomber: { id: "bomber", name: "Bomba usada" },
+    scavenger: { id: "scavenger", name: "5 power-ups" },
+    wave_5: { id: "wave_5", name: "Wave 5" },
     sector_clear: { id: "sector_clear", name: "Setor limpo" },
+    ace: { id: "ace", name: "25 mil pts" },
+    endless_pilot: { id: "endless_pilot", name: "Endless 15" },
   };
 
   function loadAchievements() {
@@ -66,7 +77,7 @@
   let unlockedThisRun = [];
 
   // ─── State ───────────────────────────────────────────────
-  let state = "title"; // title | playing | pause | over
+  let state = "title"; // title | intro | playing | pause | over | victory
   let lastTime = 0;
   let shake = 0;
   let flash = 0;
@@ -126,6 +137,7 @@
     maxWeaponLevel: 1,
     bombsUsed: 0,
     bossesKilled: 0,
+    pickups: 0,
   };
 
   // Entities
@@ -764,29 +776,36 @@
   }
 
   function spawnBoss() {
-    const hp = 55 + game.wave * 16;
+    // HP generoso no fácil — boss é espetáculo, não parede
+    const hp = 50 + game.wave * 14;
     game.boss = {
       x: W / 2,
       y: -80,
-      r: 42,
+      r: 44,
       hp,
       maxHp: hp,
       phase: 0,
+      phaseNum: 1,
       t: 0,
-      fireCd: 0,
+      fireCd: 1.4,
+      telegraph: 0,
+      telegraphKind: 1,
       enter: true,
       score: 5000 + game.wave * 500,
       name: bossName(game.wave),
       hitFlash: 0,
       kind: "boss",
+      aura: 0,
     };
     enemies.push(game.boss);
     $("boss-bar-wrap").classList.remove("hidden");
     $("boss-name").textContent = game.boss.name;
     $("boss-hp").style.width = "100%";
     AudioSys.bossAlert();
-    showBanner(game.boss.name);
-    shake = 0.6;
+    showBanner(`⚠ ${game.boss.name}`);
+    shake = 0.55;
+    flash = 0.35;
+    flashColor = "rgba(255, 43, 214, 0.3)";
   }
 
   function bossName(wave) {
@@ -878,44 +897,82 @@
 
   function updateBoss(e, dt) {
     e.t += dt;
+    e.aura += dt;
+
+    // Entrada dramática (sem atirar)
     if (e.enter) {
-      e.y = lerp(e.y, 120, 1 - Math.pow(0.001, dt));
-      if (Math.abs(e.y - 120) < 2) e.enter = false;
+      e.y = lerp(e.y, 118, 1 - Math.pow(0.0008, dt));
+      if (chance(0.4)) spark(e.x + rand(-30, 30), e.y + rand(-10, 20), "#ff2bd6", 2);
+      if (Math.abs(e.y - 118) < 3) {
+        e.enter = false;
+        e.fireCd = 1.5; // fôlego fácil antes do 1º ataque
+        e.phaseNum = 1;
+        showBanner("FASE 1 · LEIA OS TIROS");
+        shake = 0.35;
+      }
       return;
     }
 
-    e.x = W / 2 + Math.sin(e.t * 0.8) * (140 + Math.sin(e.t * 0.3) * 20);
-    e.y = 120 + Math.sin(e.t * 1.4) * 18;
+    // Movimento suave (fácil de acompanhar)
+    e.x = W / 2 + Math.sin(e.t * 0.7) * (120 + Math.sin(e.t * 0.25) * 16);
+    e.y = 118 + Math.sin(e.t * 1.2) * 14;
 
-    e.fireCd -= dt;
     const hpRatio = e.hp / e.maxHp;
     const phase = hpRatio > 0.66 ? 1 : hpRatio > 0.33 ? 2 : 3;
 
-    if (e.fireCd <= 0) {
-      // Cadência mais generosa no modo fácil (boss sem refinamento extra)
-      if (phase === 1) {
-        e.fireCd = 0.75;
-        for (let a = -1; a <= 1; a++) {
-          const ang = Math.PI / 2 + a * 0.28;
-          spawnBullet(e.x, e.y + 20, Math.cos(ang) * 170, Math.sin(ang) * 170, 6, "#ff2bd6", false);
-        }
-      } else if (phase === 2) {
-        e.fireCd = 0.55;
-        const rings = 8;
-        for (let i = 0; i < rings; i++) {
-          const ang = (i / rings) * Math.PI * 2 + e.t;
-          spawnBullet(e.x, e.y, Math.cos(ang) * 140, Math.sin(ang) * 140, 5, "#ffd166", false);
-        }
-        if (player) aimShoot(e, 200, "#ff4d6d");
-      } else {
-        e.fireCd = 0.38;
-        for (let a = -3; a <= 3; a++) {
-          const ang = Math.PI / 2 + a * 0.2 + Math.sin(e.t * 3) * 0.08;
-          spawnBullet(e.x, e.y + 10, Math.cos(ang) * 220, Math.sin(ang) * 220, 5, "#ff3b5c", false);
-        }
-        if (chance(0.25) && player) aimShoot(e, 240, "#fff");
-      }
+    // Troca de fase: pausa + anúncio (legível, não punitivo)
+    if (phase !== e.phaseNum) {
+      e.phaseNum = phase;
+      e.telegraph = 0;
+      e.fireCd = 1.35;
+      enemyBullets = []; // limpa balas na troca — generoso no fácil
+      flash = 0.3;
+      flashColor = phase === 3 ? "rgba(255,59,92,0.35)" : "rgba(255,209,102,0.28)";
+      burst(e.x, e.y, phase === 3 ? "#ff3b5c" : "#ffd166", 28, 220, 0.5);
+      showBanner(phase === 2 ? "FASE 2 · ANÉIS" : "FASE FINAL · ABANICO");
+      AudioSys.bossAlert();
     }
+
+    // Telegraph: avisa ANTES de atirar (modo fácil = tempo para reagir)
+    if (e.telegraph > 0) {
+      e.telegraph -= dt;
+      if (e.telegraph <= 0) {
+        bossFirePattern(e, e.telegraphKind);
+        // cooldown generoso por fase
+        e.fireCd = e.telegraphKind === 1 ? 1.05 : e.telegraphKind === 2 ? 0.85 : 0.7;
+      }
+      return;
+    }
+
+    e.fireCd -= dt;
+    if (e.fireCd <= 0) {
+      e.telegraphKind = phase;
+      // tempos de aviso generosos
+      e.telegraph = phase === 1 ? 0.7 : phase === 2 ? 0.6 : 0.5;
+    }
+  }
+
+  function bossFirePattern(e, phase) {
+    // Padrões legíveis — fácil. Hard no futuro terá mais densidade/menos aviso.
+    if (phase === 1) {
+      for (let a = -1; a <= 1; a++) {
+        const ang = Math.PI / 2 + a * 0.3;
+        spawnBullet(e.x, e.y + 22, Math.cos(ang) * 155, Math.sin(ang) * 155, 6, "#ff2bd6", false);
+      }
+    } else if (phase === 2) {
+      const rings = 7;
+      for (let i = 0; i < rings; i++) {
+        const ang = (i / rings) * Math.PI * 2 + e.t * 0.5;
+        spawnBullet(e.x, e.y, Math.cos(ang) * 125, Math.sin(ang) * 125, 5, "#ffd166", false);
+      }
+    } else {
+      for (let a = -2; a <= 2; a++) {
+        const ang = Math.PI / 2 + a * 0.22;
+        spawnBullet(e.x, e.y + 12, Math.cos(ang) * 190, Math.sin(ang) * 190, 5, "#ff3b5c", false);
+      }
+      if (player && chance(0.35)) aimShoot(e, 200, "#fff");
+    }
+    spark(e.x, e.y + 16, "#fff", 8);
   }
 
   function aimShoot(e, speed, color) {
@@ -1022,15 +1079,55 @@
   }
 
   function drawBoss(e) {
+    const phase = e.phaseNum || 1;
     const pulse = 1 + Math.sin(e.t * 4) * 0.04;
+    const threat =
+      e.telegraph > 0 ? 0.55 + 0.45 * Math.sin(performance.now() / 50) : 0;
+
+    // Aura de fase
+    ctx.save();
+    const auraCol =
+      phase === 3 ? "255,59,92" : phase === 2 ? "255,209,102" : "255,43,214";
+    ctx.strokeStyle = `rgba(${auraCol},${0.2 + 0.15 * Math.sin(e.aura * 3)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 52 + Math.sin(e.aura * 2) * 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Telegraph: linhas de aviso (fácil de ler)
+    if (e.telegraph > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + threat * 0.4;
+      ctx.strokeStyle = phase === 2 ? "#ffd166" : phase === 3 ? "#ff3b5c" : "#ff2bd6";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      if (phase === 1 || phase === 3) {
+        const n = phase === 1 ? 3 : 5;
+        for (let a = -(n - 1) / 2; a <= (n - 1) / 2; a++) {
+          const ang = Math.PI / 2 + a * (phase === 1 ? 0.3 : 0.22);
+          ctx.beginPath();
+          ctx.moveTo(0, 10);
+          ctx.lineTo(Math.cos(ang) * 220, Math.sin(ang) * 220);
+          ctx.stroke();
+        }
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, 40 + (1 - e.telegraph) * 30, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     ctx.scale(pulse, pulse);
-    ctx.shadowColor = "#ff2bd6";
-    ctx.shadowBlur = 24;
+    ctx.shadowColor = phase === 3 ? "#ff3b5c" : "#ff2bd6";
+    ctx.shadowBlur = 22 + threat * 12;
 
     // Core body
     const g = ctx.createRadialGradient(0, 0, 5, 0, 0, 48);
-    g.addColorStop(0, "#ff88cc");
-    g.addColorStop(0.4, "#ff2bd6");
+    g.addColorStop(0, phase === 3 ? "#ffaabb" : "#ff88cc");
+    g.addColorStop(0.4, phase === 3 ? "#ff3b5c" : "#ff2bd6");
     g.addColorStop(1, "#4a0050");
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -1045,29 +1142,43 @@
     ctx.closePath();
     ctx.fill();
 
-    // Eye
+    // Plates / armor detail
     ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Eye
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.ellipse(0, -4, 10, 8, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -4, 11, 9, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#ff0033";
+    ctx.fillStyle = e.telegraph > 0 ? "#ffee00" : "#ff0033";
     ctx.beginPath();
-    ctx.arc(0, -2, 5, 0, Math.PI * 2);
+    ctx.arc(0, -2, 5 + threat * 2, 0, Math.PI * 2);
     ctx.fill();
 
     // Wings energy
-    ctx.strokeStyle = `rgba(255, 43, 214, ${0.5 + 0.5 * Math.sin(e.t * 6)})`;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(${auraCol}, ${0.45 + 0.45 * Math.sin(e.t * 6)})`;
+    ctx.lineWidth = 2 + threat;
     ctx.beginPath();
     ctx.moveTo(-40, -10);
-    ctx.quadraticCurveTo(-70, 0, -40, 20);
+    ctx.quadraticCurveTo(-70 - threat * 10, 0, -40, 20);
     ctx.moveTo(40, -10);
-    ctx.quadraticCurveTo(70, 0, 40, 20);
+    ctx.quadraticCurveTo(70 + threat * 10, 0, 40, 20);
     ctx.stroke();
+
+    // Phase pips under boss
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(-18, 44, 36, 5);
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i < phase ? `rgba(${auraCol},0.95)` : "rgba(255,255,255,0.15)";
+      ctx.fillRect(-16 + i * 12, 45, 10, 3);
+    }
 
     // HP bar update
     $("boss-hp").style.width = `${(e.hp / e.maxHp) * 100}%`;
+    $("boss-name").textContent = `${e.name} · F${phase}`;
   }
 
   // ─── Powerups ────────────────────────────────────────────
@@ -1173,8 +1284,14 @@
     saveAchievements(achievements);
     unlockedThisRun.push(ACH_META[id].name);
     refreshAchievementsUI();
-    showBanner(`★ ${ACH_META[id].name.toUpperCase()}`);
+    if (state === "playing" || state === "victory") {
+      showBanner(`★ ${ACH_META[id].name.toUpperCase()}`);
+    }
     AudioSys.powerup();
+  }
+
+  function checkScoreAchievements() {
+    if (game.score >= 25000) unlockAchievement("ace");
   }
 
   function refreshAchievementsUI() {
@@ -1253,6 +1370,8 @@
         }
         break;
     }
+    game.pickups++;
+    if (game.pickups >= 5) unlockAchievement("scavenger");
     updateWeaponHUD();
     if (player) floatScore(player.x, player.y - 30, label, true);
   }
@@ -1355,11 +1474,14 @@
     game.combo++;
     game.maxCombo = Math.max(game.maxCombo, game.combo);
     game.comboTimer = 2.4;
+    unlockAchievement("first_blood");
+    if (game.combo >= 10) unlockAchievement("combo_10");
     // Especial enche com abates
     const charge = e.kind === "boss" ? 40 : e.kind === "tank" ? 14 : 10;
     addSpecial(charge);
     updateScoreHUD();
     updateComboHUD();
+    checkScoreAchievements();
     floatScore(e.x, e.y, pts, e.kind === "boss" || pts >= 500);
 
     const big = e.kind === "boss" || e.kind === "tank";
@@ -1451,6 +1573,7 @@
 
     game.special = 0;
     game.overdrive = 4.5;
+    unlockAchievement("overdrive");
     updateSpecialHUD();
     $("overdrive-fx").classList.remove("hidden");
     AudioSys.bomb();
@@ -1488,6 +1611,7 @@
     if (state !== "playing" || game.bombs <= 0 || !player) return;
     game.bombs--;
     game.bombsUsed++;
+    unlockAchievement("bomber");
     updateBombsHUD();
     AudioSys.bomb();
     shake = 0.8;
@@ -1541,6 +1665,8 @@
     game.waveClearing = false;
     game.spawnQueue = buildWave(n);
     updateMissionHUD();
+    if (n >= 5) unlockAchievement("wave_5");
+    if (game.endless && n >= 15) unlockAchievement("endless_pilot");
     if (!game.endless && n === MISSION_WAVE) {
       showBanner(`WAVE ${n} · FINAL DO SETOR`);
     } else {
@@ -1631,6 +1757,7 @@
       game.hiscore = game.score;
       $("hud-hiscore").textContent = game.hiscore.toLocaleString("pt-BR");
     }
+    checkScoreAchievements();
   }
 
   function updateLivesHUD() {
@@ -1728,6 +1855,7 @@
     game.maxWeaponLevel = 1;
     game.bombsUsed = 0;
     game.bossesKilled = 0;
+    game.pickups = 0;
     unlockedThisRun = [];
     bullets = [];
     enemyBullets = [];
@@ -1753,8 +1881,24 @@
   async function startGame() {
     await AudioSys.unlock();
     AudioSys.uiClick();
-    AudioSys.startMusic();
     resetGame();
+    // Abertura da missão (pode pular)
+    state = "intro";
+    hud.classList.add("hidden");
+    showScreen("intro");
+    // reinicia animação das linhas
+    const lines = document.querySelectorAll("#intro-lines .intro-line");
+    lines.forEach((el) => {
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+    });
+  }
+
+  async function beginMissionFromIntro() {
+    await AudioSys.unlock();
+    AudioSys.uiClick();
+    AudioSys.startMusic();
     state = "playing";
     showScreen(null);
     hud.classList.remove("hidden");
@@ -2001,6 +2145,7 @@
       input.fire = true;
       e.preventDefault();
       if (state === "title") startGame();
+      else if (state === "intro") beginMissionFromIntro();
     }
     if (e.key === "b" || e.key === "B" || e.key === "Shift") {
       if (state === "playing") useBomb();
@@ -2053,6 +2198,7 @@
     input.my = p.y;
     input.dragLean = 0;
     if (state === "title") startGame();
+    else if (state === "intro") beginMissionFromIntro();
   }
 
   function onPointerMove(e) {
@@ -2131,6 +2277,8 @@
   $("btn-menu").addEventListener("click", quitToMenu);
   $("btn-endless")?.addEventListener("click", continueEndless);
   $("btn-victory-menu")?.addEventListener("click", quitToMenu);
+  $("btn-intro-go")?.addEventListener("click", beginMissionFromIntro);
+  $("btn-intro-skip")?.addEventListener("click", beginMissionFromIntro);
 
   // ─── Boot ────────────────────────────────────────────────
   initStars();
