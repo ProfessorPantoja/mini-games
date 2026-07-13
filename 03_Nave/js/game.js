@@ -9,7 +9,7 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.3.1";
+  const GAME_VERSION = "1.4.0";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   const MISSION_WAVE = 10; // limpar o setor
@@ -105,7 +105,7 @@
     down: false,
     left: false,
     right: false,
-    fire: false,
+    fire: false, // segurando FOGO (espaço / botão / mouse)
     bomb: false,
     mx: W / 2,
     my: H * 0.75,
@@ -115,6 +115,8 @@
     lastPx: 0,
     lastPy: 0,
     dragLean: 0,
+    /** Tiro automático: default OFF — jogador liga se quiser */
+    autoFire: false,
   };
 
   const game = {
@@ -378,9 +380,10 @@
     thruster(player.x, player.y + 14);
     if (game.speedBoost > 0 && !LOW_FX) thruster(player.x + 6, player.y + 12);
 
-    // Auto-fire arcade (sempre ativo em jogo)
+    // Tiro: AUTO ligado OU segurando FOGO (espaço / botão / clique)
     game.fireCooldown -= dt;
-    if (game.fireCooldown <= 0 && game.invuln < 1.2) {
+    const wantFire = input.autoFire || input.fire;
+    if (wantFire && game.fireCooldown <= 0 && game.invuln < 1.2) {
       firePlayer();
     }
 
@@ -808,6 +811,27 @@
         q.push({ delay: base + i * 0.28, type: n >= 5 ? "shooter" : "zigzag", x: 120 + i * 90 });
       }
     }
+
+    // ENXAME: de vez em quando ~40–55 drones fracos (modo fácil = espetáculo, não punição)
+    // Waves 2+ com chance; wave 4, 7, 9 quase garantido
+    const swarmChance = n >= 9 ? 0.85 : n >= 4 ? 0.55 : n >= 2 ? 0.35 : 0;
+    if (swarmChance > 0 && Math.random() < swarmChance) {
+      // Mobile: enxame um pouco menor (performance)
+      const swarmCount = LOW_FX ? 28 + randi(0, 10) : 42 + randi(0, 12);
+      const swarmStart = count * 0.55 + 2.2;
+      q.push({ delay: swarmStart - 0.05, banner: "⚠ ENXAME!" });
+      for (let i = 0; i < swarmCount; i++) {
+        const col = i % 10;
+        const row = Math.floor(i / 10);
+        q.push({
+          delay: swarmStart + row * 0.18 + col * 0.03,
+          type: chance(0.75) ? "drone" : "grunt",
+          x: 36 + col * 44 + rand(-6, 6),
+          swarm: true,
+        });
+      }
+    }
+
     return q;
   }
 
@@ -862,8 +886,12 @@
       game.waveTimer += dt;
       while (game.spawnQueue.length && game.spawnQueue[0].delay <= game.waveTimer) {
         const s = game.spawnQueue.shift();
+        if (s.banner) {
+          showBanner(s.banner);
+          continue;
+        }
         if (s.boss) spawnBoss();
-        else spawnEnemy(s.type, s.x, -20);
+        else spawnEnemy(s.type, s.x, s.swarm ? -15 - rand(0, 40) : -20);
       }
     }
 
@@ -1882,6 +1910,9 @@
     game.invuln = 2;
     game.shield = 0;
     game.fireCooldown = 0;
+    input.autoFire = false;
+    input.fire = false;
+    updateAutoFireUI();
     game.waveTimer = 0;
     game.waveClearing = false;
     game.spawnQueue = [];
@@ -2193,6 +2224,10 @@
       if (state === "title") startGame();
       else if (state === "intro") beginMissionFromIntro();
     }
+    if (e.key === "t" || e.key === "T") {
+      if (state === "playing") toggleAutoFire();
+      e.preventDefault();
+    }
     if (e.key === "b" || e.key === "B" || e.key === "Shift") {
       if (state === "playing") useBomb();
       e.preventDefault();
@@ -2236,7 +2271,9 @@
   function onPointerDown(e) {
     const p = pointerCoords(e);
     input.pointer = true;
-    input.fire = true;
+    // Mouse: segurar botão esquerdo = FOGO (além do arraste)
+    // Touch no canvas: só move (fogo é o botão FOGO ou AUTO)
+    if (!e.touches) input.fire = true;
     input.dragActive = true;
     input.lastPx = p.x;
     input.lastPy = p.y;
@@ -2326,7 +2363,28 @@
   $("btn-intro-go")?.addEventListener("click", beginMissionFromIntro);
   $("btn-intro-skip")?.addEventListener("click", beginMissionFromIntro);
 
-  // Botões touch: bomba / especial (não disparam drag da nave)
+  function toggleAutoFire() {
+    input.autoFire = !input.autoFire;
+    updateAutoFireUI();
+    AudioSys.uiClick();
+    if (state === "playing") {
+      showBanner(input.autoFire ? "AUTO-TIRO ON" : "AUTO-TIRO OFF");
+    }
+  }
+
+  function updateAutoFireUI() {
+    const on = !!input.autoFire;
+    const hudBtn = $("btn-autofire");
+    const hudState = $("autofire-state");
+    const touchAuto = $("btn-touch-auto");
+    const touchLabel = $("touch-auto-label");
+    if (hudBtn) hudBtn.classList.toggle("on", on);
+    if (hudState) hudState.textContent = on ? "ON" : "OFF";
+    if (touchAuto) touchAuto.classList.toggle("on", on);
+    if (touchLabel) touchLabel.textContent = on ? "AUTO·ON" : "AUTO";
+  }
+
+  // Botões touch: bomba / especial / auto (tap)
   function bindTouchAction(btn, fn) {
     if (!btn) return;
     const fire = (e) => {
@@ -2339,14 +2397,44 @@
   }
   bindTouchAction($("btn-touch-bomb"), useBomb);
   bindTouchAction($("btn-touch-special"), useSpecial);
+  bindTouchAction($("btn-touch-auto"), toggleAutoFire);
+  $("btn-autofire")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state === "playing" || state === "pause") toggleAutoFire();
+  });
+
+  // FOGO no mobile: segurar o botão
+  const fireBtn = $("btn-touch-fire");
+  if (fireBtn) {
+    const down = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.fire = true;
+      fireBtn.classList.add("held");
+    };
+    const up = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      input.fire = false;
+      fireBtn.classList.remove("held");
+    };
+    fireBtn.addEventListener("touchstart", down, { passive: false });
+    fireBtn.addEventListener("touchend", up, { passive: false });
+    fireBtn.addEventListener("touchcancel", up, { passive: false });
+    fireBtn.addEventListener("mousedown", down);
+    window.addEventListener("mouseup", up);
+  }
 
   function applyVersionLabels() {
-    const label = `v${GAME_VERSION} · ${GAME_DIFFICULTY}`;
+    const label = `v${GAME_VERSION}`;
     const titleVer = $("title-version");
-    const badge = $("version-badge");
+    const footer = $("footer-version");
     if (titleVer) titleVer.textContent = label;
-    if (badge) badge.textContent = label;
-    document.title = `NEON STRIKE v${GAME_VERSION}`;
+    if (footer) footer.textContent = label;
+    document.title = `NEON STRIKE ${label}`;
   }
 
   // Força botões em mobile / toque em tela estreita
@@ -2356,6 +2444,7 @@
 
   // ─── Boot ────────────────────────────────────────────────
   applyVersionLabels();
+  updateAutoFireUI();
   initStars();
   refreshTitleHi();
   refreshAchievementsUI();

@@ -80,6 +80,9 @@
                 <span class="label">BOMBA</span>
                 <span id="hud-bombs" class="value">3</span>
               </div>
+              <button type="button" id="btn-autofire" class="autofire-btn" title="Liga/desliga tiro automático (T)">
+                AUTO <span id="autofire-state">OFF</span>
+              </button>
               <div id="hud-weapon" class="weapon-badge">PULSE · L1</div>
             </div>
           </div>
@@ -100,18 +103,28 @@
 
           <!-- Controles touch (só mobile / tela de toque) -->
           <div id="touch-controls" class="touch-controls" aria-hidden="true">
-            <button type="button" id="btn-touch-special" class="touch-btn touch-special">
-              <span class="tb-icon">⚡</span>
-              <span class="tb-label">ESP</span>
-            </button>
-            <button type="button" id="btn-touch-bomb" class="touch-btn touch-bomb">
-              <span class="tb-icon">💣</span>
-              <span class="tb-label">BOMBA</span>
-            </button>
+            <div class="touch-col left">
+              <button type="button" id="btn-touch-special" class="touch-btn touch-special">
+                <span class="tb-icon">⚡</span>
+                <span class="tb-label">ESP</span>
+              </button>
+              <button type="button" id="btn-touch-auto" class="touch-btn touch-auto">
+                <span class="tb-icon">🔁</span>
+                <span class="tb-label" id="touch-auto-label">AUTO</span>
+              </button>
+            </div>
+            <div class="touch-col right">
+              <button type="button" id="btn-touch-fire" class="touch-btn touch-fire">
+                <span class="tb-icon">🔫</span>
+                <span class="tb-label">FOGO</span>
+              </button>
+              <button type="button" id="btn-touch-bomb" class="touch-btn touch-bomb">
+                <span class="tb-icon">💣</span>
+                <span class="tb-label">BOMBA</span>
+              </button>
+            </div>
           </div>
         </div>
-
-        <div class="version-badge" id="version-badge" aria-label="Versão do jogo">v1.3.0 · FÁCIL</div>
 
         <!-- Title screen -->
         <div id="screen-title" class="screen">
@@ -122,8 +135,8 @@
               <span class="t1">NEON</span>
               <span class="t2">STRIKE</span>
             </h1>
-            <p class="version-line" id="title-version">v1.3.0 · MODO FÁCIL</p>
-            <p class="tagline">Armas em níveis · Energia · Especial</p>
+            <p class="version-line" id="title-version">v1.4.0</p>
+            <p class="tagline">Tiro manual/auto · Enxames · Missão wave 10</p>
           </div>
 
           <div class="menu-actions">
@@ -179,9 +192,10 @@
           <ul class="howto">
             <li><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> — Mover a nave</li>
             <li><kbd>Toque</kbd> — Arraste o dedo: a nave se move, mas não cola no dedo</li>
-            <li><kbd>Auto-tiro</kbd> — Sempre ativo no celular e no PC</li>
-            <li><kbd>B</kbd> / <kbd>Shift</kbd> — Bomba (limpa a tela)</li>
-            <li><kbd>V</kbd> / <kbd>F</kbd> — Especial (barra cheia)</li>
+            <li><kbd>Espaço</kbd> / <kbd>FOGO</kbd> — Segure para atirar</li>
+            <li><kbd>T</kbd> / <kbd>AUTO</kbd> — Liga/desliga tiro automático</li>
+            <li><kbd>B</kbd> / <kbd>BOMBA</kbd> — Bomba (limpa a tela)</li>
+            <li><kbd>V</kbd> / <kbd>ESP</kbd> — Especial (barra cheia)</li>
             <li><kbd>P</kbd> / <kbd>Esc</kbd> — Pausar</li>
           </ul>
           <div class="howto-grid">
@@ -266,7 +280,7 @@
       </aside>
     </div>
 
-    <footer class="credits">NEON STRIKE · HTML5 Canvas · Elite Arcade</footer>
+    <footer class="credits" id="footer-version">v1.4.0</footer>
   </div>
 
   <script src="js/audio.js"></script>
