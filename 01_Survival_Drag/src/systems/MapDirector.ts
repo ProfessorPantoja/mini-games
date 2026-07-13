@@ -68,7 +68,7 @@ export class MapDirector {
     return this.zones.find((z) => z.id === 'boss')!;
   }
 
-  update(elapsedSec: number, player: Phaser.Physics.Arcade.Sprite, delta: number): {
+  update(elapsedSec: number, player: Phaser.GameObjects.Image, delta: number): {
     enteredElite: WorldZone | null;
     triggerAmbush: boolean;
     enteredBoss: boolean;
@@ -232,7 +232,7 @@ export class MapDirector {
     }
   }
 
-  private drawMinimap(player: Phaser.Physics.Arcade.Sprite): void {
+  private drawMinimap(player: Phaser.GameObjects.Image): void {
     this.minimapFrame += 1;
     if (this.minimapFrame % 4 !== 0) return;
     const cam = this.scene.cameras.main;
@@ -270,7 +270,7 @@ export class MapDirector {
     this.minimapGfx.strokeCircle(ox, oy, 5);
   }
 
-  private drawObjectiveArrow(player: Phaser.Physics.Arcade.Sprite): void {
+  private drawObjectiveArrow(player: Phaser.GameObjects.Image): void {
     if (this.phase === 'victory') {
       this.arrowGfx.clear();
       return;
