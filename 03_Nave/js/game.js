@@ -8,9 +8,27 @@
   // ─── Constants ───────────────────────────────────────────
   const W = 480;
   const H = 720;
+  /** Versão do jogo — subir a cada release visível ao jogador */
+  const GAME_VERSION = "1.3.0";
+  const GAME_DIFFICULTY = "FÁCIL";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   const MISSION_WAVE = 10; // limpar o setor
+
+  // Qualidade: só mobile/celular reduz FX — PC (mesmo com touchscreen) fica full
+  const IS_MOBILE_UA = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  const IS_TOUCH = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+  const IS_NARROW = Math.min(window.innerWidth, window.innerHeight) < 700;
+  const LOW_FX = IS_MOBILE_UA || (IS_TOUCH && IS_NARROW);
+  const FX = {
+    stars: LOW_FX ? 48 : 120,
+    particleScale: LOW_FX ? 0.4 : 1,
+    maxParticles: LOW_FX ? 90 : 320,
+    thrusterChance: LOW_FX ? 0.35 : 1,
+    shadows: !LOW_FX,
+    nebula: !LOW_FX,
+    innerRails: !LOW_FX,
+  };
 
   const WEAPON = {
     PULSE: "PULSE",
@@ -166,7 +184,7 @@
   // ─── Stars ───────────────────────────────────────────────
   function initStars() {
     stars = [];
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < FX.stars; i++) {
       stars.push({
         x: rand(0, W),
         y: rand(0, H),
@@ -195,7 +213,7 @@
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.s * s.z * 0.6, 0, Math.PI * 2);
       ctx.fill();
-      if (s.z > 1.1) {
+      if (!LOW_FX && s.z > 1.1) {
         ctx.strokeStyle = `rgba(0, 240, 255, ${0.15 * a})`;
         ctx.beginPath();
         ctx.moveTo(s.x, s.y);
@@ -206,7 +224,14 @@
   }
 
   // ─── Particles ───────────────────────────────────────────
+  function capParticles() {
+    if (particles.length > FX.maxParticles) {
+      particles.splice(0, particles.length - FX.maxParticles);
+    }
+  }
+
   function burst(x, y, color, n = 14, speed = 180, life = 0.5) {
+    n = Math.max(2, Math.floor(n * FX.particleScale));
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2);
       const sp = rand(speed * 0.3, speed);
@@ -220,12 +245,14 @@
         r: rand(1.5, 4),
         color,
         drag: 0.92,
-        glow: true,
+        glow: FX.shadows,
       });
     }
+    capParticles();
   }
 
   function spark(x, y, color, n = 6) {
+    n = Math.max(1, Math.floor(n * FX.particleScale));
     for (let i = 0; i < n; i++) {
       particles.push({
         x,
@@ -237,12 +264,14 @@
         r: rand(1, 2.5),
         color,
         drag: 0.96,
-        glow: true,
+        glow: FX.shadows,
       });
     }
+    capParticles();
   }
 
   function thruster(x, y) {
+    if (FX.thrusterChance < 1 && Math.random() > FX.thrusterChance) return;
     particles.push({
       x: x + rand(-3, 3),
       y: y + rand(0, 4),
@@ -253,7 +282,7 @@
       r: rand(1.5, 3.5),
       color: chance(0.5) ? "#00f0ff" : "#7dff6b",
       drag: 0.9,
-      glow: true,
+      glow: FX.shadows,
     });
   }
 
@@ -276,7 +305,7 @@
     for (const p of particles) {
       const a = clamp(p.life / p.max, 0, 1);
       ctx.globalAlpha = a;
-      if (p.glow) {
+      if (p.glow && FX.shadows) {
         ctx.shadowColor = p.color;
         ctx.shadowBlur = 10;
       }
@@ -284,7 +313,7 @@
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      if (FX.shadows) ctx.shadowBlur = 0;
     }
     ctx.globalAlpha = 1;
   }
@@ -348,7 +377,7 @@
     }
 
     thruster(player.x, player.y + 14);
-    if (game.speedBoost > 0) thruster(player.x + 6, player.y + 12);
+    if (game.speedBoost > 0 && !LOW_FX) thruster(player.x + 6, player.y + 12);
 
     // Auto-fire arcade (sempre ativo em jogo)
     game.fireCooldown -= dt;
@@ -511,12 +540,14 @@
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 120);
       ctx.strokeStyle = `rgba(0, 240, 255, ${0.35 + pulse * 0.4})`;
       ctx.lineWidth = 2;
-      ctx.shadowColor = "#00f0ff";
-      ctx.shadowBlur = 15;
+      if (FX.shadows) {
+        ctx.shadowColor = "#00f0ff";
+        ctx.shadowBlur = 15;
+      }
       ctx.beginPath();
       ctx.arc(0, 0, 22 + pulse * 3, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.shadowBlur = 0;
+      if (FX.shadows) ctx.shadowBlur = 0;
     }
 
     // Engine glow
@@ -533,8 +564,10 @@
     g.addColorStop(0.4, "#00d4ff");
     g.addColorStop(1, "#005a88");
     ctx.fillStyle = g;
-    ctx.shadowColor = "#00f0ff";
-    ctx.shadowBlur = 16;
+    if (FX.shadows) {
+      ctx.shadowColor = "#00f0ff";
+      ctx.shadowBlur = 16;
+    }
     ctx.beginPath();
     ctx.moveTo(0, -16);
     ctx.lineTo(12, 6);
@@ -546,7 +579,7 @@
     ctx.fill();
 
     // Cockpit
-    ctx.shadowBlur = 0;
+    if (FX.shadows) ctx.shadowBlur = 0;
     ctx.fillStyle = "#fff8";
     ctx.beginPath();
     ctx.ellipse(0, -2, 4, 6, 0, 0, Math.PI * 2);
@@ -621,8 +654,10 @@
   function drawBullets() {
     for (const b of bullets) {
       ctx.save();
-      ctx.shadowColor = b.color;
-      ctx.shadowBlur = b.plasma ? 20 : 12;
+      if (FX.shadows) {
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur = b.plasma ? 20 : 12;
+      }
       ctx.fillStyle = b.color;
       if (b.laser) {
         ctx.fillRect(b.x - b.r * 0.4, b.y - 10, b.r * 0.8, 18);
@@ -646,8 +681,10 @@
 
     for (const b of enemyBullets) {
       ctx.save();
-      ctx.shadowColor = b.color;
-      ctx.shadowBlur = 10;
+      if (FX.shadows) {
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur = 10;
+      }
       ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
@@ -997,8 +1034,10 @@
   }
 
   function drawEnemyShip(e) {
-    ctx.shadowColor = e.color;
-    ctx.shadowBlur = 12;
+    if (FX.shadows) {
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 12;
+    }
     ctx.fillStyle = e.color;
 
     if (e.kind === "tank") {
@@ -1121,8 +1160,10 @@
     }
 
     ctx.scale(pulse, pulse);
-    ctx.shadowColor = phase === 3 ? "#ff3b5c" : "#ff2bd6";
-    ctx.shadowBlur = 22 + threat * 12;
+    if (FX.shadows) {
+      ctx.shadowColor = phase === 3 ? "#ff3b5c" : "#ff2bd6";
+      ctx.shadowBlur = 22 + threat * 12;
+    }
 
     // Core body
     const g = ctx.createRadialGradient(0, 0, 5, 0, 0, 48);
@@ -1988,28 +2029,32 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // Nebula blobs
+    // Nebula blobs (desliga no mobile fraco)
     const t = performance.now() / 1000;
-    drawNebula(W * 0.2, H * 0.3 + Math.sin(t * 0.2) * 20, 120, "rgba(0, 100, 180, 0.08)");
-    drawNebula(W * 0.75, H * 0.55 + Math.cos(t * 0.15) * 30, 150, "rgba(140, 0, 120, 0.07)");
-    drawNebula(W * 0.5, H * 0.15, 90, "rgba(0, 180, 160, 0.05)");
+    if (FX.nebula) {
+      drawNebula(W * 0.2, H * 0.3 + Math.sin(t * 0.2) * 20, 120, "rgba(0, 100, 180, 0.08)");
+      drawNebula(W * 0.75, H * 0.55 + Math.cos(t * 0.15) * 30, 150, "rgba(140, 0, 120, 0.07)");
+      drawNebula(W * 0.5, H * 0.15, 90, "rgba(0, 180, 160, 0.05)");
+    }
 
     drawStars();
 
-    // Grid floor perspective (subtle)
-    ctx.strokeStyle = "rgba(0, 240, 255, 0.04)";
-    ctx.lineWidth = 1;
-    const horizon = H * 0.35;
-    for (let i = 0; i < 10; i++) {
-      const y = horizon + Math.pow(i / 10, 1.5) * (H - horizon);
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+    // Grid floor perspective (subtle) — menos linhas no mobile
+    if (!LOW_FX) {
+      ctx.strokeStyle = "rgba(0, 240, 255, 0.04)";
+      ctx.lineWidth = 1;
+      const horizon = H * 0.35;
+      for (let i = 0; i < 10; i++) {
+        const y = horizon + Math.pow(i / 10, 1.5) * (H - horizon);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
     }
 
     // Filetes internos laterais (design de cockpit no campo de jogo)
-    drawInnerRails(t);
+    if (FX.innerRails) drawInnerRails(t);
   }
 
   function drawInnerRails(t) {
@@ -2067,12 +2112,14 @@
     drawPlayer();
     drawParticles();
 
-    // Vignette
-    const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
-    vig.addColorStop(0, "transparent");
-    vig.addColorStop(1, "rgba(0,0,0,0.45)");
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, W, H);
+    // Vignette (pesado em GPU fraca — só no PC)
+    if (!LOW_FX) {
+      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
+      vig.addColorStop(0, "transparent");
+      vig.addColorStop(1, "rgba(0,0,0,0.45)");
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     // Flash overlay
     if (flash > 0) {
@@ -2280,7 +2327,36 @@
   $("btn-intro-go")?.addEventListener("click", beginMissionFromIntro);
   $("btn-intro-skip")?.addEventListener("click", beginMissionFromIntro);
 
+  // Botões touch: bomba / especial (não disparam drag da nave)
+  function bindTouchAction(btn, fn) {
+    if (!btn) return;
+    const fire = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (state === "playing") fn();
+    };
+    btn.addEventListener("touchstart", fire, { passive: false });
+    btn.addEventListener("click", fire);
+  }
+  bindTouchAction($("btn-touch-bomb"), useBomb);
+  bindTouchAction($("btn-touch-special"), useSpecial);
+
+  function applyVersionLabels() {
+    const label = `v${GAME_VERSION} · ${GAME_DIFFICULTY}`;
+    const titleVer = $("title-version");
+    const badge = $("version-badge");
+    if (titleVer) titleVer.textContent = label;
+    if (badge) badge.textContent = label;
+    document.title = `NEON STRIKE v${GAME_VERSION}`;
+  }
+
+  // Força botões em mobile/touch estreito
+  if (IS_TOUCH) {
+    $("touch-controls")?.classList.add("force-show");
+  }
+
   // ─── Boot ────────────────────────────────────────────────
+  applyVersionLabels();
   initStars();
   refreshTitleHi();
   refreshAchievementsUI();

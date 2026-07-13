@@ -367,6 +367,97 @@ body {
   text-transform: uppercase;
 }
 
+.version-line {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.45);
+}
+
+.version-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 25;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 209, 102, 0.75);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 3px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 209, 102, 0.25);
+}
+
+/* Botões touch — escondidos no desktop (mouse fino) */
+.touch-controls {
+  display: none;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 52px;
+  z-index: 15;
+  pointer-events: none;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.touch-btn {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 240, 255, 0.55);
+  background: rgba(5, 12, 28, 0.72);
+  color: var(--white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.25);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.touch-btn .tb-icon { font-size: 1.15rem; line-height: 1; }
+.touch-btn .tb-label {
+  font-family: var(--font-display);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+}
+
+.touch-bomb {
+  border-color: rgba(255, 136, 68, 0.7);
+  box-shadow: 0 0 16px rgba(255, 136, 68, 0.3);
+}
+
+.touch-special {
+  border-color: rgba(255, 209, 102, 0.7);
+  box-shadow: 0 0 16px rgba(255, 209, 102, 0.3);
+}
+
+.touch-btn:active {
+  transform: scale(0.94);
+  background: rgba(0, 240, 255, 0.2);
+}
+
+/* Mostra só em toque / mobile */
+@media (hover: none), (pointer: coarse) {
+  .touch-controls { display: flex; }
+}
+
+/* Fallback: telas estreitas com touch */
+@media (max-width: 820px) {
+  .touch-controls.force-show { display: flex; }
+}
+
 .menu-actions {
   display: flex;
   flex-direction: column;
@@ -1012,7 +1103,7 @@ body {
   color: rgba(138, 150, 184, 0.55);
 }
 
-/* Scanline overlay on stage only */
+/* Scanline overlay on stage only — desliga em mobile (custo de paint) */
 .stage::after {
   content: "";
   position: absolute;
@@ -1028,6 +1119,11 @@ body {
   );
   mix-blend-mode: multiply;
   opacity: 0.45;
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 820px) {
+  .stage::after { display: none; }
+  .bg-glow { opacity: 0.18; filter: blur(50px); }
 }
 
 /* Mobile */
