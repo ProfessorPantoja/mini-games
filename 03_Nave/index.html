@@ -39,7 +39,7 @@
             </div>
             <div class="hud-block wave-block">
               <span class="label" id="hud-mission-label">MISSÃO</span>
-              <span id="hud-wave" class="value">1/10</span>
+              <span id="hud-wave" class="value">1/5</span>
             </div>
             <div class="hud-block hi-block">
               <span class="label">HI-SCORE</span>
@@ -134,20 +134,21 @@
               <span class="t1">NEON</span>
               <span class="t2">STRIKE</span>
             </h1>
-            <p class="version-line" id="title-version">v1.5.0</p>
-            <p class="tagline">Enxames · Identidade · Missão wave 10</p>
+            <p class="version-line" id="title-version">v1.6.0</p>
+            <p class="tagline">Enxames · Stats · Ranking local</p>
           </div>
 
           <div class="menu-actions">
             <button id="btn-start" class="btn primary pulse">INICIAR MISSÃO</button>
+            <button id="btn-ranking" class="btn ghost" type="button">RANKING</button>
             <button id="btn-how" class="btn ghost">COMO JOGAR</button>
             <button id="btn-mute" class="btn ghost" type="button">SOM: ON</button>
           </div>
 
           <div class="title-stats">
             <div><span class="k">RECORDE</span><span id="title-hiscore" class="v">0</span></div>
-            <div><span class="k">MISSÃO</span><span class="v">SETOR 7 · W10</span></div>
-            <div><span class="k">DIFICULDADE</span><span class="v">FÁCIL</span></div>
+            <div><span class="k">MISSÃO</span><span class="v">SETOR 7 · W5</span></div>
+            <div><span class="k">DIFICULDADE</span><span class="v">CASUAL</span></div>
           </div>
 
           <div class="achievements-strip" id="title-achievements" title="Conquistas">
@@ -164,7 +165,7 @@
             <span class="ach-pip locked" data-ach="endless_pilot" title="Endless wave 15">∞</span>
           </div>
 
-          <p class="hint-start">Modo fácil · wave 10 limpa o setor · depois endless</p>
+          <p class="hint-start">Casual · 5 waves limpam o setor · salve no ranking local</p>
           <div class="screen-ornament bot"></div>
         </div>
 
@@ -176,9 +177,9 @@
           <div class="intro-lines" id="intro-lines">
             <p class="intro-line">As defesas orbitais caíram.</p>
             <p class="intro-line">Ondas hostis avançam pelo corredor neon.</p>
-            <p class="intro-line">Sua missão: limpar <strong>10 waves</strong> e neutralizar os chefes.</p>
+            <p class="intro-line">Sua missão: limpar <strong>5 waves</strong> e neutralizar os chefes.</p>
             <p class="intro-line accent">Armas sobem de nível. Energia regenera entre ondas.</p>
-            <p class="intro-line">Este é o modo <strong>FÁCIL</strong> — foque em se divertir.</p>
+            <p class="intro-line">Modo <strong>CASUAL</strong> — divirta-se e bata seu recorde.</p>
           </div>
           <button id="btn-intro-go" class="btn primary pulse">DECOLAR</button>
           <button id="btn-intro-skip" class="btn ghost">PULAR INTRO</button>
@@ -217,12 +218,13 @@
           <div class="screen-ornament bot"></div>
         </div>
 
-        <!-- Missão completa (wave 10) -->
-        <div id="screen-victory" class="screen hidden">
+        <!-- Missão completa (wave 5) -->
+        <div id="screen-victory" class="screen scrollable hidden">
           <div class="screen-ornament top"></div>
           <h2 class="victory-title">SETOR LIMPO</h2>
-          <p class="victory-sub">Missão cumprida · wave 10 superada</p>
-          <div class="stats-panel">
+          <p class="victory-sub">Missão cumprida · 5 waves superadas</p>
+          <div id="victory-zero" class="zero-badge hidden">★ ZERO DAMAGE ★</div>
+          <div class="stats-panel compact">
             <div class="rank-wrap">
               <span class="k">RANK DA RUN</span>
               <span id="victory-rank" class="rank-letter">A</span>
@@ -233,17 +235,35 @@
               <div class="stat"><span class="k">COMBO</span><span id="victory-combo" class="v">0</span></div>
               <div class="stat"><span class="k">TEMPO</span><span id="victory-time" class="v">0:00</span></div>
             </div>
+            <div class="stat-row">
+              <div class="stat"><span class="k">HITS</span><span id="victory-hits" class="v">0</span></div>
+              <div class="stat"><span class="k">BOMBAS</span><span id="victory-bombs" class="v">0</span></div>
+              <div class="stat"><span class="k">BOSSES</span><span id="victory-bosses" class="v">0</span></div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="k">ITENS</span><span id="victory-pickups" class="v">0</span></div>
+              <div class="stat"><span class="k">ARMA</span><span id="victory-weapon" class="v">L1</span></div>
+              <div class="stat"><span class="k">WAVE</span><span id="victory-wave" class="v">5</span></div>
+            </div>
           </div>
-          <button id="btn-endless" class="btn primary pulse">CONTINUAR ENDLESS</button>
+          <div class="rank-submit">
+            <label class="rank-label" for="victory-name">SEU NOME</label>
+            <input id="victory-name" class="rank-input" type="text" maxlength="12" placeholder="Piloto" autocomplete="off" spellcheck="false" />
+            <div class="flag-picker" id="victory-flags" role="group" aria-label="Bandeira"></div>
+            <button type="button" id="btn-save-rank-victory" class="btn primary">SALVAR NO RANKING</button>
+            <p id="victory-rank-msg" class="rank-msg hidden"></p>
+          </div>
+          <button id="btn-endless" class="btn ghost">CONTINUAR ENDLESS</button>
           <button id="btn-victory-menu" class="btn ghost">MENU</button>
           <div class="screen-ornament bot"></div>
         </div>
 
         <!-- Game Over -->
-        <div id="screen-over" class="screen hidden">
+        <div id="screen-over" class="screen scrollable hidden">
           <div class="screen-ornament top"></div>
           <h2 class="over-title">MISSÃO FALHOU</h2>
-          <div class="stats-panel">
+          <div id="over-zero" class="zero-badge hidden">★ ZERO DAMAGE ★</div>
+          <div class="stats-panel compact">
             <div class="rank-wrap">
               <span class="k">RANK</span>
               <span id="over-rank" class="rank-letter">C</span>
@@ -255,15 +275,37 @@
               <div class="stat"><span class="k">COMBO</span><span id="over-combo" class="v">0</span></div>
             </div>
             <div class="stat-row">
-              <div class="stat"><span class="k">ARMA MAX</span><span id="over-weapon" class="v">L1</span></div>
+              <div class="stat"><span class="k">HITS</span><span id="over-hits" class="v">0</span></div>
               <div class="stat"><span class="k">TEMPO</span><span id="over-time" class="v">0:00</span></div>
               <div class="stat"><span class="k">BOMBAS</span><span id="over-bombs" class="v">0</span></div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="k">BOSSES</span><span id="over-bosses" class="v">0</span></div>
+              <div class="stat"><span class="k">ITENS</span><span id="over-pickups" class="v">0</span></div>
+              <div class="stat"><span class="k">ARMA</span><span id="over-weapon" class="v">L1</span></div>
             </div>
             <div id="over-ach-new" class="ach-new hidden"></div>
             <div id="over-new-record" class="new-record hidden">★ NOVO RECORDE ★</div>
           </div>
+          <div class="rank-submit">
+            <label class="rank-label" for="over-name">SEU NOME</label>
+            <input id="over-name" class="rank-input" type="text" maxlength="12" placeholder="Piloto" autocomplete="off" spellcheck="false" />
+            <div class="flag-picker" id="over-flags" role="group" aria-label="Bandeira"></div>
+            <button type="button" id="btn-save-rank-over" class="btn primary">SALVAR NO RANKING</button>
+            <p id="over-rank-msg" class="rank-msg hidden"></p>
+          </div>
           <button id="btn-retry" class="btn primary pulse">REINICIAR</button>
           <button id="btn-menu" class="btn ghost">MENU</button>
+          <div class="screen-ornament bot"></div>
+        </div>
+
+        <!-- Ranking local -->
+        <div id="screen-ranking" class="screen scrollable hidden">
+          <div class="screen-ornament top"></div>
+          <h2 class="ranking-title">RANKING LOCAL</h2>
+          <p class="victory-sub">Missão · 5 waves · top 10 neste aparelho</p>
+          <div id="ranking-list" class="ranking-list"></div>
+          <button id="btn-ranking-back" class="btn primary" type="button">VOLTAR</button>
           <div class="screen-ornament bot"></div>
         </div>
       </div>
@@ -280,7 +322,7 @@
       </aside>
     </div>
 
-    <footer class="credits" id="footer-version">v1.5.0</footer>
+    <footer class="credits" id="footer-version">v1.6.0</footer>
   </div>
 
   <script src="js/audio.js"></script>

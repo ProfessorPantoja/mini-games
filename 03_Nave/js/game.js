@@ -9,10 +9,22 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.5.0";
+  const GAME_VERSION = "1.6.0";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
-  const MISSION_WAVE = 10; // limpar o setor
+  /** Ranking local da missão curta (MVP). Sobe para 10 depois. */
+  const RANK_KEY = "neonstrike_rank_mission5";
+  const PREF_KEY = "neonstrike_player_pref";
+  const MISSION_WAVE = 5; // limpar o setor (MVP rápido; 10 no futuro)
+  const RANK_MAX = 10;
+
+  const FLAGS = [
+    { code: "BR", emoji: "🇧🇷", name: "Brasil" },
+    { code: "US", emoji: "🇺🇸", name: "EUA" },
+    { code: "CN", emoji: "🇨🇳", name: "China" },
+    { code: "JP", emoji: "🇯🇵", name: "Japão" },
+    { code: "MX", emoji: "🇲🇽", name: "México" },
+  ];
 
   // Qualidade: só mobile/celular reduz FX — PC (mesmo com touchscreen) fica full
   const IS_MOBILE_UA = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
@@ -59,6 +71,7 @@
     over: $("screen-over"),
     victory: $("screen-victory"),
     intro: $("screen-intro"),
+    ranking: $("screen-ranking"),
   };
   const hud = $("hud");
 
@@ -157,6 +170,8 @@
     bombsUsed: 0,
     bossesKilled: 0,
     pickups: 0,
+    hitsTaken: 0,
+    damageTaken: 0,
   };
 
   // Entities
@@ -1430,18 +1445,106 @@
     return (performance.now() - game.runStart) / 1000;
   }
 
-  /** Rank da run — modo fácil: limiares generosos + bônus de missão */
+  /** Rank da run — missão curta (5 waves): limiares calibrados para MVP */
   function calcRank() {
     let score = game.score;
-    if (game.missionComplete) score += 12000;
+    if (game.missionComplete) score += 6000;
     score += game.maxCombo * 80;
-    score += game.maxWeaponLevel * 1500;
-    score += game.bossesKilled * 3000;
-    if (score >= 55000) return "S";
-    if (score >= 28000) return "A";
-    if (score >= 12000) return "B";
+    score += game.maxWeaponLevel * 1200;
+    score += game.bossesKilled * 2500;
+    if (game.hitsTaken === 0 && game.missionComplete) score += 8000;
+    if (score >= 32000) return "S";
+    if (score >= 16000) return "A";
+    if (score >= 7000) return "B";
     if (game.missionComplete) return "B";
     return "C";
+  }
+
+  function isZeroDamage() {
+    return game.hitsTaken === 0;
+  }
+
+  // ─── Ranking local (MVP) ─────────────────────────────────
+  function loadPlayerPref() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PREF_KEY) || "{}") || {};
+      return {
+        name: String(p.name || "").slice(0, 12),
+        flag: FLAGS.some((f) => f.code === p.flag) ? p.flag : "BR",
+      };
+    } catch (_) {
+      return { name: "", flag: "BR" };
+    }
+  }
+
+  function savePlayerPref(name, flag) {
+    localStorage.setItem(
+      PREF_KEY,
+      JSON.stringify({ name: String(name || "").slice(0, 12), flag: flag || "BR" })
+    );
+  }
+
+  function loadRanking() {
+    try {
+      const list = JSON.parse(localStorage.getItem(RANK_KEY) || "[]");
+      return Array.isArray(list) ? list : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveRanking(list) {
+    localStorage.setItem(RANK_KEY, JSON.stringify(list.slice(0, RANK_MAX)));
+  }
+
+  function flagMeta(code) {
+    return FLAGS.find((f) => f.code === code) || FLAGS[0];
+  }
+
+  function buildRunEntry(name, flag) {
+    const cleanName = String(name || "PILOTO").trim().slice(0, 12) || "PILOTO";
+    const flagCode = FLAGS.some((f) => f.code === flag) ? flag : "BR";
+    return {
+      name: cleanName,
+      flag: flagCode,
+      score: game.score | 0,
+      kills: game.statsKills | 0,
+      time: Math.round(runElapsed() * 10) / 10,
+      wave: game.wave | 0,
+      hitsTaken: game.hitsTaken | 0,
+      damageTaken: Math.round(game.damageTaken),
+      bombsUsed: game.bombsUsed | 0,
+      bossesKilled: game.bossesKilled | 0,
+      pickups: game.pickups | 0,
+      maxCombo: game.maxCombo | 0,
+      zeroDamage: isZeroDamage(),
+      completed: !!game.missionComplete,
+      rank: calcRank(),
+      date: new Date().toISOString(),
+    };
+  }
+
+  function compareRankEntries(a, b) {
+    // Completou a missão sobe; depois score; depois menos hits; depois tempo
+    if (!!b.completed !== !!a.completed) return b.completed ? 1 : -1;
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.hitsTaken !== b.hitsTaken) return a.hitsTaken - b.hitsTaken;
+    return a.time - b.time;
+  }
+
+  function addToRanking(entry) {
+    const list = loadRanking();
+    list.push(entry);
+    list.sort(compareRankEntries);
+    const next = list.slice(0, RANK_MAX);
+    saveRanking(next);
+    const pos = next.findIndex(
+      (e) =>
+        e.date === entry.date &&
+        e.name === entry.name &&
+        e.score === entry.score
+    );
+    return { list: next, position: pos >= 0 ? pos + 1 : -1 };
   }
 
   function setRankEl(el, rank) {
@@ -1630,6 +1733,8 @@
 
   function damagePlayer(amount) {
     if (!player) return;
+    // Conta qualquer impacto (inclui escudo) — base do badge ZERO DAMAGE
+    game.hitsTaken++;
     if (game.overdrive > 0) {
       // Overdrive absorve parte do dano
       amount *= 0.35;
@@ -1643,6 +1748,7 @@
       return;
     }
 
+    game.damageTaken += amount;
     game.hp = Math.max(0, game.hp - amount);
     updateHpHUD();
     game.invuln = 1.1;
@@ -1802,7 +1908,7 @@
     updateHpHUD();
     updateScoreHUD();
 
-    // Missão: limpar wave 10 = setor limpo
+    // Missão: limpar waves da missão = setor limpo
     if (!game.missionComplete && game.wave >= MISSION_WAVE) {
       game.missionComplete = true;
       unlockAchievement("sector_clear");
@@ -1822,15 +1928,150 @@
     }, 2200);
   }
 
+  function fillRunStats(prefix) {
+    const set = (id, val) => {
+      const el = $(id);
+      if (el) el.textContent = val;
+    };
+    set(`${prefix}-score`, game.score.toLocaleString("pt-BR"));
+    set(`${prefix}-kills`, String(game.statsKills));
+    set(`${prefix}-combo`, String(game.maxCombo));
+    set(`${prefix}-time`, formatTime(runElapsed()));
+    set(`${prefix}-hits`, String(game.hitsTaken));
+    set(`${prefix}-bombs`, String(game.bombsUsed));
+    set(`${prefix}-bosses`, String(game.bossesKilled));
+    set(`${prefix}-pickups`, String(game.pickups));
+    set(`${prefix}-weapon`, `L${game.maxWeaponLevel}`);
+    set(`${prefix}-wave`, String(game.wave));
+
+    const zeroEl = $(`${prefix}-zero`);
+    if (zeroEl) {
+      const zd = isZeroDamage();
+      zeroEl.classList.toggle("hidden", !zd);
+      zeroEl.textContent = zd ? "★ ZERO DAMAGE ★" : "";
+    }
+  }
+
+  function prepareRankForm(prefix) {
+    const pref = loadPlayerPref();
+    const nameEl = $(`${prefix}-name`);
+    if (nameEl) nameEl.value = pref.name;
+    renderFlagPicker(`${prefix}-flags`, pref.flag, prefix);
+    const msg = $(`${prefix}-rank-msg`);
+    if (msg) {
+      msg.textContent = "";
+      msg.classList.add("hidden");
+    }
+    const btn = $(`btn-save-rank-${prefix}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "SALVAR NO RANKING";
+    }
+  }
+
+  function renderFlagPicker(containerId, selected, prefix) {
+    const box = $(containerId);
+    if (!box) return;
+    box.innerHTML = "";
+    box.dataset.selected = selected || "BR";
+    FLAGS.forEach((f) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "flag-btn" + (f.code === (selected || "BR") ? " selected" : "");
+      btn.dataset.flag = f.code;
+      btn.title = f.name;
+      btn.setAttribute("aria-label", f.name);
+      btn.textContent = f.emoji;
+      btn.addEventListener("click", () => {
+        box.dataset.selected = f.code;
+        box.querySelectorAll(".flag-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        AudioSys.uiClick();
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  function handleSaveRanking(prefix) {
+    const nameEl = $(`${prefix}-name`);
+    const flagsEl = $(`${prefix}-flags`);
+    const name = (nameEl?.value || "").trim();
+    const flag = flagsEl?.dataset.selected || "BR";
+    if (!name) {
+      if (nameEl) nameEl.focus();
+      const msg = $(`${prefix}-rank-msg`);
+      if (msg) {
+        msg.textContent = "Digite seu nome para salvar.";
+        msg.classList.remove("hidden");
+      }
+      return;
+    }
+    savePlayerPref(name, flag);
+    const entry = buildRunEntry(name, flag);
+    const { position } = addToRanking(entry);
+    const msg = $(`${prefix}-rank-msg`);
+    if (msg) {
+      msg.textContent =
+        position > 0
+          ? `Salvo! #${position} no ranking local`
+          : "Salvo! (fora do top 10)";
+      msg.classList.remove("hidden");
+    }
+    const btn = $(`btn-save-rank-${prefix}`);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "SALVO ✓";
+    }
+    AudioSys.uiClick();
+    refreshRankingList();
+  }
+
+  function refreshRankingList() {
+    const listEl = $("ranking-list");
+    if (!listEl) return;
+    const list = loadRanking();
+    if (!list.length) {
+      listEl.innerHTML =
+        '<p class="ranking-empty">Nenhum recorde ainda.<br/>Complete a missão e salve sua marca!</p>';
+      return;
+    }
+    listEl.innerHTML = list
+      .map((e, i) => {
+        const fl = flagMeta(e.flag);
+        const zd = e.zeroDamage ? '<span class="zd-tag">0 DMG</span>' : "";
+        const done = e.completed ? "" : '<span class="fail-tag">DNF</span>';
+        return `<div class="rank-row">
+          <span class="rank-pos">#${i + 1}</span>
+          <span class="rank-flag" title="${fl.name}">${fl.emoji}</span>
+          <span class="rank-name">${escapeHtml(e.name)}</span>
+          <span class="rank-score">${Number(e.score).toLocaleString("pt-BR")}</span>
+          <span class="rank-meta">${formatTime(e.time)} · W${e.wave}${zd}${done}</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function openRankingScreen() {
+    AudioSys.uiClick();
+    refreshRankingList();
+    showScreen("ranking");
+  }
+
   function showVictory() {
     state = "victory";
     AudioSys.waveClear();
     const rank = calcRank();
     setRankEl($("victory-rank"), rank);
-    $("victory-score").textContent = game.score.toLocaleString("pt-BR");
-    $("victory-kills").textContent = String(game.statsKills);
-    $("victory-combo").textContent = String(game.maxCombo);
-    $("victory-time").textContent = formatTime(runElapsed());
+    fillRunStats("victory");
+    prepareRankForm("victory");
 
     if (game.score > Number(localStorage.getItem(HS_KEY) || 0)) {
       localStorage.setItem(HS_KEY, String(game.score));
@@ -1976,6 +2217,8 @@
     game.bombsUsed = 0;
     game.bossesKilled = 0;
     game.pickups = 0;
+    game.hitsTaken = 0;
+    game.damageTaken = 0;
     unlockedThisRun = [];
     bullets = [];
     enemyBullets = [];
@@ -2066,14 +2309,9 @@
 
     const rank = calcRank();
     setRankEl($("over-rank"), rank);
-    $("over-score").textContent = game.score.toLocaleString("pt-BR");
-    $("over-wave").textContent = String(game.wave);
-    $("over-kills").textContent = String(game.statsKills);
-    $("over-combo").textContent = String(game.maxCombo);
-    $("over-weapon").textContent = `L${game.maxWeaponLevel}`;
-    $("over-time").textContent = formatTime(runElapsed());
-    $("over-bombs").textContent = String(game.bombsUsed);
-    $("over-new-record").classList.toggle("hidden", !isNew);
+    fillRunStats("over");
+    prepareRankForm("over");
+    $("over-new-record")?.classList.toggle("hidden", !isNew);
 
     const achEl = $("over-ach-new");
     if (achEl) {
@@ -2403,7 +2641,12 @@
     AudioSys.uiClick();
     showScreen("how");
   });
+  $("btn-ranking")?.addEventListener("click", openRankingScreen);
   $("btn-back").addEventListener("click", () => {
+    AudioSys.uiClick();
+    showScreen("title");
+  });
+  $("btn-ranking-back")?.addEventListener("click", () => {
     AudioSys.uiClick();
     showScreen("title");
   });
@@ -2415,6 +2658,14 @@
   $("btn-victory-menu")?.addEventListener("click", quitToMenu);
   $("btn-intro-go")?.addEventListener("click", beginMissionFromIntro);
   $("btn-intro-skip")?.addEventListener("click", beginMissionFromIntro);
+  $("btn-save-rank-victory")?.addEventListener("click", () => handleSaveRanking("victory"));
+  $("btn-save-rank-over")?.addEventListener("click", () => handleSaveRanking("over"));
+  $("victory-name")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleSaveRanking("victory");
+  });
+  $("over-name")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleSaveRanking("over");
+  });
 
   function toggleAutoFire() {
     input.autoFire = !input.autoFire;
