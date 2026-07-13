@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Survival V2 — Tanque</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="objective">Explore o mapa</div>
+      <div id="stats">
+        <div class="stat"><span class="label">Vida</span><span id="hp-text">100/100</span></div>
+        <div class="stat"><span class="label">Nível</span><span id="level-text">1</span></div>
+        <div class="stat"><span class="label">XP</span><span id="xp-text">0/10</span></div>
+        <div class="stat"><span class="label">Kills</span><span id="kills-text">0</span></div>
+        <div class="stat"><span class="label">Tempo</span><span id="time-text">0:00</span></div>
+        <div class="stat"><span class="label">Fase</span><span id="phase-text">Explorar</span></div>
+      </div>
+      <div id="hp-bar-wrap">
+        <div id="hp-bar"></div>
+      </div>
+      <canvas id="minimap" width="160" height="160"></canvas>
+    </div>
+
+    <!-- Banner de emboscada -->
+    <div id="banner" class="hidden">EMBOSCADA!</div>
+
+    <!-- Cartas de level-up -->
+    <div id="card-overlay" class="hidden">
+      <h2>Subiu de nível!</h2>
+      <p class="hint">Escolha uma carta · 1 · 2 · 3</p>
+      <div id="cards"></div>
+    </div>
+
+    <!-- Menu inicial -->
+    <div id="menu" class="screen">
+      <div class="panel">
+        <h1>SURVIVAL V2</h1>
+        <p class="subtitle">Build Tanque — aguente a horda</p>
+        <ul class="howto">
+          <li><kbd>WASD</kbd> ou setas — mover</li>
+          <li>Órbitas e pulso atacam sozinhos</li>
+          <li>Mate elites · derrote o chefão</li>
+        </ul>
+        <button id="btn-play" class="btn primary">Jogar</button>
+      </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="gameover" class="screen hidden">
+      <div class="panel">
+        <h1 class="danger">GAME OVER</h1>
+        <p id="go-stats"></p>
+        <p class="hint">Pressione <kbd>R</kbd> para reiniciar</p>
+        <button id="btn-restart" class="btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <!-- Vitória -->
+    <div id="victory" class="screen hidden">
+      <div class="panel">
+        <h1 class="success">VITÓRIA!</h1>
+        <p id="vic-stats"></p>
+        <p class="hint">Pressione <kbd>R</kbd> para jogar de novo</p>
+        <button id="btn-again" class="btn primary">Jogar de novo</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
