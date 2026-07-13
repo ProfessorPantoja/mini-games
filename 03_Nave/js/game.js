@@ -9,6 +9,8 @@
   const W = 480;
   const H = 720;
   const HS_KEY = "neonstrike_hiscore";
+  const ACH_KEY = "neonstrike_achievements";
+  const MISSION_WAVE = 10; // limpar o setor
 
   const WEAPON = {
     PULSE: "PULSE",
@@ -38,8 +40,30 @@
     how: $("screen-how"),
     pause: $("screen-pause"),
     over: $("screen-over"),
+    victory: $("screen-victory"),
   };
   const hud = $("hud");
+
+  const ACH_META = {
+    first_boss: { id: "first_boss", name: "Primeiro boss" },
+    max_power: { id: "max_power", name: "Arma L3" },
+    sector_clear: { id: "sector_clear", name: "Setor limpo" },
+  };
+
+  function loadAchievements() {
+    try {
+      return JSON.parse(localStorage.getItem(ACH_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveAchievements(map) {
+    localStorage.setItem(ACH_KEY, JSON.stringify(map));
+  }
+
+  let achievements = loadAchievements();
+  let unlockedThisRun = [];
 
   // ─── State ───────────────────────────────────────────────
   let state = "title"; // title | playing | pause | over
@@ -94,6 +118,14 @@
     special: 0,
     specialMax: 100,
     overdrive: 0,
+    // Missão / run stats
+    missionWave: MISSION_WAVE,
+    missionComplete: false,
+    endless: false,
+    runStart: 0,
+    maxWeaponLevel: 1,
+    bombsUsed: 0,
+    bossesKilled: 0,
   };
 
   // Entities
@@ -1120,6 +1152,8 @@
     if (game.weapon === newWeapon) {
       const prev = game.weaponLevel;
       game.weaponLevel = Math.min(3, game.weaponLevel + 1);
+      game.maxWeaponLevel = Math.max(game.maxWeaponLevel, game.weaponLevel);
+      if (game.weaponLevel >= 3) unlockAchievement("max_power");
       return game.weaponLevel > prev
         ? `${newWeapon} · L${game.weaponLevel}!`
         : `${newWeapon} MAX`;
@@ -1127,7 +1161,59 @@
     game.weapon = newWeapon;
     // Trocar arma mantém nível (generoso) no mín. 1
     game.weaponLevel = Math.max(1, game.weaponLevel);
+    game.maxWeaponLevel = Math.max(game.maxWeaponLevel, game.weaponLevel);
+    if (game.weaponLevel >= 3) unlockAchievement("max_power");
     return `${newWeapon} · L${game.weaponLevel}`;
+  }
+
+  function unlockAchievement(id) {
+    if (!ACH_META[id]) return;
+    if (achievements[id]) return;
+    achievements[id] = true;
+    saveAchievements(achievements);
+    unlockedThisRun.push(ACH_META[id].name);
+    refreshAchievementsUI();
+    showBanner(`★ ${ACH_META[id].name.toUpperCase()}`);
+    AudioSys.powerup();
+  }
+
+  function refreshAchievementsUI() {
+    document.querySelectorAll(".ach-pip[data-ach]").forEach((el) => {
+      const id = el.getAttribute("data-ach");
+      el.classList.toggle("locked", !achievements[id]);
+    });
+  }
+
+  function formatTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function runElapsed() {
+    if (!game.runStart) return 0;
+    return (performance.now() - game.runStart) / 1000;
+  }
+
+  /** Rank da run — modo fácil: limiares generosos + bônus de missão */
+  function calcRank() {
+    let score = game.score;
+    if (game.missionComplete) score += 12000;
+    score += game.maxCombo * 80;
+    score += game.maxWeaponLevel * 1500;
+    score += game.bossesKilled * 3000;
+    if (score >= 55000) return "S";
+    if (score >= 28000) return "A";
+    if (score >= 12000) return "B";
+    if (game.missionComplete) return "B";
+    return "C";
+  }
+
+  function setRankEl(el, rank) {
+    if (!el) return;
+    el.textContent = rank;
+    el.className = "rank-letter rank-" + rank;
   }
 
   function applyPowerup(type) {
@@ -1288,6 +1374,8 @@
 
     if (e.kind === "boss") {
       game.boss = null;
+      game.bossesKilled++;
+      unlockAchievement("first_boss");
       $("boss-bar-wrap").classList.add("hidden");
       // reward bombs + weapon
       game.bombs = Math.min(9, game.bombs + 1);
@@ -1399,6 +1487,7 @@
   function useBomb() {
     if (state !== "playing" || game.bombs <= 0 || !player) return;
     game.bombs--;
+    game.bombsUsed++;
     updateBombsHUD();
     AudioSys.bomb();
     shake = 0.8;
@@ -1433,13 +1522,30 @@
   }
 
   // ─── Waves ───────────────────────────────────────────────
+  function updateMissionHUD() {
+    const label = $("hud-mission-label");
+    const waveEl = $("hud-wave");
+    if (!waveEl) return;
+    if (game.endless || game.missionComplete) {
+      if (label) label.textContent = "ENDLESS";
+      waveEl.textContent = String(game.wave);
+    } else {
+      if (label) label.textContent = "MISSÃO";
+      waveEl.textContent = `${game.wave}/${MISSION_WAVE}`;
+    }
+  }
+
   function startWave(n) {
     game.wave = n;
     game.waveTimer = 0;
     game.waveClearing = false;
     game.spawnQueue = buildWave(n);
-    $("hud-wave").textContent = String(n);
-    showBanner(n % 5 === 0 ? `BOSS WAVE ${n}` : `WAVE ${n}`);
+    updateMissionHUD();
+    if (!game.endless && n === MISSION_WAVE) {
+      showBanner(`WAVE ${n} · FINAL DO SETOR`);
+    } else {
+      showBanner(n % 5 === 0 ? `BOSS WAVE ${n}` : `WAVE ${n}`);
+    }
   }
 
   function onWaveClear() {
@@ -1452,10 +1558,58 @@
     addSpecial(25);
     updateHpHUD();
     updateScoreHUD();
+
+    // Missão: limpar wave 10 = setor limpo
+    if (!game.missionComplete && game.wave >= MISSION_WAVE) {
+      game.missionComplete = true;
+      unlockAchievement("sector_clear");
+      const missionBonus = 10000;
+      game.score += missionBonus;
+      updateScoreHUD();
+      showBanner(`SETOR LIMPO  +${missionBonus}`);
+      setTimeout(() => {
+        if (state === "playing") showVictory();
+      }, 2000);
+      return;
+    }
+
     showBanner(`WAVE ${game.wave} CLEAR  +${bonus}`);
     setTimeout(() => {
       if (state === "playing") startWave(game.wave + 1);
     }, 2200);
+  }
+
+  function showVictory() {
+    state = "victory";
+    AudioSys.waveClear();
+    const rank = calcRank();
+    setRankEl($("victory-rank"), rank);
+    $("victory-score").textContent = game.score.toLocaleString("pt-BR");
+    $("victory-kills").textContent = String(game.statsKills);
+    $("victory-combo").textContent = String(game.maxCombo);
+    $("victory-time").textContent = formatTime(runElapsed());
+
+    if (game.score > Number(localStorage.getItem(HS_KEY) || 0)) {
+      localStorage.setItem(HS_KEY, String(game.score));
+      game.hiscore = game.score;
+    }
+
+    hud.classList.add("hidden");
+    $("boss-bar-wrap").classList.add("hidden");
+    showScreen("victory");
+  }
+
+  function continueEndless() {
+    AudioSys.uiClick();
+    game.endless = true;
+    game.waveClearing = false;
+    state = "playing";
+    showScreen(null);
+    hud.classList.remove("hidden");
+    updateMissionHUD();
+    showBanner("ENDLESS MODE");
+    AudioSys.startMusic();
+    startWave(game.wave + 1);
   }
 
   function showBanner(text) {
@@ -1568,6 +1722,13 @@
     game.hp = game.maxHp;
     game.special = 0;
     game.overdrive = 0;
+    game.missionComplete = false;
+    game.endless = false;
+    game.runStart = performance.now();
+    game.maxWeaponLevel = 1;
+    game.bombsUsed = 0;
+    game.bossesKilled = 0;
+    unlockedThisRun = [];
     bullets = [];
     enemyBullets = [];
     enemies = [];
@@ -1583,6 +1744,7 @@
     updateComboHUD();
     updateHpHUD();
     updateSpecialHUD();
+    updateMissionHUD();
     $("boss-bar-wrap").classList.add("hidden");
     $("overdrive-fx").classList.add("hidden");
     $("float-scores").innerHTML = "";
@@ -1596,6 +1758,7 @@
     state = "playing";
     showScreen(null);
     hud.classList.remove("hidden");
+    showBanner("MISSÃO: LIMPE O SETOR 7");
     startWave(1);
   }
 
@@ -1620,6 +1783,7 @@
     $("boss-bar-wrap").classList.add("hidden");
     showScreen("title");
     refreshTitleHi();
+    refreshAchievementsUI();
     AudioSys.uiClick();
   }
 
@@ -1627,7 +1791,7 @@
     state = "over";
     AudioSys.stopMusic();
     AudioSys.gameOver();
-    burst(player.x, player.y, "#00f0ff", 50, 300, 0.8);
+    if (player) burst(player.x, player.y, "#00f0ff", 50, 300, 0.8);
     player = null;
 
     const isNew = game.score >= game.hiscore && game.score > 0;
@@ -1636,11 +1800,32 @@
       game.hiscore = game.score;
     }
 
+    const rank = calcRank();
+    setRankEl($("over-rank"), rank);
     $("over-score").textContent = game.score.toLocaleString("pt-BR");
     $("over-wave").textContent = String(game.wave);
     $("over-kills").textContent = String(game.statsKills);
     $("over-combo").textContent = String(game.maxCombo);
+    $("over-weapon").textContent = `L${game.maxWeaponLevel}`;
+    $("over-time").textContent = formatTime(runElapsed());
+    $("over-bombs").textContent = String(game.bombsUsed);
     $("over-new-record").classList.toggle("hidden", !isNew);
+
+    const achEl = $("over-ach-new");
+    if (achEl) {
+      if (unlockedThisRun.length) {
+        achEl.textContent = "NOVA CONQUISTA: " + unlockedThisRun.join(" · ");
+        achEl.classList.remove("hidden");
+      } else {
+        achEl.classList.add("hidden");
+      }
+    }
+
+    const title = document.querySelector("#screen-over .over-title");
+    if (title) {
+      title.textContent = game.missionComplete ? "FIM DA RUN" : "MISSÃO FALHOU";
+      title.classList.toggle("victory-title", game.missionComplete);
+    }
 
     setTimeout(() => {
       hud.classList.add("hidden");
@@ -1944,10 +2129,13 @@
   $("btn-quit").addEventListener("click", quitToMenu);
   $("btn-retry").addEventListener("click", startGame);
   $("btn-menu").addEventListener("click", quitToMenu);
+  $("btn-endless")?.addEventListener("click", continueEndless);
+  $("btn-victory-menu")?.addEventListener("click", quitToMenu);
 
   // ─── Boot ────────────────────────────────────────────────
   initStars();
   refreshTitleHi();
+  refreshAchievementsUI();
   showScreen("title");
   // idle ambient particles on title
   for (let i = 0; i < 20; i++) {

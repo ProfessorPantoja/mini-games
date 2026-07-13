@@ -453,6 +453,82 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* Conquistas no título */
+.achievements-strip {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.ach-pip {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(0, 240, 255, 0.1);
+  font-size: 1rem;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+}
+
+.ach-pip.locked {
+  opacity: 0.28;
+  filter: grayscale(1);
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rank-wrap {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.rank-letter {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  background: linear-gradient(180deg, #fff, var(--gold), var(--magenta));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 209, 102, 0.45));
+  margin-top: 4px;
+}
+
+.rank-letter.rank-S { filter: drop-shadow(0 0 20px rgba(255, 209, 102, 0.8)); }
+.rank-letter.rank-A { filter: drop-shadow(0 0 16px rgba(0, 240, 255, 0.55)); }
+.rank-letter.rank-B { filter: drop-shadow(0 0 12px rgba(125, 255, 107, 0.4)); }
+.rank-letter.rank-C { filter: drop-shadow(0 0 10px rgba(138, 150, 184, 0.4)); }
+
+.victory-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.18em;
+  font-size: 1.45rem;
+  color: var(--gold) !important;
+  text-shadow: 0 0 22px rgba(255, 209, 102, 0.65) !important;
+}
+
+.victory-sub {
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  margin-top: -6px;
+  margin-bottom: 4px;
+}
+
+.ach-new {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--lime);
+  text-shadow: 0 0 10px rgba(125, 255, 107, 0.5);
+  line-height: 1.4;
+}
+
 /* How to */
 #screen-how h2,
 #screen-pause h2,
