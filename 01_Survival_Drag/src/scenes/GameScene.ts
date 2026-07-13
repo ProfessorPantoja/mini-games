@@ -113,9 +113,6 @@ export class GameScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as typeof this.wasd;
 
-    this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, this.mustBeTouching, this);
-    this.physics.add.overlap(this.player, this.xpGems, this.onCollectXp, undefined, this);
-
     this.hudText = this.add
       .text(12, 12, '', {
         fontFamily: 'monospace',
@@ -173,6 +170,7 @@ export class GameScene extends Phaser.Scene {
     this.chasePlayer();
     this.updateOrbits(delta);
     this.attractXpGems();
+    this.checkPlayerContact();
     this.drawEffects();
 
     this.hudTimer += delta;
@@ -308,6 +306,7 @@ export class GameScene extends Phaser.Scene {
     const px = this.player.x;
     const py = this.player.y;
     const rangeSq = this.magnetRange * this.magnetRange;
+    const pickupSq = PICKUP_RANGE * PICKUP_RANGE;
 
     this.xpGems.children.each((child) => {
       const gem = child as Phaser.Physics.Arcade.Sprite;
@@ -316,6 +315,12 @@ export class GameScene extends Phaser.Scene {
       const dx = px - gem.x;
       const dy = py - gem.y;
       const distSq = dx * dx + dy * dy;
+
+      if (distSq <= pickupSq) {
+        this.collectGem(gem);
+        return true;
+      }
+
       if (distSq < rangeSq) {
         const dist = Math.sqrt(distSq) || 1;
         const speed = 220 + (this.magnetRange - dist);
@@ -325,6 +330,16 @@ export class GameScene extends Phaser.Scene {
       }
       return true;
     });
+  }
+
+  private collectGem(gem: Phaser.Physics.Arcade.Sprite): void {
+    this.xp += gem.getData('value') as number;
+    gem.destroy();
+
+    while (this.xp >= this.xpToNext) {
+      this.xp -= this.xpToNext;
+      this.levelUp();
+    }
   }
 
   private drawEffects(): void {
@@ -429,28 +444,6 @@ export class GameScene extends Phaser.Scene {
       const gem = this.xpGems.create(x, y, 'xpGem') as Phaser.Physics.Arcade.Sprite;
       gem.setCircle(6);
       gem.setData('value', xpValue);
-    }
-  }
-
-  private onCollectXp(
-    _playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-    gemObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-  ): void {
-    const gem = gemObj as Phaser.Physics.Arcade.Sprite;
-    if (!gem.active) return;
-
-    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, gem.x, gem.y);
-    if (dist > PICKUP_RANGE) return;
-
-    this.xp += gem.getData('value') as number;
-    gem.destroy();
-
-    const pop = this.add.image(this.player.x, this.player.y - 20, 'particle').setTint(0x88ffcc).setScrollFactor(0).setDepth(120);
-    this.tweens.add({ targets: pop, y: pop.y - 18, alpha: 0, duration: 300, onComplete: () => pop.destroy() });
-
-    while (this.xp >= this.xpToNext) {
-      this.xp -= this.xpToNext;
-      this.levelUp();
     }
   }
 
@@ -709,40 +702,38 @@ export class GameScene extends Phaser.Scene {
     this.spawnEnemyAt(x, y, type);
   }
 
-  private mustBeTouching(
-    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-    enemyObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-  ): boolean {
-    const player = playerObj as Phaser.Physics.Arcade.Sprite;
-    const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
-    return Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y) <= CONTACT_RANGE;
-  }
-
-  private onPlayerHitEnemy(
-    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-    enemyObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
-  ): void {
-    const player = playerObj as Phaser.Physics.Arcade.Sprite;
-    const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
-    if (!enemy.active) return;
-
+  private checkPlayerContact(): void {
     const now = this.time.now;
     if (now < this.invulnUntil) return;
 
-    this.hp -= enemy.getData('damage') as number;
-    this.invulnUntil = now + INVULN_MS;
+    const px = this.player.x;
+    const py = this.player.y;
+    const rangeSq = CONTACT_RANGE * CONTACT_RANGE;
 
-    player.setTint(0xff8888);
-    this.time.delayedCall(100, () => player.clearTint());
-    this.cameras.main.shake(120, 0.012);
+    for (const enemy of this.enemyList) {
+      const dx = px - enemy.x;
+      const dy = py - enemy.y;
+      if (dx * dx + dy * dy > rangeSq) continue;
 
-    if (this.hp <= 0 && this.mapDirector.getPhase() !== 'victory') {
-      this.hp = 0;
-      this.physics.pause();
-      this.hudText.setText(
-        ['GAME OVER', `Sobreviveu ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}  LV ${this.level}`, 'R para reiniciar'].join('\n'),
-      );
-      this.input.keyboard?.once('keydown-R', () => this.scene.restart());
+      this.invulnUntil = now + INVULN_MS;
+      this.hp -= enemy.getData('damage') as number;
+
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, px, py);
+      this.player.setVelocity(Math.cos(angle) * 200, Math.sin(angle) * 200);
+      this.player.setTint(0xff8888);
+      this.time.delayedCall(100, () => {
+        if (this.player.active) this.player.clearTint();
+      });
+
+      if (this.hp <= 0 && this.mapDirector.getPhase() !== 'victory') {
+        this.hp = 0;
+        this.physics.pause();
+        this.hudText.setText(
+          ['GAME OVER', `Sobreviveu ${Math.floor(this.elapsed)}s`, `Kills ${this.kills}  LV ${this.level}`, 'R para reiniciar'].join('\n'),
+        );
+        this.input.keyboard?.once('keydown-R', () => this.scene.restart());
+      }
+      return;
     }
   }
 
