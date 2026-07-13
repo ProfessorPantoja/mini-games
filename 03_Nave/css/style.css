@@ -377,23 +377,6 @@ body {
   text-shadow: 0 0 12px rgba(255, 209, 102, 0.45);
 }
 
-.version-badge {
-  position: absolute;
-  right: 8px;
-  bottom: 6px;
-  z-index: 25;
-  pointer-events: none;
-  font-family: var(--font-display);
-  font-size: 0.52rem;
-  letter-spacing: 0.14em;
-  color: rgba(255, 209, 102, 0.75);
-  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
-  background: rgba(0, 0, 0, 0.35);
-  padding: 3px 7px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 209, 102, 0.25);
-}
-
 /* Botões touch — escondidos no desktop (mouse fino) */
 .touch-controls {
   display: none;

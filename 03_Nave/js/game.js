@@ -9,8 +9,7 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.3.0";
-  const GAME_DIFFICULTY = "FÁCIL";
+  const GAME_VERSION = "1.3.1";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   const MISSION_WAVE = 10; // limpar o setor
@@ -2350,8 +2349,8 @@
     document.title = `NEON STRIKE v${GAME_VERSION}`;
   }
 
-  // Força botões em mobile/touch estreito
-  if (IS_TOUCH) {
+  // Força botões em mobile / toque em tela estreita
+  if (IS_MOBILE_UA || (IS_TOUCH && IS_NARROW)) {
     $("touch-controls")?.classList.add("force-show");
   }
 
