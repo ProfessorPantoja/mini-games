@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { FLOOR_COLOR } from '../data/assets';
+import { ENEMY_TYPES, type EnemyDefinition, type EnemyTier, type EnemyType } from '../data/enemies';
 import { pickTankCards, type TankCard } from '../data/tankCards';
 import { WORLD_SIZE, type WorldZone } from '../data/worldMap';
+import { CombatFeedback } from '../effects/CombatFeedback';
 import { MapDirector } from '../systems/MapDirector';
 
 const PLAYER_SPEED = 200;
@@ -16,23 +18,6 @@ const MAX_XP_GEMS = 50;
 const HUD_EVERY_MS = 120;
 const ORBIT_HIT_RANGE = 18;
 const LEVEL_UP_DELAY_MS = 400;
-
-type EnemyType = 'slime' | 'skeleton' | 'golem';
-
-interface EnemyConfig {
-  texture: string;
-  hp: number;
-  speed: number;
-  damage: number;
-  xp: number;
-  scale: number;
-}
-
-const ENEMY_TYPES: Record<EnemyType, EnemyConfig> = {
-  slime: { texture: 'enemySlime', hp: 1, speed: 75, damage: 4, xp: 1, scale: 1.1 },
-  skeleton: { texture: 'enemySkeleton', hp: 2, speed: 115, damage: 7, xp: 2, scale: 1.2 },
-  golem: { texture: 'enemyGolem', hp: 6, speed: 48, damage: 12, xp: 5, scale: 1.6 },
-};
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Image;
@@ -82,6 +67,8 @@ export class GameScene extends Phaser.Scene {
 
   private auraGfx!: Phaser.GameObjects.Graphics;
   private hpBarGfx!: Phaser.GameObjects.Graphics;
+  private enemyBarGfx!: Phaser.GameObjects.Graphics;
+  private combatFx!: CombatFeedback;
   private hudText!: Phaser.GameObjects.Text;
   private cardOverlay?: Phaser.GameObjects.Container;
   private spawnTimer = 0;
@@ -107,7 +94,9 @@ export class GameScene extends Phaser.Scene {
       .image(WORLD_SIZE / 2, WORLD_SIZE / 2, 'player')
       .setDepth(20);
 
+    this.combatFx = new CombatFeedback(this);
     this.auraGfx = this.add.graphics().setDepth(8);
+    this.enemyBarGfx = this.add.graphics().setDepth(16);
     this.hpBarGfx = this.add.graphics().setScrollFactor(0).setDepth(110);
 
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -400,6 +389,8 @@ export class GameScene extends Phaser.Scene {
     this.auraGfx.fillStyle(0x44ff88, 0.06);
     this.auraGfx.fillCircle(this.player.x, this.player.y, ORBIT_RADIUS + 10);
 
+    this.drawEnemyHpBars();
+
     const barW = 180;
     const barH = 10;
     const bx = 12;
@@ -412,20 +403,45 @@ export class GameScene extends Phaser.Scene {
     this.hpBarGfx.fillRoundedRect(bx, by, barW * pct, barH, 4);
   }
 
+  private drawEnemyHpBars(): void {
+    this.enemyBarGfx.clear();
+
+    for (const enemy of this.enemyList) {
+      if (!enemy.active || !enemy.getData('showHpBar')) continue;
+
+      const maxHp = enemy.getData('maxHp') as number;
+      const hp = enemy.getData('hp') as number;
+      const pct = Phaser.Math.Clamp(hp / maxHp, 0, 1);
+      const w = 28 * enemy.scaleX;
+      const h = 5;
+      const x = enemy.x - w / 2;
+      const y = enemy.y - 20 * enemy.scaleY;
+
+      this.enemyBarGfx.fillStyle(0x000000, 0.65);
+      this.enemyBarGfx.fillRoundedRect(x, y, w, h, 2);
+
+      const barColor = pct > 0.5 ? 0xff5555 : pct > 0.25 ? 0xff8844 : 0xff2222;
+      this.enemyBarGfx.fillStyle(barColor, 0.95);
+      this.enemyBarGfx.fillRoundedRect(x, y, w * pct, h, 2);
+    }
+  }
+
   private damageEnemy(enemy: Phaser.GameObjects.Image, amount: number, knockback: boolean): void {
     if (!enemy.active) return;
 
     const hp = (enemy.getData('hp') as number) - amount;
     enemy.setData('hp', hp);
-    enemy.setTint(0xffffff);
-    this.time.delayedCall(50, () => {
-      if (enemy.active) enemy.clearTint();
-    });
+
+    const hitColor = enemy.getData('hitColor') as number;
+    const dmgColor = enemy.getData('tier') === 'tank' ? '#ffcc88' : '#a8ffcc';
+    this.combatFx.showDamageNumber(enemy.x, enemy.y, amount, dmgColor);
+    this.combatFx.hitPunch(enemy, hitColor);
 
     if (knockback) {
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-      enemy.x += Math.cos(angle) * 8;
-      enemy.y += Math.sin(angle) * 8;
+      const push = enemy.getData('tier') === 'tank' ? 4 : 9;
+      enemy.x += Math.cos(angle) * push;
+      enemy.y += Math.sin(angle) * push;
     }
 
     if (hp <= 0) this.killEnemy(enemy);
@@ -435,9 +451,12 @@ export class GameScene extends Phaser.Scene {
     const xpValue = enemy.getData('xp') as number;
     const role = enemy.getData('role') as string | undefined;
     const zoneId = enemy.getData('zoneId') as string | undefined;
+    const tier = enemy.getData('tier') as EnemyTier;
+    const deathColor = enemy.getData('deathColor') as number;
     const x = enemy.x;
     const y = enemy.y;
     enemy.destroy();
+    this.combatFx.deathBurst(x, y, tier, deathColor);
     this.orbitHitCooldown.delete(enemy);
     this.kills += 1;
 
@@ -608,17 +627,21 @@ export class GameScene extends Phaser.Scene {
   private spawnEliteEncounter(zone: WorldZone): void {
     this.showBanner(`ELITE — ${zone.label}`, 0xaa44ff);
 
-    const elite = this.spawnEnemyAt(zone.x, zone.y, 'golem', {
+    this.spawnEnemyAt(zone.x, zone.y, 'golem', {
       texture: 'elite',
       hp: 22,
       speed: 62,
       damage: 14,
       xp: 12,
-      scale: 2.2,
+      scale: 2.4,
+      tier: 'tank',
+      showHpBar: true,
+      hitColor: 0xeebbff,
+      deathColor: 0xaa44ff,
+      label: 'Elite',
       role: 'elite',
       zoneId: zone.id,
     });
-    elite.setTint(0xdd88ff);
 
     for (let i = 0; i < 7; i++) {
       const angle = (Math.PI * 2 * i) / 7;
@@ -645,7 +668,12 @@ export class GameScene extends Phaser.Scene {
       speed: 38,
       damage: 18,
       xp: 30,
-      scale: 3.2,
+      scale: 3.4,
+      tier: 'tank',
+      showHpBar: true,
+      hitColor: 0xffddaa,
+      deathColor: 0xff6622,
+      label: 'Chefão',
       role: 'boss',
     });
   }
@@ -654,19 +682,25 @@ export class GameScene extends Phaser.Scene {
     x: number,
     y: number,
     type: EnemyType,
-    overrides?: Partial<EnemyConfig> & { texture?: string; role?: string; zoneId?: string },
+    overrides?: Partial<EnemyDefinition> & { texture?: string; role?: string; zoneId?: string },
   ): Phaser.GameObjects.Image {
     const base = ENEMY_TYPES[type];
     const config = { ...base, ...overrides };
     const enemy = this.add.image(x, y, config.texture ?? base.texture);
     enemy.setScale(config.scale);
     enemy.setDepth(12);
-    enemy.setAlpha(0.85);
+    enemy.setData('baseScale', config.scale);
     enemy.setData('hp', config.hp);
+    enemy.setData('maxHp', config.hp);
     enemy.setData('speed', config.speed);
     enemy.setData('damage', config.damage);
     enemy.setData('xp', config.xp);
     enemy.setData('type', type);
+    enemy.setData('tier', config.tier);
+    enemy.setData('label', config.label);
+    enemy.setData('hitColor', config.hitColor);
+    enemy.setData('deathColor', config.deathColor);
+    enemy.setData('showHpBar', config.showHpBar);
     if (overrides?.role) enemy.setData('role', overrides.role);
     if (overrides?.zoneId) enemy.setData('zoneId', overrides.zoneId);
     this.enemies.add(enemy);
