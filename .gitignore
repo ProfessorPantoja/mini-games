@@ -5,3 +5,6 @@ dist/
 .env
 .env.*
 .vercel
+
+# Screenshots locais de teste (não versionar)
+print/
