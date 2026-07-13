@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SPRITE_SCALE } from '../data/assets';
+import { FLOOR_COLOR, SPRITE_SCALE } from '../data/assets';
 
 const WORLD_SIZE = 2400;
 const PLAYER_SPEED = 140;
@@ -52,9 +52,8 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
     this.add
-      .tileSprite(0, 0, WORLD_SIZE, WORLD_SIZE, 'floor')
-      .setOrigin(0)
-      .setTileScale(1);
+      .rectangle(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE, WORLD_SIZE, FLOOR_COLOR)
+      .setOrigin(0.5);
 
     this.player = this.physics.add
       .sprite(WORLD_SIZE / 2, WORLD_SIZE / 2, 'player')
