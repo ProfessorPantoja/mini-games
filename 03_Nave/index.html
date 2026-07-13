@@ -15,7 +15,7 @@
     <div class="bg-glow bg-glow-b"></div>
 
     <div id="game-frame">
-      <!-- Molduras laterais (design de cockpit / arcade) -->
+      <!-- Ordem do grid: esquerda · palco · direita (1fr no meio) -->
       <aside class="side-rail side-rail-left" aria-hidden="true">
         <div class="rail-core">
           <div class="rail-scan"></div>
@@ -24,16 +24,6 @@
             <span></span><span></span><span></span><span></span><span></span>
           </div>
           <div class="rail-label">PORT</div>
-        </div>
-      </aside>
-      <aside class="side-rail side-rail-right" aria-hidden="true">
-        <div class="rail-core">
-          <div class="rail-scan"></div>
-          <div class="rail-chevrons"></div>
-          <div class="rail-nodes">
-            <span></span><span></span><span></span><span></span><span></span>
-          </div>
-          <div class="rail-label">STBD</div>
         </div>
       </aside>
 
@@ -183,6 +173,17 @@
           <div class="screen-ornament bot"></div>
         </div>
       </div>
+
+      <aside class="side-rail side-rail-right" aria-hidden="true">
+        <div class="rail-core">
+          <div class="rail-scan"></div>
+          <div class="rail-chevrons"></div>
+          <div class="rail-nodes">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="rail-label">STBD</div>
+        </div>
+      </aside>
     </div>
 
     <footer class="credits">NEON STRIKE · HTML5 Canvas · Elite Arcade</footer>

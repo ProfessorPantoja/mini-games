@@ -93,7 +93,9 @@ body {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 26px 1fr 26px;
+  grid-template-columns: 26px minmax(0, 1fr) 26px;
+  grid-template-rows: auto;
+  align-items: stretch;
   width: min(98vw, 532px);
   max-height: calc(100vh - 48px);
   border-radius: 14px;
@@ -105,9 +107,14 @@ body {
   background: #060812;
 }
 
+.side-rail-left { grid-column: 1; grid-row: 1; }
+.stage { grid-column: 2; grid-row: 1; }
+.side-rail-right { grid-column: 3; grid-row: 1; }
+
 .stage {
   position: relative;
   width: 100%;
+  min-width: 0;
   aspect-ratio: 480 / 720;
   max-height: calc(100vh - 48px);
   background: #02030a;
