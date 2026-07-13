@@ -11,124 +11,177 @@
 </head>
 <body>
   <div id="app">
-    <!-- Ambient glow layers -->
     <div class="bg-glow bg-glow-a"></div>
     <div class="bg-glow bg-glow-b"></div>
 
     <div id="game-frame">
-      <canvas id="game" width="480" height="720"></canvas>
-
-      <!-- HUD in-game -->
-      <div id="hud" class="hidden">
-        <div class="hud-top">
-          <div class="hud-block score-block">
-            <span class="label">SCORE</span>
-            <span id="hud-score" class="value">0</span>
+      <!-- Molduras laterais (design de cockpit / arcade) -->
+      <aside class="side-rail side-rail-left" aria-hidden="true">
+        <div class="rail-core">
+          <div class="rail-scan"></div>
+          <div class="rail-chevrons"></div>
+          <div class="rail-nodes">
+            <span></span><span></span><span></span><span></span><span></span>
           </div>
-          <div class="hud-block wave-block">
-            <span class="label">WAVE</span>
-            <span id="hud-wave" class="value">1</span>
-          </div>
-          <div class="hud-block hi-block">
-            <span class="label">HI-SCORE</span>
-            <span id="hud-hiscore" class="value">0</span>
-          </div>
+          <div class="rail-label">PORT</div>
         </div>
+      </aside>
+      <aside class="side-rail side-rail-right" aria-hidden="true">
+        <div class="rail-core">
+          <div class="rail-scan"></div>
+          <div class="rail-chevrons"></div>
+          <div class="rail-nodes">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="rail-label">STBD</div>
+        </div>
+      </aside>
 
-        <div class="hud-bottom">
-          <div class="lives-wrap">
-            <span class="label">LIVES</span>
-            <div id="hud-lives" class="lives"></div>
-          </div>
-          <div class="combo-wrap">
-            <span id="hud-combo" class="combo hidden">×1</span>
-          </div>
-          <div class="power-wrap">
-            <div class="bomb-slot">
-              <span class="label">BOMB</span>
-              <span id="hud-bombs" class="value">3</span>
+      <div class="stage">
+        <canvas id="game" width="480" height="720"></canvas>
+
+        <!-- HUD in-game -->
+        <div id="hud" class="hidden">
+          <div class="hud-top">
+            <div class="hud-block score-block">
+              <span class="label">SCORE</span>
+              <span id="hud-score" class="value">0</span>
             </div>
-            <div id="hud-weapon" class="weapon-badge">PULSE</div>
+            <div class="hud-block wave-block">
+              <span class="label">WAVE</span>
+              <span id="hud-wave" class="value">1</span>
+            </div>
+            <div class="hud-block hi-block">
+              <span class="label">HI-SCORE</span>
+              <span id="hud-hiscore" class="value">0</span>
+            </div>
           </div>
-        </div>
 
-        <div id="boss-bar-wrap" class="hidden">
-          <span class="boss-name" id="boss-name">BOSS</span>
-          <div class="boss-bar">
-            <div id="boss-hp" class="boss-hp"></div>
+          <!-- Barras de energia e especial -->
+          <div class="hud-bars">
+            <div class="bar-row energy-row">
+              <span class="bar-label">ENERGIA</span>
+              <div class="bar-track">
+                <div id="hud-hp" class="bar-fill hp-fill"></div>
+                <div class="bar-shine"></div>
+              </div>
+              <span id="hud-hp-text" class="bar-num">100</span>
+            </div>
+            <div class="bar-row special-row">
+              <span class="bar-label">ESPECIAL</span>
+              <div class="bar-track special-track">
+                <div id="hud-special" class="bar-fill special-fill"></div>
+                <div class="bar-shine"></div>
+              </div>
+              <span id="hud-special-ready" class="bar-ready hidden">PRONTO · V</span>
+            </div>
           </div>
-        </div>
 
-        <div id="wave-banner" class="wave-banner hidden">
-          <span id="wave-banner-text">WAVE 1</span>
-        </div>
-
-        <div id="float-scores"></div>
-      </div>
-
-      <!-- Title screen -->
-      <div id="screen-title" class="screen">
-        <div class="title-stack">
-          <p class="eyebrow">ARCADE ELITE SERIES</p>
-          <h1 class="game-title">
-            <span class="t1">NEON</span>
-            <span class="t2">STRIKE</span>
-          </h1>
-          <p class="tagline">Shoot 'em Up · Infinite Waves · Boss Battles</p>
-        </div>
-
-        <div class="menu-actions">
-          <button id="btn-start" class="btn primary pulse">INICIAR MISSÃO</button>
-          <button id="btn-how" class="btn ghost">COMO JOGAR</button>
-        </div>
-
-        <div class="title-stats">
-          <div><span class="k">RECORDE</span><span id="title-hiscore" class="v">0</span></div>
-          <div><span class="k">CONTROLES</span><span class="v">WASD / SETAS</span></div>
-        </div>
-
-        <p class="hint-start">Espaço ou clique para atirar · B bomba · P pausa</p>
-      </div>
-
-      <!-- How to play -->
-      <div id="screen-how" class="screen hidden">
-        <h2>COMO JOGAR</h2>
-        <ul class="howto">
-          <li><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> — Mover a nave</li>
-          <li><kbd>Espaço</kbd> / <kbd>Clique</kbd> — Atirar (auto-fire ativo)</li>
-          <li><kbd>B</kbd> / <kbd>Shift</kbd> — Bomba (limpa a tela)</li>
-          <li><kbd>P</kbd> / <kbd>Esc</kbd> — Pausar</li>
-        </ul>
-        <div class="howto-grid">
-          <div class="card"><span class="icon">⚡</span><strong>Power-ups</strong><p>Spread, Laser, Escudo, Velocidade, Bomba, Multiplicador</p></div>
-          <div class="card"><span class="icon">🔥</span><strong>Combo</strong><p>Abata sem parar para multiplicar pontos</p></div>
-          <div class="card"><span class="icon">👾</span><strong>Boss</strong><p>A cada 5 waves um chefão aparece</p></div>
-          <div class="card"><span class="icon">💀</span><strong>Sobreviva</strong><p>Dificuldade sobe a cada wave</p></div>
-        </div>
-        <button id="btn-back" class="btn primary">VOLTAR</button>
-      </div>
-
-      <!-- Pause -->
-      <div id="screen-pause" class="screen dim hidden">
-        <h2>PAUSADO</h2>
-        <button id="btn-resume" class="btn primary">CONTINUAR</button>
-        <button id="btn-quit" class="btn ghost">ABANDONAR</button>
-      </div>
-
-      <!-- Game Over -->
-      <div id="screen-over" class="screen hidden">
-        <h2 class="over-title">MISSÃO FALHOU</h2>
-        <div class="stats-panel">
-          <div class="stat"><span class="k">PONTUAÇÃO</span><span id="over-score" class="v big">0</span></div>
-          <div class="stat-row">
-            <div class="stat"><span class="k">WAVE</span><span id="over-wave" class="v">0</span></div>
-            <div class="stat"><span class="k">ABATES</span><span id="over-kills" class="v">0</span></div>
-            <div class="stat"><span class="k">MAX COMBO</span><span id="over-combo" class="v">0</span></div>
+          <div class="hud-bottom">
+            <div class="lives-wrap">
+              <span class="label">VIDAS</span>
+              <div id="hud-lives" class="lives"></div>
+            </div>
+            <div class="combo-wrap">
+              <span id="hud-combo" class="combo hidden">×1</span>
+            </div>
+            <div class="power-wrap">
+              <div class="bomb-slot">
+                <span class="label">BOMBA</span>
+                <span id="hud-bombs" class="value">3</span>
+              </div>
+              <div id="hud-weapon" class="weapon-badge">PULSE · L1</div>
+            </div>
           </div>
-          <div id="over-new-record" class="new-record hidden">★ NOVO RECORDE ★</div>
+
+          <div id="boss-bar-wrap" class="hidden">
+            <span class="boss-name" id="boss-name">BOSS</span>
+            <div class="boss-bar">
+              <div id="boss-hp" class="boss-hp"></div>
+            </div>
+          </div>
+
+          <div id="wave-banner" class="wave-banner hidden">
+            <span id="wave-banner-text">WAVE 1</span>
+          </div>
+
+          <div id="float-scores"></div>
+          <div id="overdrive-fx" class="overdrive-fx hidden"></div>
         </div>
-        <button id="btn-retry" class="btn primary pulse">REINICIAR</button>
-        <button id="btn-menu" class="btn ghost">MENU</button>
+
+        <!-- Title screen -->
+        <div id="screen-title" class="screen">
+          <div class="screen-ornament top"></div>
+          <div class="title-stack">
+            <p class="eyebrow">ARCADE ELITE SERIES</p>
+            <h1 class="game-title">
+              <span class="t1">NEON</span>
+              <span class="t2">STRIKE</span>
+            </h1>
+            <p class="tagline">Armas em níveis · Energia · Especial</p>
+          </div>
+
+          <div class="menu-actions">
+            <button id="btn-start" class="btn primary pulse">INICIAR MISSÃO</button>
+            <button id="btn-how" class="btn ghost">COMO JOGAR</button>
+          </div>
+
+          <div class="title-stats">
+            <div><span class="k">RECORDE</span><span id="title-hiscore" class="v">0</span></div>
+            <div><span class="k">MODO</span><span class="v">FÁCIL / DIVERÇÃO</span></div>
+          </div>
+
+          <p class="hint-start">WASD mover · auto-tiro · B bomba · V especial · P pausa</p>
+          <div class="screen-ornament bot"></div>
+        </div>
+
+        <!-- How to play -->
+        <div id="screen-how" class="screen hidden">
+          <div class="screen-ornament top"></div>
+          <h2>COMO JOGAR</h2>
+          <ul class="howto">
+            <li><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> — Mover a nave</li>
+            <li><kbd>Auto-tiro</kbd> — Sempre ativo · clique/toque para mirar</li>
+            <li><kbd>B</kbd> / <kbd>Shift</kbd> — Bomba (limpa a tela)</li>
+            <li><kbd>V</kbd> / <kbd>F</kbd> — Especial (barra cheia)</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> — Pausar</li>
+          </ul>
+          <div class="howto-grid">
+            <div class="card"><span class="icon">⬆</span><strong>Armas L1–L3</strong><p>Mesmo power-up sobe o nível da arma</p></div>
+            <div class="card"><span class="icon">❤</span><strong>Energia</strong><p>Barra de HP · dano gradual, não insta-morte</p></div>
+            <div class="card"><span class="icon">⚡</span><strong>Especial</strong><p>Enche com abates · libera overdrive</p></div>
+            <div class="card"><span class="icon">🛡</span><strong>Power-ups</strong><p>Spread, Laser, Plasma, Escudo, Speed, Bomba</p></div>
+          </div>
+          <button id="btn-back" class="btn primary">VOLTAR</button>
+          <div class="screen-ornament bot"></div>
+        </div>
+
+        <!-- Pause -->
+        <div id="screen-pause" class="screen dim hidden">
+          <div class="screen-ornament top"></div>
+          <h2>PAUSADO</h2>
+          <button id="btn-resume" class="btn primary">CONTINUAR</button>
+          <button id="btn-quit" class="btn ghost">ABANDONAR</button>
+          <div class="screen-ornament bot"></div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="screen-over" class="screen hidden">
+          <div class="screen-ornament top"></div>
+          <h2 class="over-title">MISSÃO FALHOU</h2>
+          <div class="stats-panel">
+            <div class="stat"><span class="k">PONTUAÇÃO</span><span id="over-score" class="v big">0</span></div>
+            <div class="stat-row">
+              <div class="stat"><span class="k">WAVE</span><span id="over-wave" class="v">0</span></div>
+              <div class="stat"><span class="k">ABATES</span><span id="over-kills" class="v">0</span></div>
+              <div class="stat"><span class="k">MAX COMBO</span><span id="over-combo" class="v">0</span></div>
+            </div>
+            <div id="over-new-record" class="new-record hidden">★ NOVO RECORDE ★</div>
+          </div>
+          <button id="btn-retry" class="btn primary pulse">REINICIAR</button>
+          <button id="btn-menu" class="btn ghost">MENU</button>
+          <div class="screen-ornament bot"></div>
+        </div>
       </div>
     </div>
 

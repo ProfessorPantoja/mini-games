@@ -73,7 +73,7 @@
     mult: 1,
     multTimer: 0,
     weapon: WEAPON.PULSE,
-    weaponTimer: 0,
+    weaponLevel: 1, // 1–3, sobe com power-ups da mesma arma
     speedBoost: 0,
     invuln: 0,
     shield: 0,
@@ -83,6 +83,12 @@
     spawnQueue: [],
     boss: null,
     statsKills: 0,
+    // Energia / especial (foco diversão)
+    hp: 100,
+    maxHp: 100,
+    special: 0,
+    specialMax: 100,
+    overdrive: 0,
   };
 
   // Entities
@@ -253,12 +259,16 @@
     player = {
       x: W / 2,
       y: H * 0.78,
-      r: 12,
-      speed: 280,
+      r: 7, // hitbox justa (núcleo da nave) — visual é maior
+      speed: 300,
       w: 28,
       h: 32,
       angle: 0,
     };
+  }
+
+  function playerHurtbox() {
+    return player ? { x: player.x, y: player.y + 2, r: player.r } : null;
   }
 
   function updatePlayer(dt) {
@@ -298,16 +308,18 @@
 
     // Auto-fire arcade (sempre ativo em jogo)
     game.fireCooldown -= dt;
-    if (game.fireCooldown <= 0 && game.invuln < 1.5) {
+    if (game.fireCooldown <= 0 && game.invuln < 1.2) {
       firePlayer();
     }
 
     if (game.invuln > 0) game.invuln -= dt;
     if (game.shield > 0) game.shield -= dt;
     if (game.speedBoost > 0) game.speedBoost -= dt;
-    if (game.weaponTimer > 0) {
-      game.weaponTimer -= dt;
-      if (game.weaponTimer <= 0) game.weapon = WEAPON.PULSE;
+    if (game.overdrive > 0) {
+      game.overdrive -= dt;
+      if (game.overdrive <= 0) {
+        $("overdrive-fx").classList.add("hidden");
+      }
     }
     if (game.multTimer > 0) {
       game.multTimer -= dt;
@@ -320,36 +332,106 @@
         updateComboHUD();
       }
     }
+
+    // Regeneração leve de energia em overdrive
+    if (game.overdrive > 0 && game.hp < game.maxHp) {
+      game.hp = Math.min(game.maxHp, game.hp + 8 * dt);
+      updateHpHUD();
+    }
   }
 
   function firePlayer() {
     const w = game.weapon;
+    const lv = game.weaponLevel;
+    const od = game.overdrive > 0;
     const y = player.y - 16;
     const x = player.x;
+    const dmgMul = od ? 1.35 : 1;
 
     if (w === WEAPON.SPREAD) {
-      game.fireCooldown = 0.14;
-      spawnBullet(x, y, 0, -520, 8, "#ff2bd6", true);
-      spawnBullet(x, y, -140, -500, 7, "#ff2bd6", true);
-      spawnBullet(x, y, 140, -500, 7, "#ff2bd6", true);
-      spawnBullet(x, y, -260, -460, 6, "#ff88dd", true);
-      spawnBullet(x, y, 260, -460, 6, "#ff88dd", true);
+      game.fireCooldown = od ? 0.09 : 0.15 - lv * 0.012;
+      const ways = lv === 1 ? 3 : lv === 2 ? 5 : 7;
+      const spread = 0.22 + lv * 0.04;
+      for (let i = 0; i < ways; i++) {
+        const t = ways === 1 ? 0 : (i / (ways - 1) - 0.5) * 2;
+        const ang = -Math.PI / 2 + t * spread * (ways - 1) * 0.55;
+        const sp = 500 + lv * 20;
+        spawnBullet(
+          x,
+          y,
+          Math.cos(ang) * sp,
+          Math.sin(ang) * sp,
+          5 + lv,
+          i % 2 ? "#ff88dd" : "#ff2bd6",
+          true,
+          { dmg: (0.9 + lv * 0.15) * dmgMul }
+        );
+      }
       AudioSys.shoot("spread");
     } else if (w === WEAPON.LASER) {
-      game.fireCooldown = 0.06;
-      spawnBullet(x, y, 0, -900, 5, "#7dff6b", true, { laser: true, dmg: 1.2 });
-      spawnBullet(x - 10, y + 4, 0, -880, 3, "#b6ff9a", true, { laser: true, dmg: 0.6 });
-      spawnBullet(x + 10, y + 4, 0, -880, 3, "#b6ff9a", true, { laser: true, dmg: 0.6 });
+      game.fireCooldown = od ? 0.04 : 0.07 - lv * 0.008;
+      spawnBullet(x, y, 0, -920 - lv * 30, 4 + lv, "#7dff6b", true, {
+        laser: true,
+        dmg: (1 + lv * 0.35) * dmgMul,
+      });
+      if (lv >= 2) {
+        spawnBullet(x - 9, y + 3, 0, -900, 3, "#b6ff9a", true, {
+          laser: true,
+          dmg: 0.7 * dmgMul,
+        });
+        spawnBullet(x + 9, y + 3, 0, -900, 3, "#b6ff9a", true, {
+          laser: true,
+          dmg: 0.7 * dmgMul,
+        });
+      }
+      if (lv >= 3) {
+        spawnBullet(x - 16, y + 6, -40, -860, 2.5, "#d4ffc4", true, {
+          laser: true,
+          dmg: 0.45 * dmgMul,
+        });
+        spawnBullet(x + 16, y + 6, 40, -860, 2.5, "#d4ffc4", true, {
+          laser: true,
+          dmg: 0.45 * dmgMul,
+        });
+      }
       AudioSys.shoot("laser");
     } else if (w === WEAPON.PLASMA) {
-      game.fireCooldown = 0.22;
-      spawnBullet(x, y, 0, -400, 14, "#8b5cff", true, { dmg: 3, plasma: true });
-      spark(x, y, "#8b5cff", 4);
+      game.fireCooldown = od ? 0.14 : 0.24 - lv * 0.02;
+      const r = 10 + lv * 3;
+      spawnBullet(x, y, 0, -380 - lv * 20, r, "#8b5cff", true, {
+        dmg: (2.2 + lv * 0.9) * dmgMul,
+        plasma: true,
+      });
+      if (lv >= 3) {
+        spawnBullet(x - 14, y + 4, -30, -360, r * 0.55, "#b48cff", true, {
+          dmg: 1.2 * dmgMul,
+          plasma: true,
+        });
+        spawnBullet(x + 14, y + 4, 30, -360, r * 0.55, "#b48cff", true, {
+          dmg: 1.2 * dmgMul,
+          plasma: true,
+        });
+      }
+      spark(x, y, "#8b5cff", 3 + lv);
       AudioSys.shoot("spread");
     } else {
-      game.fireCooldown = 0.12;
-      spawnBullet(x - 7, y, 0, -560, 5, "#00f0ff", true);
-      spawnBullet(x + 7, y, 0, -560, 5, "#00f0ff", true);
+      // PULSE L1 dual · L2 triple · L3 quint + mais rápido
+      game.fireCooldown = od ? 0.07 : 0.13 - lv * 0.015;
+      const dmg = (1 + (lv - 1) * 0.2) * dmgMul;
+      if (lv === 1) {
+        spawnBullet(x - 7, y, 0, -560, 5, "#00f0ff", true, { dmg });
+        spawnBullet(x + 7, y, 0, -560, 5, "#00f0ff", true, { dmg });
+      } else if (lv === 2) {
+        spawnBullet(x, y, 0, -580, 6, "#00f0ff", true, { dmg: dmg * 1.1 });
+        spawnBullet(x - 10, y + 2, -20, -560, 5, "#7af7ff", true, { dmg });
+        spawnBullet(x + 10, y + 2, 20, -560, 5, "#7af7ff", true, { dmg });
+      } else {
+        spawnBullet(x, y, 0, -600, 6, "#fff", true, { dmg: dmg * 1.2 });
+        spawnBullet(x - 8, y, -15, -580, 5, "#00f0ff", true, { dmg });
+        spawnBullet(x + 8, y, 15, -580, 5, "#00f0ff", true, { dmg });
+        spawnBullet(x - 16, y + 4, -55, -540, 4, "#7af7ff", true, { dmg: dmg * 0.85 });
+        spawnBullet(x + 16, y + 4, 55, -540, 4, "#7af7ff", true, { dmg: dmg * 0.85 });
+      }
       AudioSys.shoot("pulse");
     }
   }
@@ -431,7 +513,43 @@
     ctx.fillRect(-14, 2, 5, 2);
     ctx.fillRect(9, 2, 5, 2);
 
+    // Nível da arma — marcas nas asas
+    ctx.fillStyle = game.weaponLevel >= 2 ? "#ffd166" : "#ffffff33";
+    ctx.fillRect(-10, 6, 3, 3);
+    ctx.fillRect(7, 6, 3, 3);
+    if (game.weaponLevel >= 3) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-3, 10, 6, 2);
+    }
+
+    // Overdrive glow
+    if (game.overdrive > 0) {
+      ctx.strokeStyle = `rgba(255, 209, 102, ${0.4 + 0.4 * Math.sin(performance.now() / 80)})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "#ffd166";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     ctx.restore();
+
+    // Fumaça se energia baixa
+    if (game.hp < 35 && chance(0.4)) {
+      particles.push({
+        x: player.x + rand(-6, 6),
+        y: player.y + rand(0, 6),
+        vx: rand(-20, 20),
+        vy: rand(30, 80),
+        life: rand(0.2, 0.4),
+        max: 0.4,
+        r: rand(2, 4),
+        color: chance(0.5) ? "#555" : "#884422",
+        drag: 0.94,
+        glow: false,
+      });
+    }
   }
 
   // ─── Bullets ─────────────────────────────────────────────
@@ -500,51 +618,52 @@
 
   // ─── Enemies ─────────────────────────────────────────────
   function enemyDefs(wave) {
-    const scale = 1 + (wave - 1) * 0.08;
+    // Modo fácil/diversão: escala suave, inimigos mais frágeis
+    const scale = 0.75 + (wave - 1) * 0.035;
     return {
       grunt: {
-        hp: 2 * scale,
-        speed: 70 + wave * 3,
+        hp: 1.6 * scale,
+        speed: 55 + wave * 2,
         score: 100,
         r: 14,
         color: "#ff5c7a",
         kind: "grunt",
       },
       zigzag: {
-        hp: 2 * scale,
-        speed: 100 + wave * 4,
+        hp: 1.5 * scale,
+        speed: 80 + wave * 2.5,
         score: 150,
         r: 12,
         color: "#ffd166",
         kind: "zigzag",
       },
       tank: {
-        hp: 8 * scale,
-        speed: 40 + wave,
+        hp: 6 * scale,
+        speed: 32 + wave * 0.6,
         score: 300,
         r: 20,
         color: "#8b5cff",
         kind: "tank",
       },
       shooter: {
-        hp: 4 * scale,
-        speed: 55 + wave * 2,
+        hp: 3 * scale,
+        speed: 42 + wave * 1.2,
         score: 250,
         r: 15,
         color: "#ff2bd6",
         kind: "shooter",
       },
       kamikaze: {
-        hp: 1.5 * scale,
-        speed: 160 + wave * 6,
+        hp: 1.2 * scale,
+        speed: 120 + wave * 3.5,
         score: 200,
         r: 11,
         color: "#ff8844",
         kind: "kamikaze",
       },
       drone: {
-        hp: 1 * scale,
-        speed: 90 + wave * 3,
+        hp: 0.9 * scale,
+        speed: 70 + wave * 2,
         score: 80,
         r: 10,
         color: "#00f0ff",
@@ -582,15 +701,16 @@
       return q;
     }
 
-    const count = 8 + Math.floor(n * 1.6);
+    // Menos inimigos, spawns mais espaçados (fácil de ler e avançar)
+    const count = 6 + Math.floor(n * 1.05);
     for (let i = 0; i < count; i++) {
       let type = "grunt";
       const r = Math.random();
-      if (n >= 2 && r < 0.2) type = "zigzag";
-      else if (n >= 3 && r < 0.35) type = "shooter";
-      else if (n >= 4 && r < 0.48) type = "kamikaze";
-      else if (n >= 5 && r < 0.58) type = "tank";
-      else if (r < 0.7) type = "drone";
+      if (n >= 2 && r < 0.18) type = "zigzag";
+      else if (n >= 3 && r < 0.3) type = "shooter";
+      else if (n >= 5 && r < 0.4) type = "kamikaze";
+      else if (n >= 6 && r < 0.5) type = "tank";
+      else if (r < 0.72) type = "drone";
 
       const formation = i % 7;
       let x;
@@ -598,21 +718,21 @@
       else if (formation < 5) x = W * 0.55 + (formation - 3) * 50;
       else x = rand(40, W - 40);
 
-      q.push({ delay: i * (0.45 - Math.min(0.2, n * 0.015)), type, x });
+      q.push({ delay: i * (0.55 - Math.min(0.15, n * 0.01)), type, x });
     }
 
-    // mid-wave squad
-    if (n >= 2) {
-      const base = count * 0.45 + 1;
-      for (let i = 0; i < 5; i++) {
-        q.push({ delay: base + i * 0.2, type: n >= 4 ? "shooter" : "zigzag", x: 80 + i * 70 });
+    // mid-wave squad (menor)
+    if (n >= 3) {
+      const base = count * 0.5 + 1.2;
+      for (let i = 0; i < 3; i++) {
+        q.push({ delay: base + i * 0.28, type: n >= 5 ? "shooter" : "zigzag", x: 120 + i * 90 });
       }
     }
     return q;
   }
 
   function spawnBoss() {
-    const hp = 80 + game.wave * 25;
+    const hp = 55 + game.wave * 16;
     game.boss = {
       x: W / 2,
       y: -80,
@@ -683,9 +803,9 @@
           e.y += e.speed * 0.7 * dt;
           e.x += Math.sin(e.t * 2) * 50 * dt;
           e.fireCd -= dt;
-          if (e.fireCd <= 0 && e.y > 20 && e.y < H * 0.7) {
-            e.fireCd = Math.max(0.7, 1.6 - game.wave * 0.05);
-            aimShoot(e, 180 + game.wave * 4, "#ff4d6d");
+          if (e.fireCd <= 0 && e.y > 20 && e.y < H * 0.65) {
+            e.fireCd = Math.max(1.1, 2.0 - game.wave * 0.04);
+            aimShoot(e, 150 + game.wave * 2, "#ff4d6d");
           }
           break;
         case "kamikaze":
@@ -740,27 +860,28 @@
     const phase = hpRatio > 0.66 ? 1 : hpRatio > 0.33 ? 2 : 3;
 
     if (e.fireCd <= 0) {
+      // Cadência mais generosa no modo fácil (boss sem refinamento extra)
       if (phase === 1) {
-        e.fireCd = 0.55;
-        for (let a = -2; a <= 2; a++) {
-          const ang = Math.PI / 2 + a * 0.25;
-          spawnBullet(e.x, e.y + 20, Math.cos(ang) * 200, Math.sin(ang) * 200, 6, "#ff2bd6", false);
+        e.fireCd = 0.75;
+        for (let a = -1; a <= 1; a++) {
+          const ang = Math.PI / 2 + a * 0.28;
+          spawnBullet(e.x, e.y + 20, Math.cos(ang) * 170, Math.sin(ang) * 170, 6, "#ff2bd6", false);
         }
       } else if (phase === 2) {
-        e.fireCd = 0.35;
-        const rings = 10;
+        e.fireCd = 0.55;
+        const rings = 8;
         for (let i = 0; i < rings; i++) {
           const ang = (i / rings) * Math.PI * 2 + e.t;
-          spawnBullet(e.x, e.y, Math.cos(ang) * 160, Math.sin(ang) * 160, 5, "#ffd166", false);
+          spawnBullet(e.x, e.y, Math.cos(ang) * 140, Math.sin(ang) * 140, 5, "#ffd166", false);
         }
-        if (player) aimShoot(e, 240, "#ff4d6d");
+        if (player) aimShoot(e, 200, "#ff4d6d");
       } else {
-        e.fireCd = 0.22;
-        for (let a = -4; a <= 4; a++) {
-          const ang = Math.PI / 2 + a * 0.18 + Math.sin(e.t * 3) * 0.1;
-          spawnBullet(e.x, e.y + 10, Math.cos(ang) * 260, Math.sin(ang) * 260, 5, "#ff3b5c", false);
+        e.fireCd = 0.38;
+        for (let a = -3; a <= 3; a++) {
+          const ang = Math.PI / 2 + a * 0.2 + Math.sin(e.t * 3) * 0.08;
+          spawnBullet(e.x, e.y + 10, Math.cos(ang) * 220, Math.sin(ang) * 220, 5, "#ff3b5c", false);
         }
-        if (chance(0.4) && player) aimShoot(e, 300, "#fff");
+        if (chance(0.25) && player) aimShoot(e, 240, "#fff");
       }
     }
   }
@@ -919,9 +1040,12 @@
 
   // ─── Powerups ────────────────────────────────────────────
   function dropPowerup(x, y) {
-    if (!chance(0.28)) return;
-    const types = [
+    // Drops generosos no modo diversão
+    if (!chance(0.42)) return;
+    const pool = [
       POWER.SPREAD,
+      POWER.SPREAD,
+      POWER.LASER,
       POWER.LASER,
       POWER.PLASMA,
       POWER.SHIELD,
@@ -929,17 +1053,17 @@
       POWER.BOMB,
       POWER.MULTI,
       POWER.HEALTH,
+      POWER.HEALTH,
     ];
-    // weight health/bomb a bit less early
-    const type = types[randi(0, types.length - 1)];
+    const type = pool[randi(0, pool.length - 1)];
     powerups.push({
       x,
       y,
-      r: 12,
+      r: 14,
       type,
-      vy: 70,
+      vy: 65,
       t: 0,
-      life: 10,
+      life: 12,
     });
   }
 
@@ -954,7 +1078,8 @@
         powerups.splice(i, 1);
         continue;
       }
-      if (player && circleHit(p, player)) {
+      // Coleta generosa (hitbox de pickup maior que a de dano)
+      if (player && circleHit(p, { x: player.x, y: player.y, r: 22 })) {
         applyPowerup(p.type);
         burst(p.x, p.y, powerColor(p.type), 16, 160, 0.4);
         powerups.splice(i, 1);
@@ -986,30 +1111,42 @@
       speed: "SPEED",
       bomb: "BOMB +1",
       multi: "×2 SCORE",
-      health: "+1 LIFE",
+      health: "+ENERGIA",
     };
     return map[type] || type;
   }
 
+  function upgradeWeapon(newWeapon) {
+    if (game.weapon === newWeapon) {
+      const prev = game.weaponLevel;
+      game.weaponLevel = Math.min(3, game.weaponLevel + 1);
+      return game.weaponLevel > prev
+        ? `${newWeapon} · L${game.weaponLevel}!`
+        : `${newWeapon} MAX`;
+    }
+    game.weapon = newWeapon;
+    // Trocar arma mantém nível (generoso) no mín. 1
+    game.weaponLevel = Math.max(1, game.weaponLevel);
+    return `${newWeapon} · L${game.weaponLevel}`;
+  }
+
   function applyPowerup(type) {
+    let label = powerLabel(type);
     switch (type) {
       case POWER.SPREAD:
-        game.weapon = WEAPON.SPREAD;
-        game.weaponTimer = 12;
+        label = upgradeWeapon(WEAPON.SPREAD);
         break;
       case POWER.LASER:
-        game.weapon = WEAPON.LASER;
-        game.weaponTimer = 10;
+        label = upgradeWeapon(WEAPON.LASER);
         break;
       case POWER.PLASMA:
-        game.weapon = WEAPON.PLASMA;
-        game.weaponTimer = 10;
+        label = upgradeWeapon(WEAPON.PLASMA);
         break;
       case POWER.SHIELD:
-        game.shield = 8;
+        game.shield = 10;
         break;
       case POWER.SPEED:
-        game.speedBoost = 8;
+        game.speedBoost = 10;
         break;
       case POWER.BOMB:
         game.bombs = Math.min(9, game.bombs + 1);
@@ -1017,15 +1154,21 @@
         break;
       case POWER.MULTI:
         game.mult = 2;
-        game.multTimer = 10;
+        game.multTimer = 12;
         break;
       case POWER.HEALTH:
-        game.lives = Math.min(6, game.lives + 1);
-        updateLivesHUD();
+        game.hp = Math.min(game.maxHp, game.hp + 40);
+        updateHpHUD();
+        // chance de vida extra se já cheio
+        if (game.hp >= game.maxHp && chance(0.35)) {
+          game.lives = Math.min(6, game.lives + 1);
+          updateLivesHUD();
+          label = "+VIDA!";
+        }
         break;
     }
     updateWeaponHUD();
-    if (player) floatScore(player.x, player.y - 30, powerLabel(type), true);
+    if (player) floatScore(player.x, player.y - 30, label, true);
   }
 
   function drawPowerups() {
@@ -1075,15 +1218,14 @@
       let hit = false;
       for (let j = enemies.length - 1; j >= 0; j--) {
         const e = enemies[j];
-        if (circleHit(b, e)) {
+        // Hitbox inimigo um pouco generosa para o jogador
+        if (circleHit(b, { x: e.x, y: e.y, r: e.r + 2 })) {
           e.hp -= b.dmg;
           e.hitFlash = 0.1;
           spark(b.x, b.y, b.color, 4);
           AudioSys.hit();
           hit = true;
-          if (e.hp <= 0) {
-            killEnemy(e, j);
-          }
+          if (e.hp <= 0) killEnemy(e, j);
           break;
         }
       }
@@ -1091,12 +1233,14 @@
     }
 
     if (!player || game.invuln > 0) return;
+    const hurt = playerHurtbox();
 
-    // Enemy bullets vs player
+    // Enemy bullets vs player (hitbox justa)
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
-      if (circleHit(enemyBullets[i], { x: player.x, y: player.y, r: player.r - 2 })) {
+      const b = enemyBullets[i];
+      if (circleHit(b, hurt)) {
         enemyBullets.splice(i, 1);
-        damagePlayer();
+        damagePlayer(14); // tiro = dano parcial
         return;
       }
     }
@@ -1104,13 +1248,13 @@
     // Enemies vs player
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
-      if (circleHit(e, { x: player.x, y: player.y, r: player.r - 2 })) {
+      if (circleHit({ x: e.x, y: e.y, r: e.r * 0.85 }, hurt)) {
         if (e.kind !== "boss") {
           killEnemy(e, j);
         } else {
           e.hp -= 2;
         }
-        damagePlayer();
+        damagePlayer(28); // colisão = mais dano, mas não mata sozinho de full
         return;
       }
     }
@@ -1124,7 +1268,10 @@
     game.statsKills++;
     game.combo++;
     game.maxCombo = Math.max(game.maxCombo, game.combo);
-    game.comboTimer = 2.2;
+    game.comboTimer = 2.4;
+    // Especial enche com abates
+    const charge = e.kind === "boss" ? 40 : e.kind === "tank" ? 14 : 10;
+    addSpecial(charge);
     updateScoreHUD();
     updateComboHUD();
     floatScore(e.x, e.y, pts, e.kind === "boss" || pts >= 500);
@@ -1154,40 +1301,103 @@
     enemies.splice(index, 1);
   }
 
-  function damagePlayer() {
+  function damagePlayer(amount) {
+    if (!player) return;
+    if (game.overdrive > 0) {
+      // Overdrive absorve parte do dano
+      amount *= 0.35;
+    }
     if (game.shield > 0) {
-      game.shield = 0;
-      burst(player.x, player.y, "#00f0ff", 20, 200, 0.4);
+      game.shield = Math.max(0, game.shield - 2.5);
+      burst(player.x, player.y, "#00f0ff", 14, 160, 0.3);
       AudioSys.hit();
-      game.invuln = 1;
-      shake = 0.3;
+      game.invuln = 0.7;
+      shake = 0.2;
       return;
     }
-    game.lives--;
-    updateLivesHUD();
-    game.invuln = 2;
+
+    game.hp = Math.max(0, game.hp - amount);
+    updateHpHUD();
+    game.invuln = 1.1;
     game.combo = 0;
     updateComboHUD();
-    burst(player.x, player.y, "#00f0ff", 30, 250, 0.55);
+    burst(player.x, player.y, "#00f0ff", 18, 200, 0.4);
     AudioSys.playerHit();
-    shake = 0.5;
-    flash = 0.3;
-    flashColor = "rgba(255, 59, 92, 0.35)";
+    shake = 0.35;
+    flash = 0.2;
+    flashColor = "rgba(255, 59, 92, 0.3)";
 
-    // downgrade weapon slightly
-    if (game.weapon !== WEAPON.PULSE) {
-      game.weaponTimer = Math.min(game.weaponTimer, 3);
-    }
+    if (game.hp > 0) return;
 
+    // Energia zerou → perde uma vida e recarrega
+    game.lives--;
+    updateLivesHUD();
     if (game.lives <= 0) {
       game.lives = 0;
       updateLivesHUD();
       endGame();
+      return;
     }
+
+    game.hp = game.maxHp;
+    updateHpHUD();
+    game.invuln = 2.2;
+    game.weaponLevel = Math.max(1, game.weaponLevel - 1);
+    if (game.weaponLevel === 1 && chance(0.4)) game.weapon = WEAPON.PULSE;
+    updateWeaponHUD();
+    burst(player.x, player.y, "#ff3b5c", 36, 280, 0.6);
+    flash = 0.35;
+    showBanner("ENERGIA RESTAURADA");
+  }
+
+  function addSpecial(n) {
+    if (game.overdrive > 0) return;
+    game.special = Math.min(game.specialMax, game.special + n);
+    updateSpecialHUD();
+  }
+
+  function useSpecial() {
+    if (state !== "playing" || !player) return;
+    if (game.overdrive > 0) return;
+    if (game.special < game.specialMax) return;
+
+    game.special = 0;
+    game.overdrive = 4.5;
+    updateSpecialHUD();
+    $("overdrive-fx").classList.remove("hidden");
+    AudioSys.bomb();
+    shake = 0.45;
+    flash = 0.3;
+    flashColor = "rgba(255, 209, 102, 0.35)";
+    game.invuln = Math.max(game.invuln, 1.5);
+
+    // Limpa balas inimigas próximas e dano leve em todos
+    enemyBullets = [];
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      e.hp -= e.kind === "boss" ? e.maxHp * 0.12 : 2.5;
+      spark(e.x, e.y, "#ffd166", 6);
+      if (e.hp <= 0) killEnemy(e, i);
+    }
+    for (let a = 0; a < Math.PI * 2; a += 0.25) {
+      particles.push({
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(a) * 320,
+        vy: Math.sin(a) * 320,
+        life: 0.4,
+        max: 0.4,
+        r: 2.5,
+        color: "#ffd166",
+        drag: 0.93,
+        glow: true,
+      });
+    }
+    floatScore(player.x, player.y - 40, "OVERDRIVE!", true);
   }
 
   function useBomb() {
-    if (state !== "playing" || game.bombs <= 0) return;
+    if (state !== "playing" || game.bombs <= 0 || !player) return;
     game.bombs--;
     updateBombsHUD();
     AudioSys.bomb();
@@ -1199,7 +1409,7 @@
     enemyBullets = [];
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
-      e.hp -= e.kind === "boss" ? e.maxHp * 0.25 : e.maxHp;
+      e.hp -= e.kind === "boss" ? e.maxHp * 0.28 : e.maxHp;
       burst(e.x, e.y, "#ffd166", 20, 220, 0.5);
       if (e.hp <= 0) killEnemy(e, i);
     }
@@ -1218,7 +1428,8 @@
         glow: true,
       });
     }
-    game.invuln = Math.max(game.invuln, 1.2);
+    game.invuln = Math.max(game.invuln, 1.4);
+    addSpecial(20);
   }
 
   // ─── Waves ───────────────────────────────────────────────
@@ -1236,6 +1447,10 @@
     AudioSys.waveClear();
     const bonus = game.wave * 500 * game.mult;
     game.score += bonus;
+    // Recompensa de wave: energia + especial (modo diversão)
+    game.hp = Math.min(game.maxHp, game.hp + 25);
+    addSpecial(25);
+    updateHpHUD();
     updateScoreHUD();
     showBanner(`WAVE ${game.wave} CLEAR  +${bonus}`);
     setTimeout(() => {
@@ -1280,7 +1495,28 @@
   }
 
   function updateWeaponHUD() {
-    $("hud-weapon").textContent = game.weapon;
+    $("hud-weapon").textContent = `${game.weapon} · L${game.weaponLevel}`;
+  }
+
+  function updateHpHUD() {
+    const el = $("hud-hp");
+    const txt = $("hud-hp-text");
+    if (!el) return;
+    const pct = clamp((game.hp / game.maxHp) * 100, 0, 100);
+    el.style.width = `${pct}%`;
+    el.classList.toggle("low", game.hp <= 35);
+    if (txt) txt.textContent = String(Math.ceil(game.hp));
+  }
+
+  function updateSpecialHUD() {
+    const el = $("hud-special");
+    const ready = $("hud-special-ready");
+    if (!el) return;
+    const pct = clamp((game.special / game.specialMax) * 100, 0, 100);
+    el.style.width = `${pct}%`;
+    const full = game.special >= game.specialMax && game.overdrive <= 0;
+    el.classList.toggle("full", full);
+    if (ready) ready.classList.toggle("hidden", !full);
   }
 
   function updateComboHUD() {
@@ -1320,7 +1556,7 @@
     game.mult = 1;
     game.multTimer = 0;
     game.weapon = WEAPON.PULSE;
-    game.weaponTimer = 0;
+    game.weaponLevel = 1;
     game.speedBoost = 0;
     game.invuln = 2;
     game.shield = 0;
@@ -1329,6 +1565,9 @@
     game.waveClearing = false;
     game.spawnQueue = [];
     game.boss = null;
+    game.hp = game.maxHp;
+    game.special = 0;
+    game.overdrive = 0;
     bullets = [];
     enemyBullets = [];
     enemies = [];
@@ -1342,7 +1581,10 @@
     updateBombsHUD();
     updateWeaponHUD();
     updateComboHUD();
+    updateHpHUD();
+    updateSpecialHUD();
     $("boss-bar-wrap").classList.add("hidden");
+    $("overdrive-fx").classList.add("hidden");
     $("float-scores").innerHTML = "";
   }
 
@@ -1435,6 +1677,38 @@
       ctx.moveTo(0, y);
       ctx.lineTo(W, y);
       ctx.stroke();
+    }
+
+    // Filetes internos laterais (design de cockpit no campo de jogo)
+    drawInnerRails(t);
+  }
+
+  function drawInnerRails(t) {
+    const scroll = (t * 60) % 28;
+    for (const side of [0, 1]) {
+      const x0 = side === 0 ? 0 : W - 10;
+      const col = side === 0 ? "rgba(0, 240, 255," : "rgba(255, 43, 214,";
+      ctx.fillStyle = `${col}0.06)`;
+      ctx.fillRect(x0, 0, 10, H);
+      ctx.strokeStyle = `${col}0.35)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(side === 0 ? 9.5 : W - 9.5, 0);
+      ctx.lineTo(side === 0 ? 9.5 : W - 9.5, H);
+      ctx.stroke();
+      for (let y = -28 + scroll; y < H; y += 28) {
+        ctx.fillStyle = `${col}0.4)`;
+        ctx.fillRect(side === 0 ? 2 : W - 8, y, 6, 3);
+      }
+      // nodes
+      for (let i = 0; i < 5; i++) {
+        const yy = 80 + i * 130 + Math.sin(t * 2 + i) * 4;
+        const pulse = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 3 + i));
+        ctx.fillStyle = `${col}${pulse})`;
+        ctx.beginPath();
+        ctx.arc(side === 0 ? 5 : W - 5, yy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -1545,6 +1819,10 @@
     }
     if (e.key === "b" || e.key === "B" || e.key === "Shift") {
       if (state === "playing") useBomb();
+      e.preventDefault();
+    }
+    if (e.key === "v" || e.key === "V" || e.key === "f" || e.key === "F") {
+      if (state === "playing") useSpecial();
       e.preventDefault();
     }
     if (e.key === "p" || e.key === "P" || e.key === "Escape") {
