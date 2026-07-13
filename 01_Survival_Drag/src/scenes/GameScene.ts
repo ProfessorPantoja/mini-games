@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
-import { FLOOR_COLOR, SPRITE_SCALE } from '../data/assets';
+import {
+  FLOOR_COLOR,
+  HITBOX_OFFSET_X,
+  HITBOX_OFFSET_Y,
+  HITBOX_RADIUS,
+  SPRITE_SCALE,
+} from '../data/assets';
 import { pickTankCards, type TankCard } from '../data/tankCards';
 
 const WORLD_SIZE = 2400;
@@ -7,6 +13,8 @@ const PLAYER_SPEED = 140;
 const INVULN_MS = 800;
 const MAGNET_RANGE = 120;
 const PICKUP_RANGE = 24;
+const MIN_SPAWN_DISTANCE = 180;
+const CONTACT_DISTANCE = 22;
 
 type EnemyType = 'slime' | 'skeleton' | 'golem';
 
@@ -72,7 +80,7 @@ export class GameScene extends Phaser.Scene {
       .sprite(WORLD_SIZE / 2, WORLD_SIZE / 2, 'player')
       .setScale(SPRITE_SCALE)
       .setCollideWorldBounds(true);
-    this.player.setCircle(10 * SPRITE_SCALE);
+    this.setupCharacterBody(this.player);
 
     this.enemies = this.physics.add.group();
     this.xpGems = this.physics.add.group();
@@ -85,7 +93,7 @@ export class GameScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as typeof this.wasd;
 
-    this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, undefined, this);
+    this.physics.add.overlap(this.player, this.enemies, this.onPlayerHitEnemy, this.mustBeTouching, this);
     this.physics.add.overlap(this.player, this.xpGems, this.onCollectXp, undefined, this);
 
     this.hudText = this.add
@@ -383,14 +391,31 @@ export class GameScene extends Phaser.Scene {
     x = Phaser.Math.Clamp(x, margin, WORLD_SIZE - margin);
     y = Phaser.Math.Clamp(y, margin, WORLD_SIZE - margin);
 
+    const dist = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
+    if (dist < MIN_SPAWN_DISTANCE) return;
+
     const enemy = this.enemies.create(x, y, config.texture) as Phaser.Physics.Arcade.Sprite;
-    enemy.setScale(config.scale);
-    enemy.setCircle(10 * config.scale);
+    this.setupCharacterBody(enemy, config.scale);
     enemy.setData('hp', config.hp);
     enemy.setData('speed', config.speed);
     enemy.setData('damage', config.damage);
     enemy.setData('xp', config.xp);
     enemy.setData('type', type);
+  }
+
+  private setupCharacterBody(sprite: Phaser.Physics.Arcade.Sprite, scale = SPRITE_SCALE): void {
+    sprite.setScale(scale);
+    sprite.setCircle(HITBOX_RADIUS, HITBOX_OFFSET_X, HITBOX_OFFSET_Y);
+  }
+
+  private mustBeTouching(
+    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
+    enemyObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody,
+  ): boolean {
+    const player = playerObj as Phaser.Physics.Arcade.Sprite;
+    const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
+    const dist = Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y);
+    return dist <= CONTACT_DISTANCE * SPRITE_SCALE;
   }
 
   private onPlayerHitEnemy(
