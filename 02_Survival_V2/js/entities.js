@@ -15,7 +15,9 @@ export function createPlayer(x, y) {
     hp: PLAYER.maxHp,
     invuln: 0,
     flash: 0,
-    // Órbitas
+    build: "tank",
+    facing: 0,
+    // Órbitas (Tanque)
     orbitCount: ORBIT.count,
     orbitRadius: ORBIT.radius,
     orbitSize: ORBIT.size,
@@ -23,13 +25,24 @@ export function createPlayer(x, y) {
     orbitDamage: ORBIT.damage,
     orbitAngle: 0,
     orbitHitCd: new Map(), // enemyId -> remaining cd
-    // Pulso
+    // Pulso (Tanque)
     pulseInterval: PULSE.interval,
     pulseTimer: PULSE.interval * 0.6,
     pulseMaxRadius: PULSE.maxRadius,
     pulseDuration: PULSE.duration,
     pulseDamage: PULSE.damage,
     pulseActive: null, // { t, r, hit: Set }
+    // Melee (Batedor)
+    meleeRange: 0,
+    meleeDamage: 0,
+    meleeInterval: 999,
+    meleeTimer: 999,
+    meleeKnockback: 0,
+    meleeArc: 0,
+    meleeSwing: null, // { t, duration, angle, hit: Set }
+    combo: 0,
+    comboBonus: 0,
+    comboCap: 0,
     // Magnet / life
     magnetRadius: PLAYER.magnetBase,
     lifestealOnKill: 0,
@@ -52,6 +65,7 @@ export function updatePlayer(p, input, dt) {
     const n = normalize(mx, my);
     p.vx = n.x * p.speed;
     p.vy = n.y * p.speed;
+    p.facing = Math.atan2(n.y, n.x);
   } else {
     p.vx *= 0.75;
     p.vy *= 0.75;
@@ -67,8 +81,10 @@ export function updatePlayer(p, input, dt) {
   if (p.invuln > 0) p.invuln -= dt;
   if (p.flash > 0) p.flash -= dt;
 
-  // Órbitas giram
-  p.orbitAngle += p.orbitSpeed * dt;
+  // Órbitas giram (Tanque)
+  if (p.orbitCount > 0) {
+    p.orbitAngle += p.orbitSpeed * dt;
+  }
 
   // Cooldown de hit por órbita
   for (const [id, t] of p.orbitHitCd) {
@@ -77,11 +93,13 @@ export function updatePlayer(p, input, dt) {
     else p.orbitHitCd.set(id, nt);
   }
 
-  // Pulso
-  p.pulseTimer -= dt;
-  if (p.pulseTimer <= 0) {
-    p.pulseTimer = p.pulseInterval;
-    p.pulseActive = { t: 0, r: 0, hit: new Set() };
+  // Pulso (Tanque)
+  if (p.build === "tank") {
+    p.pulseTimer -= dt;
+    if (p.pulseTimer <= 0) {
+      p.pulseTimer = p.pulseInterval;
+      p.pulseActive = { t: 0, r: 0, hit: new Set() };
+    }
   }
   if (p.pulseActive) {
     p.pulseActive.t += dt;
@@ -89,6 +107,12 @@ export function updatePlayer(p, input, dt) {
     // ease-out
     p.pulseActive.r = p.pulseMaxRadius * (1 - (1 - k) * (1 - k));
     if (p.pulseActive.t >= p.pulseDuration) p.pulseActive = null;
+  }
+
+  // Swing melee visual
+  if (p.meleeSwing) {
+    p.meleeSwing.t += dt;
+    if (p.meleeSwing.t >= p.meleeSwing.duration) p.meleeSwing = null;
   }
 }
 
@@ -238,6 +262,44 @@ export function createParticles(x, y, color, count, speed = 120) {
   return list;
 }
 
+/** Faíscas direcionais de impacto (juice). */
+export function createSparks(x, y, angle, color, count = 6) {
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const a = angle + randRange(-0.7, 0.7);
+    const s = randRange(80, 220);
+    list.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: randRange(0.12, 0.32),
+      maxLife: 0.32,
+      r: randRange(1.5, 3.5),
+      color,
+    });
+  }
+  return list;
+}
+
+/** Anel de morte que se expande e some. */
+export function createBurstRing(x, y, color, maxR = 40) {
+  return {
+    kind: "ring",
+    x, y,
+    r: 4,
+    maxR,
+    life: 0.35,
+    maxLife: 0.35,
+    color,
+  };
+}
+
+export function updateBurstRing(r, dt) {
+  r.life -= dt;
+  const k = 1 - r.life / r.maxLife;
+  r.r = r.maxR * k;
+}
+
 export function updateParticle(p, dt) {
   p.life -= dt;
   p.x += p.vx * dt;
@@ -270,34 +332,72 @@ export function drawPlayer(ctx, p) {
     ctx.globalAlpha = 0.45;
   }
 
+  const isScout = p.build === "scout";
+  const body = isScout ? "#ff6a3a" : COLORS.player;
+  const border = isScout ? "#ffb090" : COLORS.playerBorder;
+
+  // arco de swing (Batedor)
+  if (p.meleeSwing) {
+    const sw = p.meleeSwing;
+    const k = sw.t / sw.duration;
+    const half = (p.meleeArc || Math.PI * 0.8) * 0.5;
+    const a0 = sw.angle - half;
+    const a1 = sw.angle - half + (p.meleeArc || Math.PI * 0.8) * Math.min(1, k * 1.4);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.arc(p.x, p.y, p.meleeRange, a0, a1);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(255, 140, 60, ${0.35 * (1 - k)})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 220, 160, ${0.7 * (1 - k)})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // “lâmina”
+    const bladeA = a1;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(
+      p.x + Math.cos(bladeA) * p.meleeRange,
+      p.y + Math.sin(bladeA) * p.meleeRange
+    );
+    ctx.strokeStyle = `rgba(255,255,255,${0.85 * (1 - k)})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
   // corpo
-  const fill = p.flash > 0 ? "#ff6666" : COLORS.player;
+  const fill = p.flash > 0 ? "#ff6666" : body;
   ctx.beginPath();
   ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.lineWidth = 3;
-  ctx.strokeStyle = p.flash > 0 ? "#ffaaaa" : COLORS.playerBorder;
+  ctx.strokeStyle = p.flash > 0 ? "#ffaaaa" : border;
   ctx.stroke();
 
-  // “capacete” / detalhe
+  // direção (olho / capacete)
+  const fx = p.x + Math.cos(p.facing || 0) * (p.radius * 0.35);
+  const fy = p.y + Math.sin(p.facing || 0) * (p.radius * 0.35);
   ctx.beginPath();
-  ctx.arc(p.x, p.y - 3, p.radius * 0.45, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.arc(fx, fy, p.radius * 0.28, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
   ctx.fill();
 
   ctx.globalAlpha = 1;
 
-  // órbitas
-  const orbs = getOrbitPositions(p);
-  for (const o of orbs) {
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
-    ctx.fillStyle = COLORS.orbit;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(200,255,220,0.6)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+  // órbitas (Tanque)
+  if (p.orbitCount > 0) {
+    const orbs = getOrbitPositions(p);
+    for (const o of orbs) {
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.orbit;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(200,255,220,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   // pulso
@@ -315,6 +415,18 @@ export function drawPlayer(ctx, p) {
     ctx.lineWidth = 10;
     ctx.stroke();
   }
+}
+
+export function drawBurstRing(ctx, r) {
+  if (r.life <= 0) return;
+  const a = clamp(r.life / r.maxLife, 0, 1);
+  ctx.beginPath();
+  ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+  ctx.strokeStyle = r.color;
+  ctx.globalAlpha = a * 0.8;
+  ctx.lineWidth = 3 * a + 1;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 export function drawEnemy(ctx, e) {

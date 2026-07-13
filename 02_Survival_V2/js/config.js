@@ -33,6 +33,16 @@ export const PULSE = {
   width: 10,            // espessura da borda que causa dano
 };
 
+/** Build Batedor — golpes curtos de impacto. */
+export const MELEE = {
+  range: 52,
+  arc: Math.PI * 0.85,  // ângulo do arco de ataque
+  damage: 3,
+  interval: 0.36,       // segundos entre golpes
+  knockback: 110,
+  swingDuration: 0.16,
+};
+
 export const ENEMY = {
   slime: {
     name: "Slime",
@@ -130,6 +140,12 @@ export const XP = {
 export const CAMERA = {
   lerp: 0.12,
   shakeDecay: 6,
+};
+
+export const JUICE = {
+  hitStopMax: 0.08,
+  hurtVignette: 0.55,
+  killFlash: 0.12,
 };
 
 export const COLORS = {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Survival V2 — Tanque</title>
+  <title>Survival V2</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -14,6 +14,7 @@
     <div id="hud" class="hidden">
       <div id="objective">Explore o mapa</div>
       <div id="stats">
+        <div class="stat"><span class="label">Build</span><span id="build-label">Tanque</span></div>
         <div class="stat"><span class="label">Vida</span><span id="hp-text">100/100</span></div>
         <div class="stat"><span class="label">Nível</span><span id="level-text">1</span></div>
         <div class="stat"><span class="label">XP</span><span id="xp-text">0/10</span></div>
@@ -27,7 +28,7 @@
       <canvas id="minimap" width="160" height="160"></canvas>
     </div>
 
-    <!-- Banner de emboscada -->
+    <!-- Banner -->
     <div id="banner" class="hidden">EMBOSCADA!</div>
 
     <!-- Cartas de level-up -->
@@ -39,15 +40,34 @@
 
     <!-- Menu inicial -->
     <div id="menu" class="screen">
-      <div class="panel">
+      <div class="panel panel-wide">
         <h1>SURVIVAL V2</h1>
-        <p class="subtitle">Build Tanque — aguente a horda</p>
+        <p class="subtitle">Escolha sua build e sobreviva</p>
+
+        <div class="build-pick">
+          <button type="button" class="build-card" data-build="tank">
+            <span class="build-icon">🛡</span>
+            <span class="build-name">Tanque</span>
+            <span class="build-tag">Órbitas + pulso · resistente</span>
+            <span class="build-desc">Fica no meio da horda, aguenta porrada e mata com área.</span>
+            <span class="btn-label">Jogar Tanque</span>
+          </button>
+
+          <button type="button" class="build-card scout" data-build="scout">
+            <span class="build-icon">⚔</span>
+            <span class="build-name">Batedor</span>
+            <span class="build-tag">Melee · impacto · knockback</span>
+            <span class="build-desc">Entra na briga, golpes curtos automáticos na direção do movimento.</span>
+            <span class="btn-label">Jogar Batedor</span>
+          </button>
+        </div>
+
         <ul class="howto">
-          <li><kbd>WASD</kbd> ou setas — mover</li>
-          <li>Órbitas e pulso atacam sozinhos</li>
-          <li>Mate elites · derrote o chefão</li>
+          <li><kbd>WASD</kbd> / setas — mover</li>
+          <li>Poderes atacam sozinhos · cartas no level-up</li>
+          <li>Mate 2 elites (ou espere ~90s) e derrote o chefão</li>
         </ul>
-        <button id="btn-play" class="btn primary">Jogar</button>
+        <p id="mute-hint" class="hint">Som ligado · <kbd>M</kbd> no menu para mutar</p>
       </div>
     </div>
 
@@ -57,7 +77,10 @@
         <h1 class="danger">GAME OVER</h1>
         <p id="go-stats"></p>
         <p class="hint">Pressione <kbd>R</kbd> para reiniciar</p>
-        <button id="btn-restart" class="btn">Reiniciar</button>
+        <div class="btn-row">
+          <button id="btn-restart" class="btn">Reiniciar</button>
+          <button id="btn-menu-go" class="btn">Menu</button>
+        </div>
       </div>
     </div>
 
@@ -67,7 +90,10 @@
         <h1 class="success">VITÓRIA!</h1>
         <p id="vic-stats"></p>
         <p class="hint">Pressione <kbd>R</kbd> para jogar de novo</p>
-        <button id="btn-again" class="btn primary">Jogar de novo</button>
+        <div class="btn-row">
+          <button id="btn-again" class="btn primary">Jogar de novo</button>
+          <button id="btn-menu-vic" class="btn">Menu</button>
+        </div>
       </div>
     </div>
   </div>

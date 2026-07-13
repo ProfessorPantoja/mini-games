@@ -1,15 +1,16 @@
 import {
-  WORLD, SPAWN, BOSS, AMBUSH, XP, CAMERA, PULSE,
+  WORLD, SPAWN, BOSS, AMBUSH, XP, CAMERA, PULSE, MELEE, JUICE,
 } from "./config.js";
 import { clamp, dist, dist2, normalize, randRange, randInt, pick, lerp } from "./utils.js";
-import { rollCards } from "./cards.js";
+import { rollCards, applyBuildBase } from "./builds.js";
+import { audio } from "./audio.js";
 import {
   createPlayer, updatePlayer, getOrbitPositions, hurtPlayer, healPlayer,
   createEnemy, updateEnemy, damageEnemy,
   createGem, updateGem,
-  createParticles, updateParticle,
+  createParticles, updateParticle, createSparks, createBurstRing, updateBurstRing,
   createFloatText, updateFloatText,
-  drawPlayer, drawEnemy, drawGem, drawParticle, drawFloatText,
+  drawPlayer, drawEnemy, drawGem, drawParticle, drawFloatText, drawBurstRing,
 } from "./entities.js";
 import {
   drawGround, drawEliteZones, drawBossZone, drawObjectiveArrow,
@@ -31,8 +32,15 @@ export class Game {
     this.ctx = canvas.getContext("2d");
     this.phase = PHASE.MENU;
     this.input = { up: false, down: false, left: false, right: false };
+    this.buildId = "tank";
 
     this.cam = { x: 0, y: 0, shake: 0 };
+    this.hitStop = 0;
+    this.vignette = 0;
+    this.flashWhite = 0;
+    this.rings = [];
+    this._pulseFx = false;
+
     this.time = 0;
     this.spawnTimer = 0;
     this.ambushTimer = AMBUSH.firstAt;
@@ -53,8 +61,9 @@ export class Game {
     this._bindInput();
 
     UI.bindUI({
-      onPlay: () => this.start(),
-      onRestart: () => this.start(),
+      onPlay: (buildId) => this.start(buildId || this.buildId),
+      onRestart: () => this.start(this.buildId),
+      onMenu: () => this.backToMenu(),
     });
     UI.showMenu();
   }
@@ -77,7 +86,11 @@ export class Game {
         e.preventDefault();
       }
       if (e.code === "KeyR" && (this.phase === PHASE.DEAD || this.phase === PHASE.WIN)) {
-        this.start();
+        this.start(this.buildId);
+      }
+      if (e.code === "KeyM" && this.phase === PHASE.MENU) {
+        const on = audio.toggle();
+        UI.setMuteHint(on);
       }
     });
     window.addEventListener("keyup", (e) => {
@@ -88,7 +101,17 @@ export class Game {
     });
   }
 
-  start() {
+  backToMenu() {
+    this.phase = PHASE.MENU;
+    UI.hideCards();
+    UI.showMenu();
+  }
+
+  start(buildId = "tank") {
+    audio.resume();
+    audio.play("ui");
+
+    this.buildId = buildId;
     this.phase = PHASE.PLAY;
     this.time = 0;
     this.spawnTimer = 0.5;
@@ -97,44 +120,63 @@ export class Game {
     this.gems = [];
     this.particles = [];
     this.floatTexts = [];
+    this.rings = [];
     this.eliteZones = createEliteZoneState();
     this.clearedElites = new Set();
     this.elitesKilled = 0;
     this.bossUnlocked = false;
     this.bossSpawned = false;
     this.bossDefeated = false;
+    this.hitStop = 0;
+    this.vignette = 0;
+    this.flashWhite = 0;
+    this._pulseFx = false;
+
     this.player = createPlayer(WORLD.width / 2, WORLD.height / 2 + 400);
+    applyBuildBase(this.player, buildId);
     this.player.xpToNext = XP.baseToLevel;
+
     this.cam.x = this.player.x - this.canvas.width / 2;
     this.cam.y = this.player.y - this.canvas.height / 2;
     this.cam.shake = 0;
+
     UI.hideCards();
     UI.showHud();
+    UI.setBuildLabel(buildId);
   }
 
   // ─── Loop ───
 
   update(dt) {
+    // juice timers sempre correm
+    if (this.vignette > 0) this.vignette = Math.max(0, this.vignette - dt * 1.8);
+    if (this.flashWhite > 0) this.flashWhite = Math.max(0, this.flashWhite - dt * 3.5);
+
     if (this.phase !== PHASE.PLAY) return;
+
+    // hit-stop: congela o combate por um instante
+    if (this.hitStop > 0) {
+      this.hitStop -= dt;
+      this._updateCamera(dt);
+      return;
+    }
 
     this.time += dt;
     const p = this.player;
 
+    // detectar início de pulso (som)
+    const hadPulse = !!p.pulseActive;
     updatePlayer(p, this.input, dt);
+    if (!hadPulse && p.pulseActive) {
+      audio.play("pulse", { throttle: 0.3 });
+      this._pulseFx = true;
+    }
 
-    // spawn normal
     this._updateSpawn(dt);
-
-    // elites por zona
     this._updateEliteZones();
-
-    // emboscada
     this._updateAmbush(dt);
-
-    // boss unlock
     this._updateBoss();
 
-    // inimigos
     for (const e of this.enemies) {
       if (!e.alive) continue;
       updateEnemy(e, p, dt);
@@ -142,35 +184,38 @@ export class Game {
     }
     this._softSeparateEnemies();
 
-    // combate auto
-    this._orbitHits();
-    this._pulseHits();
+    // combate por build
+    if (p.build === "tank") {
+      this._orbitHits();
+      this._pulseHits();
+    } else if (p.build === "scout") {
+      this._meleeUpdate(dt);
+    }
 
-    // gemas
     for (const g of this.gems) {
       updateGem(g, p, dt);
       if (g.collected && !g._granted) {
         g._granted = true;
+        audio.play("gem", { throttle: 0.03 });
         this._grantXp(g.value);
       }
     }
     this.gems = this.gems.filter((g) => !g.collected);
 
-    // partículas / textos
     for (const pt of this.particles) updateParticle(pt, dt);
     this.particles = this.particles.filter((pt) => pt.life > 0);
     for (const t of this.floatTexts) updateFloatText(t, dt);
     this.floatTexts = this.floatTexts.filter((t) => t.life > 0);
+    for (const r of this.rings) updateBurstRing(r, dt);
+    this.rings = this.rings.filter((r) => r.life > 0);
 
-    // limpar mortos (já processados)
     this.enemies = this.enemies.filter((e) => e.alive || e._keepBrief);
 
-    // câmera
     this._updateCamera(dt);
 
-    // morte
     if (p.hp <= 0) {
       this.phase = PHASE.DEAD;
+      audio.play("gameover");
       UI.showGameOver(this.time, p.kills);
     }
   }
@@ -186,6 +231,14 @@ export class Game {
     if (this.cam.shake > 0) {
       this.cam.shake = Math.max(0, this.cam.shake - CAMERA.shakeDecay * dt);
     }
+  }
+
+  _addShake(amount) {
+    this.cam.shake = Math.max(this.cam.shake, amount);
+  }
+
+  _addHitStop(t = JUICE.hitStopMax) {
+    this.hitStop = Math.max(this.hitStop, t);
   }
 
   // ─── Spawn ───
@@ -224,18 +277,17 @@ export class Game {
   _spawnAtEdge() {
     const m = SPAWN.edgeMargin;
     const p = this.player;
-    // spawn perto da câmera, fora da tela
     const side = randInt(0, 3);
     const vw = this.canvas.width;
     const vh = this.canvas.height;
     let x, y;
-    if (side === 0) { // top
+    if (side === 0) {
       x = this.cam.x + randRange(-m, vw + m);
       y = this.cam.y - m - randRange(0, 40);
-    } else if (side === 1) { // bottom
+    } else if (side === 1) {
       x = this.cam.x + randRange(-m, vw + m);
       y = this.cam.y + vh + m + randRange(0, 40);
-    } else if (side === 2) { // left
+    } else if (side === 2) {
       x = this.cam.x - m - randRange(0, 40);
       y = this.cam.y + randRange(-m, vh + m);
     } else {
@@ -244,7 +296,6 @@ export class Game {
     }
     x = clamp(x, m, WORLD.width - m);
     y = clamp(y, m, WORLD.height - m);
-    // garantir distância mínima do player
     if (dist(x, y, p.x, p.y) < 200) {
       const n = normalize(x - p.x, y - p.y);
       x = p.x + n.x * 260;
@@ -263,10 +314,7 @@ export class Game {
       if (z.cleared || z.spawned) continue;
       if (dist(p.x, p.y, z.x, z.y) < z.r + 40) {
         z.spawned = true;
-        // pack de elite
-        this.enemies.push(
-          createEnemy("elite", z.x, z.y, { eliteZoneId: z.id })
-        );
+        this.enemies.push(createEnemy("elite", z.x, z.y, { eliteZoneId: z.id }));
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * Math.PI * 2;
           this.enemies.push(
@@ -279,6 +327,8 @@ export class Game {
           );
         }
         UI.showBanner("ZONA DE ELITE!", 1400);
+        audio.play("ambush", { throttle: 1 });
+        this._addShake(0.35);
       }
     }
   }
@@ -292,7 +342,9 @@ export class Game {
 
     const p = this.player;
     UI.showBanner("EMBOSCADA!");
-    this.cam.shake = 0.45;
+    audio.play("ambush");
+    this._addShake(0.55);
+    this.vignette = 0.35;
 
     for (let i = 0; i < AMBUSH.count; i++) {
       const a = (i / AMBUSH.count) * Math.PI * 2 + randRange(-0.2, 0.2);
@@ -313,22 +365,23 @@ export class Game {
       if (this.elitesKilled >= BOSS.unlockElites || this.time >= BOSS.unlockTime) {
         this.bossUnlocked = true;
         UI.showBanner("CHEFÃO DESBLOQUEADO!", 2000);
+        audio.play("boss_unlock");
       }
     }
     if (this.bossUnlocked && !this.bossSpawned) {
-      // spawna quando o player se aproxima OU depois de um tempo extra
       const p = this.player;
       const near = dist(p.x, p.y, BOSS.x, BOSS.y) < BOSS.zoneR + 120;
       if (near || (this.time > BOSS.unlockTime + 15 && this.elitesKilled >= BOSS.unlockElites)) {
         this.bossSpawned = true;
         this.enemies.push(createEnemy("boss", BOSS.x, BOSS.y));
         UI.showBanner("O CHEFÃO DESPERTOU!", 2200);
-        this.cam.shake = 0.7;
+        audio.play("boss");
+        this._addShake(0.85);
+        this.flashWhite = 0.2;
       }
     }
   }
 
-  /** Evita pilha total de inimigos no mesmo ponto (fluidez). */
   _softSeparateEnemies() {
     const list = this.enemies;
     const n = list.length;
@@ -362,10 +415,8 @@ export class Game {
     const minD = e.radius + p.radius;
     if (d >= minD || d < 0.001) return;
 
-    // separar corpos (não gruda)
     const n = normalize(p.x - e.x, p.y - e.y);
     const overlap = minD - d;
-    // player leva mais do empurrão (fluidez)
     const pushP = 0.75;
     const pushE = 0.35 / (e.mass || 1);
     p.x += n.x * overlap * pushP;
@@ -373,17 +424,20 @@ export class Game {
     e.x -= n.x * overlap * pushE;
     e.y -= n.y * overlap * pushE;
 
-    // dano com i-frames
     if (hurtPlayer(p, e.damage, e.x, e.y)) {
-      this.cam.shake = Math.max(this.cam.shake, 0.35);
+      this._addShake(0.4);
+      this.vignette = JUICE.hurtVignette;
+      audio.play("hurt");
       this.floatTexts.push(createFloatText(p.x, p.y - 20, `-${e.damage}`, "#ff6a6a"));
+      this.particles.push(...createSparks(p.x, p.y, Math.atan2(n.y, n.x), "#ff8888", 8));
     }
   }
 
-  // ─── Combate ───
+  // ─── Combate Tanque ───
 
   _orbitHits() {
     const p = this.player;
+    if (p.orbitCount <= 0) return;
     const orbs = getOrbitPositions(p);
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -391,7 +445,7 @@ export class Game {
       for (const o of orbs) {
         if (dist2(o.x, o.y, e.x, e.y) < (o.r + e.radius) ** 2) {
           p.orbitHitCd.set(e.id, 0.28);
-          this._hitEnemy(e, p.orbitDamage, COLORS_ORBIT_HIT);
+          this._hitEnemy(e, p.orbitDamage, { kind: "orbit" });
           break;
         }
       }
@@ -406,25 +460,113 @@ export class Game {
     for (const e of this.enemies) {
       if (!e.alive || pulse.hit.has(e.id)) continue;
       const d = dist(p.x, p.y, e.x, e.y);
-      // dano na borda do anel
       if (Math.abs(d - pulse.r) < band + e.radius * 0.5 && pulse.r > 12) {
         pulse.hit.add(e.id);
-        this._hitEnemy(e, p.pulseDamage, "#80ffb0");
+        this._hitEnemy(e, p.pulseDamage, { kind: "pulse" });
       }
     }
   }
 
-  _hitEnemy(e, dmg, color) {
+  // ─── Combate Batedor ───
+
+  _meleeUpdate(dt) {
+    const p = this.player;
+    p.meleeTimer -= dt;
+
+    // mirar no inimigo mais próximo se parado
+    if (Math.hypot(p.vx, p.vy) < 10) {
+      let best = null;
+      let bestD = p.meleeRange * 1.8;
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        const d = dist(p.x, p.y, e.x, e.y);
+        if (d < bestD) {
+          bestD = d;
+          best = e;
+        }
+      }
+      if (best) p.facing = Math.atan2(best.y - p.y, best.x - p.x);
+    }
+
+    if (p.meleeTimer <= 0) {
+      p.meleeTimer = p.meleeInterval;
+      this._meleeSwing();
+    }
+
+    // hits durante o swing
+    if (p.meleeSwing) {
+      const sw = p.meleeSwing;
+      const half = (p.meleeArc || MELEE.arc) * 0.5;
+      let anyHit = false;
+      for (const e of this.enemies) {
+        if (!e.alive || sw.hit.has(e.id)) continue;
+        const d = dist(p.x, p.y, e.x, e.y);
+        if (d > p.meleeRange + e.radius) continue;
+        const ang = Math.atan2(e.y - p.y, e.x - p.x);
+        let diff = ang - sw.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (Math.abs(diff) <= half) {
+          sw.hit.add(e.id);
+          const comboExtra = Math.min(p.combo * (p.comboBonus || 0), p.comboCap || 0);
+          const dmg = p.meleeDamage + comboExtra;
+          this._hitEnemy(e, dmg, {
+            kind: "melee",
+            knockback: p.meleeKnockback,
+            angle: ang,
+          });
+          anyHit = true;
+        }
+      }
+      if (anyHit && !sw._sfx) {
+        sw._sfx = true;
+        audio.play("melee_hit");
+      }
+    }
+  }
+
+  _meleeSwing() {
+    const p = this.player;
+    p.meleeSwing = {
+      t: 0,
+      duration: MELEE.swingDuration,
+      angle: p.facing || 0,
+      hit: new Set(),
+    };
+    audio.play("melee", { throttle: 0.08 });
+  }
+
+  // ─── Hit genérico ───
+
+  _hitEnemy(e, dmg, opts = {}) {
     const dead = damageEnemy(e, dmg);
-    this.floatTexts.push(createFloatText(e.x, e.y - e.radius, `-${dmg}`, "#ffffff"));
+    const dmgShow = Math.round(dmg * 10) / 10;
+    this.floatTexts.push(
+      createFloatText(e.x, e.y - e.radius, `-${dmgShow}`, "#ffffff")
+    );
+
+    const ang = opts.angle ?? Math.atan2(e.y - this.player.y, e.x - this.player.x);
+    this.particles.push(...createSparks(e.x, e.y, ang, "#fff8c0", 5));
+
+    if (opts.kind === "melee") {
+      const kb = opts.knockback || 80;
+      e.x += Math.cos(ang) * (kb * 0.12);
+      e.y += Math.sin(ang) * (kb * 0.12);
+      this._addShake(0.22);
+      this._addHitStop(0.04);
+    } else if (opts.kind === "pulse") {
+      this._addShake(0.12);
+    } else {
+      audio.play("hit", { throttle: 0.05 });
+    }
+
     if (dead) {
       this._onEnemyKilled(e);
     } else {
-      // micro knockback no inimigo
       const p = this.player;
       const n = normalize(e.x - p.x, e.y - p.y);
-      e.x += n.x * 6;
-      e.y += n.y * 6;
+      e.x += n.x * (opts.kind === "melee" ? 14 : 6);
+      e.y += n.y * (opts.kind === "melee" ? 14 : 6);
     }
   }
 
@@ -432,38 +574,45 @@ export class Game {
     const p = this.player;
     p.kills += 1;
 
-    // partículas
+    if (p.build === "scout") {
+      p.combo = (p.combo || 0) + 1;
+    }
+
     const count = e.isBoss ? 40 : e.isElite ? 28 : e.type === "golem" ? 22 : e.type === "slime" ? 8 : 14;
     this.particles.push(...createParticles(e.x, e.y, e.color, count, e.isBoss ? 200 : 140));
+    this.rings.push(createBurstRing(e.x, e.y, e.color, e.radius * 3 + 20));
 
-    // gema
     this.gems.push(createGem(e.x, e.y, e.xp));
 
-    // vampirismo
     if (p.lifestealOnKill > 0) {
       healPlayer(p, p.lifestealOnKill);
       this.floatTexts.push(createFloatText(p.x, p.y - 28, `+${p.lifestealOnKill}`, "#4dff8a"));
     }
 
-    // elite / boss tracking
+    if (e.isBoss) {
+      audio.play("kill_big");
+      this.bossDefeated = true;
+      this._addShake(1.2);
+      this.flashWhite = 0.35;
+      this.phase = PHASE.WIN;
+      audio.play("victory");
+      UI.showVictory(this.time, p.kills);
+    } else if (e.isElite || e.type === "golem") {
+      audio.play("kill_big");
+      this._addShake(e.isElite ? 0.5 : 0.28);
+      this._addHitStop(0.06);
+    } else {
+      audio.play("kill", { throttle: 0.04 });
+    }
+
     if (e.isElite) {
       this.elitesKilled += 1;
       if (e.eliteZoneId != null) {
         this.eliteZones[e.eliteZoneId].cleared = true;
         this.clearedElites.add(e.eliteZoneId);
       }
-      this.cam.shake = 0.5;
       UI.showBanner("ELITE DERROTADO!", 1400);
     }
-
-    if (e.isBoss) {
-      this.bossDefeated = true;
-      this.cam.shake = 1.2;
-      this.phase = PHASE.WIN;
-      UI.showVictory(this.time, p.kills);
-    }
-
-    if (e.type === "golem") this.cam.shake = Math.max(this.cam.shake, 0.25);
   }
 
   _grantXp(amount) {
@@ -479,13 +628,15 @@ export class Game {
 
   _openLevelUp() {
     this.phase = PHASE.LEVELUP;
-    const cards = rollCards(3);
+    audio.play("levelup");
+    this.flashWhite = 0.15;
+    const cards = rollCards(this.buildId, 3);
     UI.showCards(cards, (card) => {
+      audio.play("card");
       card.apply(this.player);
       this.floatTexts.push(
         createFloatText(this.player.x, this.player.y - 40, card.name, "#3dffa0")
       );
-      // se ainda tem XP de sobra para outro level, processa depois
       this.phase = PHASE.PLAY;
       if (this.player.xp >= this.player.xpToNext) {
         this._grantXp(0);
@@ -508,7 +659,6 @@ export class Game {
         y: BOSS.y,
       };
     }
-    // próximo elite não limpo
     const next = this.eliteZones.find((z) => !z.cleared);
     if (next) {
       const left = this.eliteZones.filter((z) => !z.cleared).length;
@@ -542,7 +692,6 @@ export class Game {
     ctx.clearRect(0, 0, w, h);
 
     if (this.phase === PHASE.MENU) {
-      // fundo decorativo no menu
       ctx.fillStyle = "#0d1a12";
       ctx.fillRect(0, 0, w, h);
       return;
@@ -550,8 +699,9 @@ export class Game {
 
     let shakeX = 0, shakeY = 0;
     if (this.cam.shake > 0) {
-      shakeX = (Math.random() - 0.5) * this.cam.shake * 14;
-      shakeY = (Math.random() - 0.5) * this.cam.shake * 14;
+      const mag = this.cam.shake * 16;
+      shakeX = (Math.random() - 0.5) * mag;
+      shakeY = (Math.random() - 0.5) * mag;
     }
 
     ctx.save();
@@ -570,12 +720,28 @@ export class Game {
       drawObjectiveArrow(ctx, this.player.x, this.player.y, obj.x, obj.y);
     }
 
+    for (const r of this.rings) drawBurstRing(ctx, r);
     for (const pt of this.particles) drawParticle(ctx, pt);
     for (const t of this.floatTexts) drawFloatText(ctx, t);
 
     ctx.restore();
 
-    // HUD data
+    // overlays de juice (espaço de tela)
+    if (this.vignette > 0.01) {
+      const g = ctx.createRadialGradient(
+        w / 2, h / 2, Math.min(w, h) * 0.25,
+        w / 2, h / 2, Math.max(w, h) * 0.7
+      );
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, `rgba(180, 20, 20, ${this.vignette * 0.65})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+    if (this.flashWhite > 0.01) {
+      ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 0.45})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
     if (this.phase !== PHASE.MENU) {
       UI.updateHud({
         player: this.player,
@@ -595,6 +761,3 @@ export class Game {
     }
   }
 }
-
-// cor usada em hit de órbita (evita import circular)
-const COLORS_ORBIT_HIT = "#4dff8a";

@@ -1,12 +1,22 @@
 import { WORLD, BOSS, COLORS } from "./config.js";
 import { formatTime } from "./utils.js";
+import { BUILDS } from "./builds.js";
 
 const $ = (id) => document.getElementById(id);
 
 export function bindUI(handlers) {
-  $("btn-play")?.addEventListener("click", () => handlers.onPlay?.());
+  // botões de build no menu
+  document.querySelectorAll("[data-build]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const build = btn.getAttribute("data-build");
+      handlers.onPlay?.(build);
+    });
+  });
+
   $("btn-restart")?.addEventListener("click", () => handlers.onRestart?.());
   $("btn-again")?.addEventListener("click", () => handlers.onRestart?.());
+  $("btn-menu-go")?.addEventListener("click", () => handlers.onMenu?.());
+  $("btn-menu-vic")?.addEventListener("click", () => handlers.onMenu?.());
 }
 
 export function showMenu() {
@@ -37,6 +47,17 @@ export function showVictory(time, kills) {
   $("vic-stats").textContent = `Tempo: ${formatTime(time)}  ·  Kills: ${kills}`;
 }
 
+export function setBuildLabel(buildId) {
+  const b = BUILDS[buildId];
+  const el = $("build-label");
+  if (el && b) el.textContent = b.name;
+}
+
+export function setMuteHint(enabled) {
+  const el = $("mute-hint");
+  if (el) el.textContent = enabled ? "Som ligado (M no menu)" : "Som mudo (M no menu)";
+}
+
 export function updateHud(state) {
   const p = state.player;
   $("hp-text").textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
@@ -51,6 +72,8 @@ export function updateHud(state) {
   $("hp-bar").style.width = `${pct}%`;
   if (pct < 30) {
     $("hp-bar").style.background = "linear-gradient(90deg, #8a2a2a, #ff5a5a)";
+  } else if (p.build === "scout") {
+    $("hp-bar").style.background = "linear-gradient(90deg, #8a4a2a, #ff8a4a)";
   } else {
     $("hp-bar").style.background = "linear-gradient(90deg, #2a8a4a, #3dffa0)";
   }
@@ -65,10 +88,13 @@ export function showBanner(text, ms = 1800) {
 }
 
 export function showCards(cards, onPick) {
-  const overlay = $("card-overlay");
   const container = $("cards");
   container.innerHTML = "";
   setVisible("card-overlay", true);
+
+  if (showCards._keyHandler) {
+    window.removeEventListener("keydown", showCards._keyHandler);
+  }
 
   cards.forEach((card, i) => {
     const div = document.createElement("button");
@@ -81,18 +107,16 @@ export function showCards(cards, onPick) {
       <p>${card.desc}</p>
     `;
     div.addEventListener("click", () => {
-      setVisible("card-overlay", false);
+      hideCards();
       onPick(card);
     });
     container.appendChild(div);
   });
 
-  // teclas 1-2-3
   const keyHandler = (e) => {
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= cards.length) {
-      window.removeEventListener("keydown", keyHandler);
-      setVisible("card-overlay", false);
+      hideCards();
       onPick(cards[n - 1]);
     }
   };
@@ -119,12 +143,10 @@ export function drawMinimap(canvas, state) {
   ctx.fillStyle = "rgba(10, 22, 16, 0.95)";
   ctx.fillRect(0, 0, w, h);
 
-  // grade leve
   ctx.strokeStyle = "rgba(40, 80, 55, 0.4)";
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 
-  // zonas elite
   for (const z of state.eliteZones) {
     const done = state.clearedElites.has(z.id);
     ctx.beginPath();
@@ -133,7 +155,6 @@ export function drawMinimap(canvas, state) {
     ctx.fill();
   }
 
-  // boss zone
   if (state.bossUnlocked) {
     ctx.beginPath();
     ctx.arc(BOSS.x * sx, BOSS.y * sy, BOSS.zoneR * sx, 0, Math.PI * 2);
@@ -143,7 +164,6 @@ export function drawMinimap(canvas, state) {
     ctx.fill();
   }
 
-  // objetivo (amarelo)
   if (state.objective && !state.bossDefeated) {
     const o = state.objective;
     ctx.fillStyle = COLORS.objective;
@@ -152,7 +172,6 @@ export function drawMinimap(canvas, state) {
     ctx.fill();
   }
 
-  // elites vivos no minimapa (roxo)
   for (const e of state.enemies) {
     if (!e.alive) continue;
     if (e.isElite) {
@@ -166,9 +185,8 @@ export function drawMinimap(canvas, state) {
     }
   }
 
-  // player (azul)
   const p = state.player;
-  ctx.fillStyle = "#3a7cff";
+  ctx.fillStyle = p.build === "scout" ? "#ff6a3a" : "#3a7cff";
   ctx.beginPath();
   ctx.arc(p.x * sx, p.y * sy, 3.5, 0, Math.PI * 2);
   ctx.fill();
