@@ -1,11 +1,11 @@
 /**
- * Gravidade — pinte campos vetoriais e lance a partícula
+ * Gravidade — pinte campos vetoriais (versão legível + paint confiável)
  */
 import { audio } from "./audio.js";
 
 const W = 960, H = 640;
 const STORAGE = "gravidade.best.v1";
-const COLS = 24, ROWS = 16;
+const COLS = 20, ROWS = 12;
 const CW = W / COLS, CH = H / ROWS;
 const DIR = {
   none: { x: 0, y: 0 },
@@ -14,112 +14,121 @@ const DIR = {
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
 };
-const STRENGTH = 920;
+const DIR_COLOR = {
+  up: "#56d6ff",
+  down: "#8b7cff",
+  left: "#ff6bcb",
+  right: "#ffc857",
+};
+const STRENGTH = 1100;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
 
 const LEVELS = [
   {
-    ink: 40,
-    spawn: { x: 3.5 * CW, y: 8 * CH },
-    goal: { x: 20 * CW, y: 8 * CH, r: 28 },
-    walls: [{ c: 11, r: 4, w: 2, h: 8 }],
-    hazards: [],
-    launch: { vx: 120, vy: 0 },
-  },
-  {
-    ink: 45,
-    spawn: { x: 2.5 * CW, y: 13 * CH },
-    goal: { x: 21 * CW, y: 3 * CH, r: 28 },
-    walls: [{ c: 8, r: 6, w: 8, h: 2 }, { c: 12, r: 2, w: 2, h: 6 }],
-    hazards: [{ c: 16, r: 10, w: 3, h: 2 }],
-    launch: { vx: 80, vy: -40 },
-  },
-  {
     ink: 50,
-    spawn: { x: 2 * CW, y: 2.5 * CH },
-    goal: { x: 21.5 * CW, y: 13 * CH, r: 26 },
-    walls: [
-      { c: 5, r: 0, w: 1, h: 10 },
-      { c: 10, r: 6, w: 1, h: 10 },
-      { c: 15, r: 0, w: 1, h: 10 },
-    ],
-    hazards: [{ c: 7, r: 12, w: 2, h: 2 }],
-    launch: { vx: 100, vy: 40 },
-  },
-  {
-    ink: 48,
-    spawn: { x: 12 * CW, y: 13 * CH },
-    goal: { x: 12 * CW, y: 2.5 * CH, r: 28 },
-    walls: [
-      { c: 6, r: 5, w: 12, h: 1 },
-      { c: 6, r: 9, w: 12, h: 1 },
-      { c: 6, r: 5, w: 1, h: 5 },
-      { c: 17, r: 5, w: 1, h: 5 },
-    ],
+    spawn: { c: 1, r: 5 },
+    goal: { c: 17, r: 5 },
+    walls: [{ c: 9, r: 2, w: 2, h: 8 }],
     hazards: [],
-    launch: { vx: 0, vy: -100 },
+    launch: { vx: 160, vy: 0 },
   },
   {
     ink: 55,
-    spawn: { x: 2 * CW, y: 8 * CH },
-    goal: { x: 21 * CW, y: 8 * CH, r: 26 },
-    walls: [
-      { c: 6, r: 3, w: 2, h: 10 },
-      { c: 11, r: 1, w: 2, h: 6 },
-      { c: 11, r: 9, w: 2, h: 6 },
-      { c: 16, r: 3, w: 2, h: 10 },
-    ],
-    hazards: [{ c: 9, r: 7, w: 1, h: 2 }, { c: 14, r: 7, w: 1, h: 2 }],
-    launch: { vx: 90, vy: 0 },
+    spawn: { c: 1, r: 9 },
+    goal: { c: 17, r: 2 },
+    walls: [{ c: 6, r: 5, w: 8, h: 1 }, { c: 10, r: 1, w: 1, h: 5 }],
+    hazards: [{ c: 13, r: 8, w: 2, h: 1 }],
+    launch: { vx: 100, vy: -60 },
   },
   {
     ink: 60,
-    spawn: { x: 2.5 * CW, y: 2.5 * CH },
-    goal: { x: 21 * CW, y: 13 * CH, r: 26 },
+    spawn: { c: 1, r: 1 },
+    goal: { c: 17, r: 9 },
     walls: [
-      { c: 4, r: 4, w: 6, h: 1 },
-      { c: 10, r: 7, w: 6, h: 1 },
-      { c: 4, r: 10, w: 6, h: 1 },
-      { c: 14, r: 3, w: 1, h: 8 },
+      { c: 4, r: 0, w: 1, h: 8 },
+      { c: 8, r: 4, w: 1, h: 8 },
+      { c: 12, r: 0, w: 1, h: 8 },
     ],
-    hazards: [{ c: 8, r: 12, w: 3, h: 1 }, { c: 18, r: 6, w: 2, h: 2 }],
-    launch: { vx: 70, vy: 50 },
+    hazards: [{ c: 6, r: 9, w: 1, h: 1 }],
+    launch: { vx: 90, vy: 40 },
   },
   {
-    ink: 52,
-    spawn: { x: 12 * CW, y: 8 * CH },
-    goal: { x: 21.5 * CW, y: 2.5 * CH, r: 24 },
+    ink: 55,
+    spawn: { c: 9, r: 10 },
+    goal: { c: 9, r: 1 },
     walls: [
-      { c: 5, r: 3, w: 14, h: 1 },
-      { c: 5, r: 12, w: 14, h: 1 },
-      { c: 5, r: 3, w: 1, h: 10 },
-      { c: 18, r: 3, w: 1, h: 10 },
-      { c: 9, r: 6, w: 6, h: 1 },
+      { c: 4, r: 4, w: 12, h: 1 },
+      { c: 4, r: 7, w: 12, h: 1 },
+      { c: 4, r: 4, w: 1, h: 4 },
+      { c: 15, r: 4, w: 1, h: 4 },
     ],
-    hazards: [{ c: 11, r: 9, w: 2, h: 2 }],
-    launch: { vx: 120, vy: -30 },
+    hazards: [],
+    launch: { vx: 0, vy: -120 },
   },
   {
     ink: 65,
-    spawn: { x: 2 * CW, y: 13 * CH },
-    goal: { x: 21.5 * CW, y: 2 * CH, r: 24 },
+    spawn: { c: 1, r: 5 },
+    goal: { c: 17, r: 5 },
     walls: [
-      { c: 4, r: 2, w: 1, h: 12 },
-      { c: 8, r: 0, w: 1, h: 12 },
-      { c: 12, r: 4, w: 1, h: 12 },
-      { c: 16, r: 0, w: 1, h: 12 },
-      { c: 20, r: 3, w: 1, h: 10 },
+      { c: 5, r: 2, w: 1, h: 8 },
+      { c: 9, r: 0, w: 1, h: 5 },
+      { c: 9, r: 7, w: 1, h: 5 },
+      { c: 13, r: 2, w: 1, h: 8 },
+    ],
+    hazards: [{ c: 7, r: 5, w: 1, h: 1 }, { c: 11, r: 5, w: 1, h: 1 }],
+    launch: { vx: 110, vy: 0 },
+  },
+  {
+    ink: 70,
+    spawn: { c: 1, r: 1 },
+    goal: { c: 17, r: 10 },
+    walls: [
+      { c: 3, r: 3, w: 5, h: 1 },
+      { c: 8, r: 6, w: 5, h: 1 },
+      { c: 3, r: 8, w: 5, h: 1 },
+      { c: 12, r: 2, w: 1, h: 7 },
+    ],
+    hazards: [{ c: 6, r: 10, w: 2, h: 1 }],
+    launch: { vx: 80, vy: 50 },
+  },
+  {
+    ink: 60,
+    spawn: { c: 9, r: 5 },
+    goal: { c: 17, r: 1 },
+    walls: [
+      { c: 3, r: 2, w: 12, h: 1 },
+      { c: 3, r: 9, w: 12, h: 1 },
+      { c: 3, r: 2, w: 1, h: 8 },
+      { c: 14, r: 2, w: 1, h: 8 },
+      { c: 7, r: 5, w: 4, h: 1 },
+    ],
+    hazards: [{ c: 9, r: 7, w: 1, h: 1 }],
+    launch: { vx: 140, vy: -20 },
+  },
+  {
+    ink: 75,
+    spawn: { c: 1, r: 10 },
+    goal: { c: 17, r: 1 },
+    walls: [
+      { c: 3, r: 1, w: 1, h: 9 },
+      { c: 6, r: 0, w: 1, h: 9 },
+      { c: 9, r: 3, w: 1, h: 9 },
+      { c: 12, r: 0, w: 1, h: 9 },
+      { c: 15, r: 2, w: 1, h: 8 },
     ],
     hazards: [
-      { c: 6, r: 14, w: 2, h: 1 },
-      { c: 10, r: 1, w: 2, h: 1 },
-      { c: 14, r: 14, w: 2, h: 1 },
-      { c: 18, r: 8, w: 1, h: 2 },
+      { c: 4, r: 10, w: 1, h: 1 },
+      { c: 7, r: 1, w: 1, h: 1 },
+      { c: 10, r: 10, w: 1, h: 1 },
     ],
-    launch: { vx: 60, vy: -80 },
+    launch: { vx: 70, vy: -90 },
   },
 ];
+
+function cellCenter(c, r) {
+  return { x: (c + 0.5) * CW, y: (r + 0.5) * CH };
+}
 
 export class Game {
   constructor(canvas) {
@@ -129,17 +138,18 @@ export class Game {
     this.levelIndex = 0;
     this.score = 0;
     this.best = Number(localStorage.getItem(STORAGE) || 0);
-    this.dir = "down";
+    this.dir = "right";
     this.grid = [];
     this.inkLeft = 0;
     this.inkMax = 0;
-    this.ball = { x: 0, y: 0, vx: 0, vy: 0, r: 11 };
+    this.ball = { x: 0, y: 0, vx: 0, vy: 0, r: 12 };
     this.trail = [];
     this.particles = [];
     this.time = 0;
     this.simTime = 0;
     this.shake = 0;
     this.painting = false;
+    this.hover = { c: -1, r: -1 };
     this.listeners = {};
     this._bind();
   }
@@ -163,8 +173,9 @@ export class Game {
     this.inkMax = L.ink;
     this.inkLeft = L.ink;
     this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill("none"));
-    this.ball.x = L.spawn.x;
-    this.ball.y = L.spawn.y;
+    const s = cellCenter(L.spawn.c, L.spawn.r);
+    this.ball.x = s.x;
+    this.ball.y = s.y;
     this.ball.vx = 0;
     this.ball.vy = 0;
     this.trail = [];
@@ -187,8 +198,9 @@ export class Game {
 
   launch() {
     if (this.state !== "paint") return;
-    this.ball.x = this.level.spawn.x;
-    this.ball.y = this.level.spawn.y;
+    const s = cellCenter(this.level.spawn.c, this.level.spawn.r);
+    this.ball.x = s.x;
+    this.ball.y = s.y;
     this.ball.vx = this.level.launch.vx;
     this.ball.vy = this.level.launch.vy;
     this.trail = [];
@@ -232,56 +244,82 @@ export class Game {
     this.emit("state");
   }
 
-  _bind() {
-    const local = (e) => {
-      const r = this.canvas.getBoundingClientRect();
-      return {
-        x: (e.clientX - r.left) * (W / r.width),
-        y: (e.clientY - r.top) * (H / r.height),
-      };
+  _local(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (W / r.width),
+      y: (e.clientY - r.top) * (H / r.height),
     };
-    const paintAt = (x, y) => {
-      if (this.state !== "paint") return;
-      const c = clamp(Math.floor(x / CW), 0, COLS - 1);
-      const r = clamp(Math.floor(y / CH), 0, ROWS - 1);
-      if (this._blockedCell(c, r)) return;
-      if (this.dir === "erase") {
-        if (this.grid[r][c] !== "none") {
-          this.grid[r][c] = "none";
-          this.inkLeft = Math.min(this.inkMax, this.inkLeft + 1);
-          audio.paint();
-          this.emit("hud");
-        }
+  }
+
+  _cellFrom(x, y) {
+    return {
+      c: clamp(Math.floor(x / CW), 0, COLS - 1),
+      r: clamp(Math.floor(y / CH), 0, ROWS - 1),
+    };
+  }
+
+  _blockedCell(c, r) {
+    for (const w of this.level.walls) {
+      if (c >= w.c && c < w.c + w.w && r >= w.r && r < w.r + w.h) return true;
+    }
+    for (const h of this.level.hazards) {
+      if (c >= h.c && c < h.c + h.w && r >= h.r && r < h.r + h.h) return true;
+    }
+    // don't paint spawn/goal centers
+    if (c === this.level.spawn.c && r === this.level.spawn.r) return true;
+    if (c === this.level.goal.c && r === this.level.goal.r) return true;
+    return false;
+  }
+
+  _paintAt(x, y) {
+    if (this.state !== "paint") return;
+    const { c, r } = this._cellFrom(x, y);
+    if (this._blockedCell(c, r)) return;
+
+    if (this.dir === "erase") {
+      if (this.grid[r][c] !== "none") {
+        this.grid[r][c] = "none";
+        this.inkLeft = Math.min(this.inkMax, this.inkLeft + 1);
+        audio.paint();
+        this.emit("hud");
+      }
+      return;
+    }
+
+    if (this.grid[r][c] === this.dir) return;
+
+    if (this.grid[r][c] === "none") {
+      if (this.inkLeft <= 0) {
+        this.emit("toast", "Sem tinta!");
         return;
       }
-      if (this.grid[r][c] === this.dir) return;
-      if (this.grid[r][c] === "none") {
-        if (this.inkLeft <= 0) {
-          this.emit("toast", "Sem tinta");
-          return;
-        }
-        this.inkLeft--;
-      }
-      this.grid[r][c] = this.dir;
-      audio.paint();
-      this.emit("hud");
-    };
+      this.inkLeft--;
+    }
+    this.grid[r][c] = this.dir;
+    audio.paint();
+    this.emit("hud");
+  }
 
+  _bind() {
     this.canvas.addEventListener("pointerdown", (e) => {
       if (this.state !== "paint") return;
+      e.preventDefault();
       this.painting = true;
-      this.canvas.setPointerCapture(e.pointerId);
-      const p = local(e);
-      paintAt(p.x, p.y);
+      try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      const p = this._local(e);
+      this._paintAt(p.x, p.y);
     });
     this.canvas.addEventListener("pointermove", (e) => {
+      const p = this._local(e);
+      this.hover = this._cellFrom(p.x, p.y);
       if (!this.painting || this.state !== "paint") return;
-      const p = local(e);
-      paintAt(p.x, p.y);
+      this._paintAt(p.x, p.y);
     });
     const up = () => { this.painting = false; };
     this.canvas.addEventListener("pointerup", up);
     this.canvas.addEventListener("pointercancel", up);
+    this.canvas.addEventListener("pointerleave", () => { this.hover = { c: -1, r: -1 }; });
 
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space") {
@@ -302,20 +340,9 @@ export class Game {
     });
   }
 
-  _blockedCell(c, r) {
-    for (const w of this.level.walls) {
-      if (c >= w.c && c < w.c + w.w && r >= w.r && r < w.r + w.h) return true;
-    }
-    for (const h of this.level.hazards) {
-      if (c >= h.c && c < h.c + h.w && r >= h.r && r < h.r + h.h) return true;
-    }
-    return false;
-  }
-
   _fieldAt(x, y) {
     const c = clamp(Math.floor(x / CW), 0, COLS - 1);
     const r = clamp(Math.floor(y / CH), 0, ROWS - 1);
-    // bilinear-ish sample of neighboring cells
     let fx = 0, fy = 0, wsum = 0;
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
@@ -324,7 +351,7 @@ export class Game {
         const d = this.grid[rr][cc];
         if (d === "none") continue;
         const cx = (cc + 0.5) * CW, cy = (rr + 0.5) * CH;
-        const dist2 = (x - cx) ** 2 + (y - cy) ** 2 + 40;
+        const dist2 = (x - cx) ** 2 + (y - cy) ** 2 + 80;
         const w = 1 / dist2;
         const v = DIR[d];
         fx += v.x * w;
@@ -332,7 +359,8 @@ export class Game {
         wsum += w;
       }
     }
-    if (wsum <= 0) return { x: 0, y: 0.15 }; // slight default down drift
+    // gravidade natural fraca se não houver tinta
+    if (wsum <= 0) return { x: 0, y: 0.25 };
     const inv = 1 / wsum;
     return { x: fx * inv, y: fy * inv };
   }
@@ -352,22 +380,20 @@ export class Game {
       const f = this._fieldAt(this.ball.x, this.ball.y);
       this.ball.vx += f.x * STRENGTH * sdt;
       this.ball.vy += f.y * STRENGTH * sdt;
-      // drag
-      this.ball.vx *= 0.995;
-      this.ball.vy *= 0.995;
-      // max speed
+      this.ball.vx *= 0.996;
+      this.ball.vy *= 0.996;
       const sp = Math.hypot(this.ball.vx, this.ball.vy);
-      if (sp > 520) {
-        this.ball.vx = (this.ball.vx / sp) * 520;
-        this.ball.vy = (this.ball.vy / sp) * 520;
+      if (sp > 560) {
+        this.ball.vx = (this.ball.vx / sp) * 560;
+        this.ball.vy = (this.ball.vy / sp) * 560;
       }
       this.ball.x += this.ball.vx * sdt;
       this.ball.y += this.ball.vy * sdt;
 
-      // walls as AABBs in cell space
       for (const w of this.level.walls) {
-        const rect = { x: w.c * CW, y: w.r * CH, w: w.w * CW, h: w.h * CH };
-        this._ballRect(this.ball, rect);
+        this._ballRect(this.ball, {
+          x: w.c * CW, y: w.r * CH, w: w.w * CW, h: w.h * CH,
+        });
       }
       for (const h of this.level.hazards) {
         const rect = { x: h.c * CW, y: h.r * CH, w: h.w * CW, h: h.h * CH };
@@ -376,22 +402,21 @@ export class Game {
           return;
         }
       }
-      // bounds
-      if (this.ball.x < this.ball.r) { this.ball.x = this.ball.r; this.ball.vx *= -0.5; }
-      if (this.ball.x > W - this.ball.r) { this.ball.x = W - this.ball.r; this.ball.vx *= -0.5; }
-      if (this.ball.y < this.ball.r) { this.ball.y = this.ball.r; this.ball.vy *= -0.5; }
-      if (this.ball.y > H - this.ball.r) { this.ball.y = H - this.ball.r; this.ball.vy *= -0.5; }
+      if (this.ball.x < this.ball.r) { this.ball.x = this.ball.r; this.ball.vx *= -0.45; }
+      if (this.ball.x > W - this.ball.r) { this.ball.x = W - this.ball.r; this.ball.vx *= -0.45; }
+      if (this.ball.y < this.ball.r) { this.ball.y = this.ball.r; this.ball.vy *= -0.45; }
+      if (this.ball.y > H - this.ball.r) { this.ball.y = H - this.ball.r; this.ball.vy *= -0.45; }
     }
 
-    this.trail.push({ x: this.ball.x, y: this.ball.y, life: 0.6 });
+    this.trail.push({ x: this.ball.x, y: this.ball.y, life: 0.55 });
     this.trail = this.trail.filter((t) => { t.life -= dt; return t.life > 0; });
 
-    const g = this.level.goal;
-    if (dist(this.ball.x, this.ball.y, g.x, g.y) < g.r - 2) {
+    const g = cellCenter(this.level.goal.c, this.level.goal.r);
+    if (dist(this.ball.x, this.ball.y, g.x, g.y) < 30) {
       this._win();
       return;
     }
-    if (this.simTime > 16) this._fail("Tempo esgotado no vácuo.");
+    if (this.simTime > 18) this._fail("Tempo esgotado no vácuo.");
   }
 
   _ballHits(b, r) {
@@ -413,36 +438,19 @@ export class Game {
       b.y += ny * pen;
       const vn = b.vx * nx + b.vy * ny;
       if (vn < 0) {
-        b.vx -= 1.4 * vn * nx;
-        b.vy -= 1.4 * vn * ny;
+        b.vx -= 1.5 * vn * nx;
+        b.vy -= 1.5 * vn * ny;
       }
-    } else if (b.x > r.x && b.x < r.x + r.w && b.y > r.y && b.y < r.y + r.h) {
-      // stuck inside — push out
-      const left = b.x - r.x, right = r.x + r.w - b.x;
-      const top = b.y - r.y, bot = r.y + r.h - b.y;
-      const m = Math.min(left, right, top, bot);
-      if (m === left) b.x = r.x - b.r;
-      else if (m === right) b.x = r.x + r.w + b.r;
-      else if (m === top) b.y = r.y - b.r;
-      else b.y = r.y + r.h + b.r;
     }
   }
 
   _win() {
     const inkBonus = this.inkLeft * 12;
-    const timeBonus = Math.max(0, Math.floor((16 - this.simTime) * 25));
+    const timeBonus = Math.max(0, Math.floor((18 - this.simTime) * 25));
     const bonus = 350 + inkBonus + timeBonus + this.levelIndex * 70;
     this.score += bonus;
     audio.goal();
     this.shake = 10;
-    for (let i = 0; i < 24; i++) {
-      const a = Math.random() * Math.PI * 2;
-      this.particles.push({
-        x: this.ball.x, y: this.ball.y,
-        vx: Math.cos(a) * 200, vy: Math.sin(a) * 200,
-        life: 0.6, color: "#8b7cff", r: 2 + Math.random() * 3,
-      });
-    }
     if (this.score > this.best) {
       this.best = this.score;
       localStorage.setItem(STORAGE, String(this.best));
@@ -464,7 +472,6 @@ export class Game {
       this.best = this.score;
       localStorage.setItem(STORAGE, String(this.best));
     }
-    // allow retry paint without full game over — more friendly
     this.state = "over";
     this.emit("state", { title: "Colapso", msg });
     this.emit("hud");
@@ -475,99 +482,128 @@ export class Game {
     ctx.save();
     if (this.shake > 0) ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
 
+    // fundo bem contrastado
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#0b1020");
-    bg.addColorStop(1, "#120a22");
+    bg.addColorStop(0, "#0e1528");
+    bg.addColorStop(1, "#15102a");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // grid cells
+    // grade SEMPRE visível
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const x = c * CW, y = r * CH;
+        const blocked = this._blockedCell(c, r);
         const d = this.grid[r][c];
-        if (d !== "none") {
-          const col = d === "up" ? "rgba(86,214,255,0.22)"
-            : d === "down" ? "rgba(139,124,255,0.22)"
-            : d === "left" ? "rgba(255,107,203,0.2)"
-            : "rgba(255,200,87,0.2)";
-          ctx.fillStyle = col;
+
+        if (!blocked) {
+          // célula vazia — borda clara
+          ctx.fillStyle = "rgba(30, 40, 70, 0.55)";
           ctx.fillRect(x + 1, y + 1, CW - 2, CH - 2);
-          // arrow
-          ctx.save();
-          ctx.translate(x + CW / 2, y + CH / 2);
-          const ang = d === "up" ? -Math.PI / 2 : d === "down" ? Math.PI / 2 : d === "left" ? Math.PI : 0;
-          ctx.rotate(ang);
-          ctx.fillStyle = "rgba(238,242,255,0.75)";
-          ctx.beginPath();
-          ctx.moveTo(10, 0);
-          ctx.lineTo(-6, -7);
-          ctx.lineTo(-6, 7);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        } else {
-          ctx.strokeStyle = "rgba(139,124,255,0.06)";
-          ctx.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+          ctx.strokeStyle = "rgba(160, 180, 230, 0.22)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1.5, y + 1.5, CW - 3, CH - 3);
+        }
+
+        if (d !== "none") {
+          const col = DIR_COLOR[d];
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.55;
+          ctx.fillRect(x + 2, y + 2, CW - 4, CH - 4);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 3, y + 3, CW - 6, CH - 6);
+          this._arrow(ctx, x + CW / 2, y + CH / 2, d, "#fff");
         }
       }
     }
 
-    // walls
+    // hover preview
+    if (this.state === "paint" && this.hover.c >= 0 && !this._blockedCell(this.hover.c, this.hover.r)) {
+      const x = this.hover.c * CW, y = this.hover.r * CH;
+      const col = this.dir === "erase" ? "#ff5d7a" : (DIR_COLOR[this.dir] || "#fff");
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 2, y + 2, CW - 4, CH - 4);
+      if (this.dir !== "erase") {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = col;
+        ctx.fillRect(x + 2, y + 2, CW - 4, CH - 4);
+        ctx.globalAlpha = 1;
+        this._arrow(ctx, x + CW / 2, y + CH / 2, this.dir, col);
+      }
+    }
+
+    // paredes
     for (const w of this.level.walls) {
-      ctx.fillStyle = "#1c2740";
-      ctx.strokeStyle = "rgba(86,214,255,0.35)";
+      ctx.fillStyle = "#2a3548";
+      ctx.strokeStyle = "#6a8cff";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.roundRect(w.c * CW + 2, w.r * CH + 2, w.w * CW - 4, w.h * CH - 4, 6);
-      ctx.fill(); ctx.stroke();
+      ctx.fill();
+      ctx.stroke();
     }
-    // hazards
+    // perigos
     for (const h of this.level.hazards) {
-      ctx.fillStyle = "rgba(255,93,122,0.85)";
+      ctx.fillStyle = "#ff5d7a";
       ctx.shadowColor = "#ff5d7a";
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.beginPath();
       ctx.roundRect(h.c * CW + 2, h.r * CH + 2, h.w * CW - 4, h.h * CH - 4, 6);
       ctx.fill();
       ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 16px Outfit,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("!", (h.c + h.w / 2) * CW, (h.r + h.h / 2) * CH);
     }
 
-    // goal
-    const g = this.level.goal;
+    // portal (goal)
+    const g = cellCenter(this.level.goal.c, this.level.goal.r);
     ctx.save();
     ctx.translate(g.x, g.y);
-    ctx.rotate(this.time * 1.5);
+    ctx.rotate(this.time * 1.4);
     ctx.strokeStyle = "#7dffb3";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.shadowColor = "#7dffb3";
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 18;
     for (let i = 0; i < 3; i++) {
       ctx.beginPath();
-      ctx.ellipse(0, 0, g.r - i * 7, (g.r - i * 7) * 0.6, i * 0.4, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 28 - i * 7, (28 - i * 7) * 0.6, i * 0.5, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
+    ctx.fillStyle = "#7dffb3";
+    ctx.font = "700 13px Outfit,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("PORTAL", g.x, g.y + 42);
 
     // spawn
-    const sp = this.level.spawn;
-    ctx.strokeStyle = "rgba(86,214,255,0.7)";
-    ctx.setLineDash([4, 4]);
+    const sp = cellCenter(this.level.spawn.c, this.level.spawn.r);
+    ctx.strokeStyle = "#56d6ff";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
     ctx.beginPath();
-    ctx.arc(sp.x, sp.y, 16, 0, Math.PI * 2);
+    ctx.arc(sp.x, sp.y, 18, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    // launch vector
+    ctx.fillStyle = "#56d6ff";
+    ctx.font = "700 12px Outfit,sans-serif";
+    ctx.fillText("INÍCIO", sp.x, sp.y + 36);
+    // seta de lançamento
     if (this.state === "paint") {
-      ctx.strokeStyle = "rgba(255,200,87,0.7)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#ffc857";
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(sp.x, sp.y);
-      ctx.lineTo(sp.x + this.level.launch.vx * 0.35, sp.y + this.level.launch.vy * 0.35);
+      ctx.lineTo(sp.x + this.level.launch.vx * 0.4, sp.y + this.level.launch.vy * 0.4);
       ctx.stroke();
     }
 
-    // trail
+    // trail + bola
     for (const t of this.trail) {
       ctx.fillStyle = `rgba(139,124,255,${t.life})`;
       ctx.beginPath();
@@ -575,31 +611,20 @@ export class Game {
       ctx.fill();
     }
 
-    // ball
-    if (this.state === "sim" || this.state === "win" || this.state === "over" || this.state === "pause") {
-      const b = this.ball;
-      const grd = ctx.createRadialGradient(b.x - 4, b.y - 4, 2, b.x, b.y, b.r);
-      grd.addColorStop(0, "#fff");
-      grd.addColorStop(0.4, "#56d6ff");
-      grd.addColorStop(1, "#2a4a80");
-      ctx.fillStyle = grd;
-      ctx.shadowColor = "#56d6ff";
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    } else {
-      // idle ball at spawn
-      const b = this.level.spawn;
-      ctx.fillStyle = "#56d6ff";
-      ctx.shadowColor = "#56d6ff";
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
+    const showBall = this.state === "sim" || this.state === "win" || this.state === "over" || this.state === "pause";
+    const bx = showBall ? this.ball.x : sp.x;
+    const by = showBall ? this.ball.y : sp.y;
+    const grd = ctx.createRadialGradient(bx - 4, by - 4, 2, bx, by, 12);
+    grd.addColorStop(0, "#fff");
+    grd.addColorStop(0.4, "#56d6ff");
+    grd.addColorStop(1, "#2a4a80");
+    ctx.fillStyle = grd;
+    ctx.shadowColor = "#56d6ff";
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(bx, by, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
     for (const p of this.particles) {
       ctx.globalAlpha = clamp(p.life / 0.6, 0, 1);
@@ -610,13 +635,32 @@ export class Game {
     }
     ctx.globalAlpha = 1;
 
+    // instrução grande
     if (this.state === "paint") {
-      ctx.fillStyle = "rgba(238,242,255,0.4)";
-      ctx.font = "600 15px Outfit,sans-serif";
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(0, H - 48, W, 48);
+      ctx.fillStyle = "#eef2ff";
+      ctx.font = "700 16px Outfit,sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Pinte campos · Espaço ou ▶ para lançar", W / 2, H - 22);
+      const dirLabel = this.dir === "erase" ? "APAGAR" : this.dir.toUpperCase();
+      ctx.fillText(`Arraste no grid para pintar (${dirLabel}) · Espaço = Lançar · tinta: ${this.inkLeft}`, W / 2, H - 20);
     }
 
+    ctx.restore();
+  }
+
+  _arrow(ctx, x, y, dir, color) {
+    const ang = dir === "up" ? -Math.PI / 2 : dir === "down" ? Math.PI / 2 : dir === "left" ? Math.PI : 0;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-8, -9);
+    ctx.lineTo(-8, 9);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 }
