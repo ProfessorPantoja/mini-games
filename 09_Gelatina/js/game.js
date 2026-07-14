@@ -132,7 +132,7 @@ class SoftBody {
   }
 
   integrate(dt, grav = G) {
-    const damp = 0.992;
+    const damp = 0.988;
     for (const p of this.points) {
       const vx = (p.x - p.ox) * damp;
       const vy = (p.y - p.oy) * damp + grav * dt * dt;
@@ -196,15 +196,14 @@ class SoftBody {
         else p.y = r.y + r.h;
         return true;
       }
-      // treat as soft point radius ~3
-      const pr = 4;
+      // ponto com raio maior = menos "entrar na parede"
+      const pr = 7;
       if (d2 < pr * pr && d2 > 0) {
         const d = Math.sqrt(d2);
         const nx = dx / d, ny = dy / d;
         const pen = pr - d;
         p.x += nx * pen;
         p.y += ny * pen;
-        // reflect velocity (verlet)
         const vx = p.x - p.ox, vy = p.y - p.oy;
         const vn = vx * nx + vy * ny;
         if (vn < 0) {
@@ -217,11 +216,10 @@ class SoftBody {
       return false;
     };
     for (const p of this.points) {
-      for (const w of walls) collideRect(p, w, 0.2);
+      for (const w of walls) collideRect(p, w, 0.28);
       for (const b of bouncers) {
-        if (collideRect(p, b, 1.15)) {
-          // extra kick up
-          p.oy = p.y + Math.abs(p.y - p.oy) * 0.5 + 8;
+        if (collideRect(p, b, 1.35)) {
+          p.oy = p.y + Math.abs(p.y - p.oy) * 0.55 + 10;
           bounced = true;
         }
       }
@@ -235,9 +233,11 @@ class SoftBody {
   }
 
   applyImpulse(ix, iy) {
+    // impulso mais forte e uniforme no blob inteiro
+    const scale = 1.35;
     for (const p of this.points) {
-      p.ox -= ix;
-      p.oy -= iy;
+      p.ox -= ix * scale;
+      p.oy -= iy * scale;
     }
   }
 
@@ -352,8 +352,12 @@ export class Game {
       const c = this.blob.centroid();
       const dx = this.drag.cx - this.drag.x;
       const dy = this.drag.cy - this.drag.y;
-      const power = clamp(Math.hypot(dx, dy) / 90, 0, 2.8);
-      this.blob.applyImpulse(dx * 0.09 * power, dy * 0.09 * power);
+      const len = Math.hypot(dx, dy);
+      const power = clamp(len / 70, 0, 3.4);
+      // direção normalizada * potência (mais previsível)
+      const nx = len > 1 ? dx / len : 0;
+      const ny = len > 1 ? dy / len : 0;
+      this.blob.applyImpulse(nx * 14 * power, ny * 14 * power);
       // stretch opposite during release juice
       audio.launch();
       this.shake = 5;
