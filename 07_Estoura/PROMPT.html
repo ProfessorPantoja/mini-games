@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt — Estoura (Bubble Shooter)</title>
+  <style>
+    :root {
+      --bg: #0a0c12;
+      --panel: #12161f;
+      --text: #eef2ff;
+      --muted: #93a0bd;
+      --accent: #56d6ff;
+      --warn: #ffc857;
+      --ok: #7dffb3;
+      --danger: #ff5d7a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 32px 20px 64px;
+    }
+    .wrap { max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    h2 {
+      font-size: 1.05rem;
+      margin: 28px 0 10px;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .box {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 12px 0;
+    }
+    .box.warn { border-color: rgba(255,200,87,0.35); }
+    .box.ok { border-color: rgba(125,255,179,0.3); }
+    .box.danger { border-color: rgba(255,93,122,0.35); }
+    ul, ol { padding-left: 1.2em; margin: 8px 0; }
+    li { margin: 6px 0; }
+    code {
+      font-family: ui-monospace, monospace;
+      background: rgba(255,255,255,0.06);
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+      font-size: 0.92em;
+    }
+    pre {
+      background: #0b0e16;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: ui-monospace, monospace;
+      font-size: 0.86rem;
+      line-height: 1.5;
+    }
+    .names {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 560px) { .names { grid-template-columns: 1fr; } }
+    .names h3 { margin: 0 0 8px; font-size: 0.9rem; color: var(--warn); }
+    .pick { color: var(--ok); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Estoura — prompt one-shot</h1>
+    <p class="sub">Bubble Shooter · pasta <code>07_Estoura</code> · atira a bolinha, match-3 no teto</p>
+
+    <div class="box danger">
+      <strong>Restrições obrigatórias</strong>
+      <ul>
+        <li><strong>NÃO</strong> olhar outras pastas do monorepo (01–06, portal, etc.).</li>
+        <li>Criar <strong>cegamente</strong>, sem copiar estilo/código de outros jogos.</li>
+        <li>Idioma da UI: <strong>português do Brasil</strong>.</li>
+        <li>HTML/CSS/JS puro se possível; áudio Web Audio sintético.</li>
+      </ul>
+    </div>
+
+    <h2>Nomes sugeridos</h2>
+    <div class="names">
+      <div class="box">
+        <h3>Inglês</h3>
+        <ol>
+          <li><strong>PopShot</strong> — atira e estoura</li>
+          <li><strong>OrbBurst</strong> — orbes que explodem em cadeia</li>
+          <li><strong>AimPop</strong> — mira + estouro</li>
+        </ol>
+      </div>
+      <div class="box">
+        <h3>Português</h3>
+        <ol>
+          <li><strong class="pick">Estoura</strong> ← escolhido (pasta)</li>
+          <li><strong>Disparo</strong> — foco no canhão</li>
+          <li><strong>Cadeia</strong> — combos que caem em sequência</li>
+        </ol>
+      </div>
+    </div>
+    <div class="box ok">
+      <strong>Escolha atual:</strong> <span class="pick">Estoura</span> (<code>07_Estoura</code>).
+      Motivo: curto, em PT-BR, descreve o prazer do jogo (juntou 3+ → estoura e cai).
+      Se não curtir, renomeie a pasta e o nome na UI.
+    </div>
+
+    <h2>O que é o jogo (NÃO é Match-3 de grade tipo Combinação)</h2>
+    <div class="box">
+      <p style="margin:0 0 10px;color:var(--muted)">
+        Clássico <strong>Bubble Shooter</strong> / Puzzle Bobble:
+      </p>
+      <ul>
+        <li>Campo de bolinhas coloridas penduradas no topo (grade hexagonal ou offset).</li>
+        <li>Canhão na base: mira com mouse/toque e <strong>atira</strong> a próxima bolinha.</li>
+        <li>A bolinha gruda no grupo onde encostar.</li>
+        <li><strong>3 ou mais iguais conectadas</strong> → estouram e somem.</li>
+        <li>Grupos que ficam <strong>sem ligação com o teto</strong> caem (floating clusters).</li>
+        <li>Prévia da próxima cor; progresso por níveis ou limpar o campo / sobreviver à linha que desce.</li>
+      </ul>
+    </div>
+
+    <h2>Prompt para colar no agente</h2>
+    <div class="box ok">
+      <pre id="prompt">Crie do zero, one-shot, o mini-game **Estoura** (bubble shooter) na pasta atual `07_Estoura`.
+
+## Restrições absolutas
+- NÃO abra, leia, liste nem se inspire em outras pastas do repositório.
+- Trabalhe só dentro de `07_Estoura` (+ commits/push no git se autorizado).
+- Zero dependências de build se possível (HTML/CSS/JS puro).
+- Sem assets externos pesados; fontes Google ok; áudio 100% Web Audio sintético.
+- Nome na UI: **Estoura** (não “Bolinha”, não copiar nomes de outros jogos do hub).
+
+## O que é o jogo
+Bubble shooter clássico:
+- Bolinhas coloridas fixas no topo em grade (hex/offset).
+- Jogador mira e atira a bolinha da vez a partir da base.
+- Ao colidir, a peça gruda; se formar grupo de 3+ da mesma cor conectadas, remove.
+- Clusters sem conexão com o teto caem e pontuam extra.
+- Fila: bolinha atual + prévia da próxima.
+- Mira com linha de trajetória (opcional mas desejável).
+- Game over se as bolinhas chegarem perto demais da base (ou após N tiros falhos — defina 1 regra clara).
+- Objetivo de nível: limpar o campo / atingir X pontos / sobreviver N rodadas.
+
+## Refinamento (obrigatório — bem polido)
+Visual
+- Tema escuro elegante, orbes com gradiente/specular, glow.
+- Animações: tiro, colisão, estouro, queda de cluster, spawn de linha (se houver).
+- Partículas ao estourar; feedback de combo.
+- UI glass: pontos, nível, recorde localStorage.
+- Telas: título, jogando, pause, game over / vitória.
+
+Gameplay
+- Controles mouse + toque (mobile-first).
+- Pelo menos 1 modo principal fechado (ex.: limpar níveis com campo pré-gerado).
+- Combos recompensam mais pontos quando várias quedas encadeiam.
+- Feedback claro de ângulo inválido / parede (ricochete 1x nas laterais é clássico e bem-vindo).
+
+Áudio
+- Web Audio: aim tick leve, shoot, stick, pop, cascade fall, win, lose.
+- Sem .mp3/.wav externos.
+
+Arquitetura
+- `index.html`, `css/`, `js/` limpos.
+- Código em inglês ok; UI em PT-BR.
+
+Entrega
+1. Jogo jogável e estável.
+2. Validar sem erros óbvios.
+3. Commit atômico descritivo se o usuário autorizar.
+4. NÃO commitar lixo (node_modules, .env, prints).
+
+Comece agora. Pasta já existe com este PROMPT.html.</pre>
+    </div>
+
+    <h2>Metadados</h2>
+    <div class="box">
+      <ul>
+        <li><strong>Nome:</strong> Estoura</li>
+        <li><strong>Gênero:</strong> Bubble Shooter (atira + match conectado)</li>
+        <li><strong>Pasta:</strong> <code>07_Estoura</code></li>
+        <li><strong>URL futura no portal:</strong> <code>/07_Estoura/</code></li>
+        <li><strong>Não confundir com:</strong> <code>06_Combinacao</code> (Match-3 de grade/troca)</li>
+      </ul>
+    </div>
+
+    <div class="box warn">
+      <strong>Status</strong>
+      <p style="margin:8px 0 0;color:var(--muted)">
+        Só a pasta + briefing. O jogo ainda não foi implementado — abra uma sessão com o prompt acima.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
