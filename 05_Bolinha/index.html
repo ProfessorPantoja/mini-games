@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#07090f" />
+  <meta name="description" content="Bolinha — um clássico de rebote elevado ao extremo." />
+  <title>Bolinha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='40%25' stop-color='%2356d6ff'/%3E%3Cstop offset='100%25' stop-color='%236c5ce7'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='28' fill='url(%23g)'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <!-- Ambient backdrop -->
+    <div class="aurora" aria-hidden="true">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+      <span class="noise"></span>
+    </div>
+
+    <!-- HUD -->
+    <header class="hud" id="hud" hidden>
+      <div class="hud-cluster left">
+        <div class="stat">
+          <span class="stat-label">Pontos</span>
+          <span class="stat-value mono" id="score">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Combo</span>
+          <span class="stat-value mono" id="combo">×1</span>
+        </div>
+      </div>
+
+      <div class="hud-cluster center">
+        <div class="lives" id="lives" aria-label="Vidas"></div>
+      </div>
+
+      <div class="hud-cluster right">
+        <div class="stat align-right">
+          <span class="stat-label">Nível</span>
+          <span class="stat-value mono" id="level">1</span>
+        </div>
+        <div class="stat align-right">
+          <span class="stat-label">Recorde</span>
+          <span class="stat-value mono" id="best">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Game stage -->
+    <main class="stage" id="stage">
+      <canvas id="game" width="960" height="640" aria-label="Área de jogo Bolinha"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="scanlines" aria-hidden="true"></div>
+    </main>
+
+    <!-- Title / overlays -->
+    <div class="overlay" id="overlay-title">
+      <div class="panel title-panel">
+        <div class="badge">clássico refinado</div>
+        <h1 class="logo">
+          <span class="logo-glow">Bolinha</span>
+        </h1>
+        <p class="tagline">Rebote. Quebre. Encadeie combos.<br />Sinta cada impacto.</p>
+
+        <div class="title-stats" id="title-stats">
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="title-best">0</span></div>
+          <div class="chip"><span class="chip-label">Níveis</span><span class="chip-value mono">8</span></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="btn-start" type="button">
+            <span>Jogar</span>
+            <kbd>Espaço</kbd>
+          </button>
+          <button class="btn ghost" id="btn-how" type="button">Como jogar</button>
+        </div>
+
+        <p class="hint-line">Mouse / toque · ← → · A D · Esc pausa</p>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-how">
+      <div class="panel how-panel">
+        <h2>Como jogar</h2>
+        <ul class="how-list">
+          <li><strong>Mova a barra</strong> com o mouse, toque ou teclado.</li>
+          <li><strong>Lance a bolinha</strong> com clique, toque ou Espaço.</li>
+          <li><strong>Acerte a borda da barra</strong> para aplicar ângulo e spin.</li>
+          <li><strong>Combine quebras</strong> sem deixar cair para multiplicar pontos.</li>
+          <li><strong>Pegue power-ups</strong> que caem dos blocos especiais.</li>
+        </ul>
+        <div class="power-grid">
+          <div class="power-card"><span class="dot multi"></span><div><strong>Multi</strong><small>Três bolinhas</small></div></div>
+          <div class="power-card"><span class="dot wide"></span><div><strong>Larga</strong><small>Barra expandida</small></div></div>
+          <div class="power-card"><span class="dot slow"></span><div><strong>Slow</strong><small>Tempo reduzido</small></div></div>
+          <div class="power-card"><span class="dot sticky"></span><div><strong>Ímã</strong><small>Bolinha gruda</small></div></div>
+          <div class="power-card"><span class="dot fire"></span><div><strong>Fogo</strong><small>Atravessa blocos</small></div></div>
+          <div class="power-card"><span class="dot life"></span><div><strong>Vida</strong><small>+1 vida extra</small></div></div>
+        </div>
+        <button class="btn primary" id="btn-how-close" type="button">Entendi</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-pause">
+      <div class="panel compact">
+        <h2>Pausado</h2>
+        <p class="muted">O tempo parou. Respira.</p>
+        <div class="actions stack">
+          <button class="btn primary" id="btn-resume" type="button">Continuar <kbd>Esc</kbd></button>
+          <button class="btn ghost" id="btn-restart" type="button">Recomeçar</button>
+          <button class="btn ghost" id="btn-menu" type="button">Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-level">
+      <div class="panel compact level-clear">
+        <div class="badge success">nível limpo</div>
+        <h2 id="level-clear-title">Nível 1</h2>
+        <p class="level-bonus mono" id="level-bonus">+0</p>
+        <p class="muted">Prepare-se para o próximo padrão.</p>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-gameover">
+      <div class="panel compact">
+        <div class="badge danger" id="go-badge">fim de jogo</div>
+        <h2 id="go-title">Quase lá</h2>
+        <div class="go-stats">
+          <div class="go-stat"><span class="stat-label">Pontuação</span><span class="stat-value mono" id="go-score">0</span></div>
+          <div class="go-stat"><span class="stat-label">Melhor combo</span><span class="stat-value mono" id="go-combo">×1</span></div>
+          <div class="go-stat"><span class="stat-label">Nível</span><span class="stat-value mono" id="go-level">1</span></div>
+          <div class="go-stat"><span class="stat-label">Blocos</span><span class="stat-value mono" id="go-bricks">0</span></div>
+        </div>
+        <p class="new-record hidden" id="new-record">✦ Novo recorde</p>
+        <div class="actions stack">
+          <button class="btn primary" id="btn-again" type="button">Jogar de novo</button>
+          <button class="btn ghost" id="btn-go-menu" type="button">Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-win">
+      <div class="panel compact">
+        <div class="badge success">vitória</div>
+        <h2>Você limpou tudo</h2>
+        <p class="muted">Oito padrões. Zero desperdício de elegância.</p>
+        <div class="go-stats">
+          <div class="go-stat"><span class="stat-label">Pontuação final</span><span class="stat-value mono" id="win-score">0</span></div>
+          <div class="go-stat"><span class="stat-label">Melhor combo</span><span class="stat-value mono" id="win-combo">×1</span></div>
+        </div>
+        <div class="actions stack">
+          <button class="btn primary" id="btn-win-again" type="button">Jogar de novo</button>
+          <button class="btn ghost" id="btn-win-menu" type="button">Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating toast for power-ups / combo -->
+    <div class="toast" id="toast" hidden></div>
+
+    <!-- Mobile launch hint -->
+    <button class="mobile-launch hidden" id="mobile-launch" type="button" aria-label="Lançar bolinha">
+      <span>Toque para lançar</span>
+    </button>
+  </div>
+
+  <script type="module" src="js/audio.js"></script>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
