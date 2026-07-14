@@ -1,166 +1,145 @@
 /**
- * Dominó — física 2D simplificada (caixas rotativas + bolas)
- * Build → Play → derrube o troféu
+ * Dominó — física de tombamento (pivô na base)
+ * Confiável para cadeias: peça tomba → empurra a vizinha
  */
 import { audio } from "./audio.js";
 
 const W = 960, H = 640;
 const STORAGE = "domino.best.v1";
-const G = 1600;
+const FLOOR = 560;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const LEVELS = [
   {
-    budget: { domino: 12, ball: 1, ramp: 1 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 40, y: 480, w: 30, h: 100, fixed: true },
-    ],
-    starter: { x: 70, y: 520 },
-    trophy: { x: 820, y: 520 },
-    hints: [{ x: 200, y: 520 }, { x: 280, y: 520 }, { x: 360, y: 520 }],
+    budget: { domino: 14, ball: 0, ramp: 0 },
+    platforms: [{ x: 0, y: FLOOR, w: W, h: 80 }],
+    starter: { x: 100, y: FLOOR },
+    trophy: { x: 780, y: FLOOR },
+    hints: [180, 250, 320, 390, 460, 530, 600, 670],
   },
   {
-    budget: { domino: 14, ball: 1, ramp: 2 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 420, y: 500, w: 40, h: 80, fixed: true },
-      { type: "block", x: 200, y: 400, w: 160, h: 18, fixed: true },
+    budget: { domino: 16, ball: 1, ramp: 0 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 380, y: 420, w: 200, h: 16 },
     ],
-    starter: { x: 80, y: 520 },
-    trophy: { x: 860, y: 520 },
-    hints: [],
+    starter: { x: 90, y: FLOOR },
+    trophy: { x: 820, y: FLOOR },
+    hints: [170, 250, 330, 500, 580, 660, 740],
   },
   {
-    budget: { domino: 16, ball: 2, ramp: 2 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 300, y: 450, w: 200, h: 16, fixed: true },
-      { type: "block", x: 560, y: 360, w: 180, h: 16, fixed: true },
-      { type: "block", x: 500, y: 500, w: 24, h: 80, fixed: true },
+    budget: { domino: 18, ball: 1, ramp: 1 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 280, y: 400, w: 180, h: 16 },
+      { x: 520, y: 330, w: 180, h: 16 },
     ],
-    starter: { x: 100, y: 520 },
-    trophy: { x: 720, y: 300 },
-    hints: [],
+    starter: { x: 90, y: FLOOR },
+    trophy: { x: 700, y: 330 },
+    hints: [180, 260, 340, 420, 560, 640],
   },
   {
-    budget: { domino: 18, ball: 2, ramp: 3 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 180, y: 420, w: 120, h: 16, fixed: true },
-      { type: "block", x: 380, y: 340, w: 120, h: 16, fixed: true },
-      { type: "block", x: 580, y: 420, w: 120, h: 16, fixed: true },
-      { type: "block", x: 760, y: 500, w: 24, h: 80, fixed: true },
+    budget: { domino: 16, ball: 2, ramp: 1 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 200, y: 380, w: 140, h: 16 },
+      { x: 420, y: 300, w: 140, h: 16 },
+      { x: 640, y: 380, w: 140, h: 16 },
     ],
-    starter: { x: 80, y: 360 },
-    trophy: { x: 860, y: 520 },
-    hints: [],
+    starter: { x: 100, y: 380 },
+    trophy: { x: 780, y: FLOOR },
+    hints: [280, 360, 480, 560, 700],
   },
   {
-    budget: { domino: 20, ball: 2, ramp: 3 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 250, y: 500, w: 24, h: 80, fixed: true },
-      { type: "block", x: 400, y: 430, w: 24, h: 150, fixed: true },
-      { type: "block", x: 550, y: 500, w: 24, h: 80, fixed: true },
-      { type: "block", x: 300, y: 300, w: 200, h: 16, fixed: true },
+    budget: { domino: 20, ball: 1, ramp: 1 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 300, y: 450, w: 24, h: 110 },
+      { x: 500, y: 450, w: 24, h: 110 },
     ],
-    starter: { x: 100, y: 520 },
-    trophy: { x: 800, y: 520 },
-    hints: [],
+    starter: { x: 90, y: FLOOR },
+    trophy: { x: 800, y: FLOOR },
+    hints: [170, 240, 360, 430, 560, 630, 720],
   },
   {
-    budget: { domino: 16, ball: 3, ramp: 4 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 100, y: 280, w: 300, h: 16, fixed: true },
-      { type: "block", x: 500, y: 280, w: 300, h: 16, fixed: true },
-      { type: "block", x: 420, y: 280, w: 40, h: 200, fixed: true },
+    budget: { domino: 18, ball: 2, ramp: 2 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 120, y: 320, w: 320, h: 16 },
+      { x: 520, y: 320, w: 320, h: 16 },
+      { x: 450, y: 320, w: 30, h: 240 },
     ],
-    starter: { x: 140, y: 220 },
-    trophy: { x: 780, y: 220 },
-    hints: [],
+    starter: { x: 160, y: 320 },
+    trophy: { x: 760, y: 320 },
+    hints: [240, 320, 400, 580, 660],
   },
   {
-    budget: { domino: 22, ball: 2, ramp: 3 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 200, y: 500, w: 80, h: 16, fixed: true },
-      { type: "block", x: 340, y: 430, w: 80, h: 16, fixed: true },
-      { type: "block", x: 480, y: 360, w: 80, h: 16, fixed: true },
-      { type: "block", x: 620, y: 430, w: 80, h: 16, fixed: true },
-      { type: "block", x: 760, y: 500, w: 80, h: 16, fixed: true },
+    budget: { domino: 22, ball: 1, ramp: 1 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 180, y: 470, w: 90, h: 14 },
+      { x: 320, y: 400, w: 90, h: 14 },
+      { x: 460, y: 330, w: 90, h: 14 },
+      { x: 600, y: 400, w: 90, h: 14 },
+      { x: 740, y: 470, w: 90, h: 14 },
     ],
-    starter: { x: 80, y: 520 },
-    trophy: { x: 880, y: 520 },
-    hints: [],
+    starter: { x: 90, y: FLOOR },
+    trophy: { x: 860, y: FLOOR },
+    hints: [160, 250, 360, 500, 640, 780],
   },
   {
-    budget: { domino: 24, ball: 3, ramp: 4 },
-    statics: [
-      { type: "ground", x: 0, y: 580, w: 960, h: 60 },
-      { type: "block", x: 160, y: 460, w: 16, h: 120, fixed: true },
-      { type: "block", x: 300, y: 380, w: 16, h: 200, fixed: true },
-      { type: "block", x: 460, y: 300, w: 16, h: 280, fixed: true },
-      { type: "block", x: 620, y: 380, w: 16, h: 200, fixed: true },
-      { type: "block", x: 780, y: 460, w: 16, h: 120, fixed: true },
-      { type: "block", x: 200, y: 240, w: 500, h: 16, fixed: true },
+    budget: { domino: 24, ball: 2, ramp: 2 },
+    platforms: [
+      { x: 0, y: FLOOR, w: W, h: 80 },
+      { x: 150, y: 420, w: 18, h: 140 },
+      { x: 300, y: 340, w: 18, h: 220 },
+      { x: 450, y: 260, w: 18, h: 300 },
+      { x: 600, y: 340, w: 18, h: 220 },
+      { x: 750, y: 420, w: 18, h: 140 },
+      { x: 200, y: 220, w: 480, h: 16 },
     ],
-    starter: { x: 80, y: 520 },
-    trophy: { x: 880, y: 180 },
-    hints: [],
+    starter: { x: 80, y: FLOOR },
+    trophy: { x: 860, y: 220 },
+    hints: [200, 360, 520, 680, 820],
   },
 ];
 
-function makeDomino(x, y, opts = {}) {
+/** Domino que gira em torno do pé (base no chão/plataforma) */
+function makeDomino(x, footY, opts = {}) {
   return {
     kind: "domino",
-    x, y,
-    w: 14, h: 56,
-    angle: opts.angle || 0,
-    vx: 0, vy: 0, omega: 0,
-    mass: opts.mass || 1.2,
-    fixed: !!opts.fixed,
+    x,
+    footY, // y da base
+    h: 64,
+    w: 16,
+    angle: opts.angle || 0, // 0 = em pé; + tomba p/ direita; - p/ esquerda
+    omega: 0,
+    fallen: false,
     starter: !!opts.starter,
-    color: opts.color || "#56d6ff",
+    trophy: !!opts.trophy,
     placed: !!opts.placed,
+    color: opts.color || (opts.trophy ? "#ffc857" : opts.starter ? "#ff5d7a" : "#56d6ff"),
   };
 }
-function makeBall(x, y, opts = {}) {
+
+function makeBall(x, y) {
   return {
     kind: "ball",
-    x, y, r: 16,
+    x, y, r: 15,
     vx: 0, vy: 0,
-    mass: 1.5,
-    fixed: false,
-    color: opts.color || "#ff6bcb",
-    placed: !!opts.placed,
+    placed: true,
+    color: "#ff6bcb",
   };
 }
-function makeRamp(x, y, opts = {}) {
+
+function makeRamp(x, y) {
   return {
     kind: "ramp",
     x, y,
-    w: 90, h: 16,
-    angle: opts.angle ?? -0.45,
-    vx: 0, vy: 0, omega: 0,
-    mass: 2,
-    fixed: true,
+    w: 100, h: 14,
+    angle: -0.4,
+    placed: true,
     color: "#8b7cff",
-    placed: !!opts.placed,
-  };
-}
-function makeTrophy(x, y) {
-  return {
-    kind: "trophy",
-    x, y,
-    w: 28, h: 48,
-    angle: 0,
-    vx: 0, vy: 0, omega: 0,
-    mass: 1.4,
-    fixed: false,
-    color: "#ffc857",
-    fallen: false,
   };
 }
 
@@ -168,13 +147,15 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.state = "title"; // title | build | sim | pause | win | over
+    this.state = "title";
     this.levelIndex = 0;
     this.score = 0;
     this.best = Number(localStorage.getItem(STORAGE) || 0);
     this.tool = "domino";
-    this.bodies = [];
-    this.statics = [];
+    this.dominos = [];
+    this.balls = [];
+    this.ramps = [];
+    this.platforms = [];
     this.budget = { domino: 0, ball: 0, ramp: 0 };
     this.used = { domino: 0, ball: 0, ramp: 0 };
     this.particles = [];
@@ -182,7 +163,7 @@ export class Game {
     this.simTime = 0;
     this.shake = 0;
     this.listeners = {};
-    this.pointer = { x: 0, y: 0, down: false };
+    this.pointer = { x: 0, y: 0 };
     this._bind();
   }
 
@@ -203,18 +184,47 @@ export class Game {
     const L = LEVELS[this.levelIndex];
     this.budget = { ...L.budget };
     this.used = { domino: 0, ball: 0, ramp: 0 };
-    this.statics = L.statics.map((s) => ({ ...s }));
-    this.bodies = [];
-    // starter domino leaning
-    const st = makeDomino(L.starter.x, L.starter.y, { starter: true, color: "#ff5d7a", angle: -0.25 });
-    st.fixed = false;
-    this.bodies.push(st);
-    this.trophy = makeTrophy(L.trophy.x, L.trophy.y);
-    this.bodies.push(this.trophy);
+    this.platforms = L.platforms.map((p) => ({ ...p }));
+    this.dominos = [];
+    this.balls = [];
+    this.ramps = [];
+    // starter
+    const sf = this._snapFoot(L.starter.x, L.starter.y);
+    this.dominos.push(makeDomino(sf.x, sf.y, { starter: true, color: "#ff5d7a", angle: -0.12 }));
+    // trophy
+    const tf = this._snapFoot(L.trophy.x, L.trophy.y);
+    this.dominos.push(makeDomino(tf.x, tf.y, { trophy: true, color: "#ffc857" }));
     this.hints = L.hints || [];
     this.simTime = 0;
     this.tool = "domino";
+    this.trophyDown = false;
     this.emit("hud");
+  }
+
+  /** Encaixa a base no topo da plataforma mais alta sob o x */
+  _snapFoot(x, yHint) {
+    let best = FLOOR;
+    let bestDist = Infinity;
+    for (const p of this.platforms) {
+      if (x < p.x - 4 || x > p.x + p.w + 4) continue;
+      // só plataformas "chão" (largas o bastante ou top surface)
+      const top = p.y;
+      const d = Math.abs((yHint || FLOOR) - top);
+      if (d < bestDist && top <= FLOOR + 1) {
+        // prefer surfaces near hint
+        bestDist = d;
+        best = top;
+      }
+    }
+    // se yHint próximo de alguma superfície, use-a
+    for (const p of this.platforms) {
+      if (x >= p.x && x <= p.x + p.w) {
+        if (Math.abs(p.y - (yHint || FLOOR)) < 50 && p.w > 40) {
+          best = p.y;
+        }
+      }
+    }
+    return { x: clamp(x, 30, W - 30), y: best };
   }
 
   pause() {
@@ -251,12 +261,14 @@ export class Game {
 
   startSim() {
     if (this.state !== "build") return;
-    // give starter a firm tip to the right
-    const starter = this.bodies.find((b) => b.starter);
-    if (starter) {
-      starter.omega = 5.5;
-      starter.vx = 90;
-      starter.angle = -0.35;
+    const st = this.dominos.find((d) => d.starter);
+    if (st) {
+      st.omega = 4.2; // tomba para a direita
+      st.angle = 0.05;
+    }
+    // bolas ganham leve push se perto do starter
+    for (const b of this.balls) {
+      if (Math.abs(b.x - (st?.x || 0)) < 80) b.vx = 180;
     }
     this.state = "sim";
     this.simTime = 0;
@@ -276,7 +288,10 @@ export class Game {
   _bind() {
     const local = (e) => {
       const r = this.canvas.getBoundingClientRect();
-      return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+      return {
+        x: (e.clientX - r.left) * (W / r.width),
+        y: (e.clientY - r.top) * (H / r.height),
+      };
     };
     this.canvas.addEventListener("pointermove", (e) => {
       const p = local(e);
@@ -313,21 +328,27 @@ export class Game {
   }
 
   _placeAt(x, y) {
-    // snap y near ground-ish freely
-    if (y < 40 || y > 560) return;
     if (this.tool === "domino") {
       if (this.used.domino >= this.budget.domino) return this.emit("toast", "Sem dominós");
-      this.bodies.push(makeDomino(x, y, { placed: true, color: "#56d6ff" }));
+      const foot = this._snapFoot(x, y);
+      // espaçamento mínimo
+      for (const d of this.dominos) {
+        if (Math.abs(d.x - foot.x) < 28 && Math.abs(d.footY - foot.y) < 20) {
+          return this.emit("toast", "Muito perto");
+        }
+      }
+      this.dominos.push(makeDomino(foot.x, foot.y, { placed: true }));
       this.used.domino++;
       audio.place();
     } else if (this.tool === "ball") {
       if (this.used.ball >= this.budget.ball) return this.emit("toast", "Sem bolas");
-      this.bodies.push(makeBall(x, y, { placed: true }));
+      const foot = this._snapFoot(x, y);
+      this.balls.push(makeBall(foot.x, foot.y - 16));
       this.used.ball++;
       audio.place();
     } else if (this.tool === "ramp") {
       if (this.used.ramp >= this.budget.ramp) return this.emit("toast", "Sem rampas");
-      this.bodies.push(makeRamp(x, y, { placed: true }));
+      this.ramps.push(makeRamp(x, clamp(y, 80, FLOOR - 20)));
       this.used.ramp++;
       audio.place();
     }
@@ -335,21 +356,46 @@ export class Game {
   }
 
   _eraseAt(x, y) {
-    for (let i = this.bodies.length - 1; i >= 0; i--) {
-      const b = this.bodies[i];
-      if (b.starter || b.kind === "trophy") continue;
-      if (!b.placed) continue;
-      let hit = false;
-      if (b.kind === "ball") hit = Math.hypot(b.x - x, b.y - y) < b.r + 8;
-      else hit = Math.abs(b.x - x) < b.w && Math.abs(b.y - y) < b.h;
-      if (hit) {
-        this.used[b.kind] = Math.max(0, (this.used[b.kind] || 0) - 1);
-        this.bodies.splice(i, 1);
+    for (let i = this.dominos.length - 1; i >= 0; i--) {
+      const d = this.dominos[i];
+      if (d.starter || d.trophy) continue;
+      if (!d.placed) continue;
+      if (Math.abs(d.x - x) < 20 && y < d.footY && y > d.footY - d.h - 10) {
+        this.dominos.splice(i, 1);
+        this.used.domino = Math.max(0, this.used.domino - 1);
         audio.place();
         this.emit("hud");
-        break;
+        return;
       }
     }
+    for (let i = this.balls.length - 1; i >= 0; i--) {
+      const b = this.balls[i];
+      if (Math.hypot(b.x - x, b.y - y) < 22) {
+        this.balls.splice(i, 1);
+        this.used.ball = Math.max(0, this.used.ball - 1);
+        audio.place();
+        this.emit("hud");
+        return;
+      }
+    }
+    for (let i = this.ramps.length - 1; i >= 0; i--) {
+      const r = this.ramps[i];
+      if (Math.abs(r.x - x) < r.w / 2 && Math.abs(r.y - y) < 20) {
+        this.ramps.splice(i, 1);
+        this.used.ramp = Math.max(0, this.used.ramp - 1);
+        audio.place();
+        this.emit("hud");
+        return;
+      }
+    }
+  }
+
+  /** Topo/centro da peça no ângulo atual (pivô no pé) */
+  _top(d) {
+    return {
+      x: d.x + Math.sin(d.angle) * d.h,
+      y: d.footY - Math.cos(d.angle) * d.h,
+    };
   }
 
   update(dt) {
@@ -361,203 +407,188 @@ export class Game {
     if (this.state !== "sim") return;
 
     this.simTime += dt;
-    const steps = 3;
+    const steps = 2;
     const sdt = dt / steps;
-    for (let s = 0; s < steps; s++) this._physics(sdt);
-
-    // win: trophy fallen
-    if (this.trophy && !this.trophy.fallen) {
-      if (Math.abs(this.trophy.angle) > 1.0 || this.trophy.y > 560) {
-        this.trophy.fallen = true;
-        this._win();
-        return;
-      }
+    for (let s = 0; s < steps; s++) {
+      this._simDominos(sdt);
+      this._simBalls(sdt);
+      this._dominoHits();
+      this._ballDominoHits();
     }
 
-    // timeout fail
-    if (this.simTime > 14) {
-      this._fail("A cadeia parou antes do troféu.");
-    }
-  }
-
-  _physics(dt) {
-    for (const b of this.bodies) {
-      if (b.fixed) continue;
-      b.vy += G * dt;
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      if (b.angle !== undefined) b.angle += b.omega * dt;
-      // damping
-      b.vx *= 0.995;
-      b.vy *= 0.995;
-      if (b.omega !== undefined) b.omega *= 0.99;
-    }
-
-    // static collisions
-    for (const b of this.bodies) {
-      if (b.fixed) continue;
-      for (const s of this.statics) this._collideStatic(b, s);
-      // floor implicit
-      if (b.kind === "ball") {
-        if (b.y + b.r > 580) {
-          b.y = 580 - b.r;
-          if (b.vy > 0) b.vy *= -0.35;
-          b.vx *= 0.9;
-        }
-      } else {
-        const halfH = (b.h / 2) * Math.abs(Math.cos(b.angle)) + (b.w / 2) * Math.abs(Math.sin(b.angle));
-        if (b.y + halfH > 580) {
-          b.y = 580 - halfH;
-          if (b.vy > 0) b.vy *= -0.25;
-          // tip friction on ground
-          b.omega *= 0.92;
-          b.vx *= 0.9;
-        }
-      }
-      if (b.x < 20) { b.x = 20; b.vx *= -0.4; }
-      if (b.x > W - 20) { b.x = W - 20; b.vx *= -0.4; }
-    }
-
-    // body-body
-    for (let i = 0; i < this.bodies.length; i++) {
-      for (let j = i + 1; j < this.bodies.length; j++) {
-        this._collideBodies(this.bodies[i], this.bodies[j]);
-      }
-    }
-  }
-
-  _collideStatic(b, s) {
-    if (b.kind === "ball") {
-      const cx = clamp(b.x, s.x, s.x + s.w);
-      const cy = clamp(b.y, s.y, s.y + s.h);
-      const dx = b.x - cx, dy = b.y - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < b.r * b.r) {
-        const d = Math.sqrt(d2) || 0.001;
-        const nx = dx / d, ny = dy / d;
-        const pen = b.r - d;
-        b.x += nx * pen;
-        b.y += ny * pen;
-        const vn = b.vx * nx + b.vy * ny;
-        if (vn < 0) {
-          b.vx -= 1.4 * vn * nx;
-          b.vy -= 1.4 * vn * ny;
-          if (Math.abs(vn) > 80) audio.knock();
-        }
-      }
-    } else {
-      // approximate OBB as circle for static AABB
-      const r = Math.max(b.w, b.h) * 0.45;
-      const cx = clamp(b.x, s.x, s.x + s.w);
-      const cy = clamp(b.y, s.y, s.y + s.h);
-      const dx = b.x - cx, dy = b.y - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < r * r) {
-        const d = Math.sqrt(d2) || 0.001;
-        const nx = dx / d, ny = dy / d;
-        const pen = r - d;
-        b.x += nx * pen * 0.8;
-        b.y += ny * pen * 0.8;
-        const vn = b.vx * nx + b.vy * ny;
-        if (vn < 0) {
-          b.vx -= 1.2 * vn * nx;
-          b.vy -= 1.2 * vn * ny;
-          b.omega += (nx * 0.02) * -Math.sign(vn);
-        }
-        // ramp-like tilt if thin platform and coming from side
-      }
-    }
-  }
-
-  _collideBodies(a, b) {
-    if (a.fixed && b.fixed) return;
-    // circle-circle
-    if (a.kind === "ball" && b.kind === "ball") {
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.hypot(dx, dy) || 0.001;
-      const min = a.r + b.r;
-      if (dist < min) {
-        const nx = dx / dist, ny = dy / dist;
-        const pen = min - dist;
-        const inv = 1 / a.mass + 1 / b.mass;
-        a.x -= nx * pen * (1 / a.mass) / inv;
-        a.y -= ny * pen * (1 / a.mass) / inv;
-        b.x += nx * pen * (1 / b.mass) / inv;
-        b.y += ny * pen * (1 / b.mass) / inv;
-        const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
-        const vn = rvx * nx + rvy * ny;
-        if (vn < 0) {
-          const j = -(1.2) * vn / inv;
-          a.vx -= (j / a.mass) * nx; a.vy -= (j / a.mass) * ny;
-          b.vx += (j / b.mass) * nx; b.vy += (j / b.mass) * ny;
-          if (Math.abs(j) > 40) { audio.knock(); this._spark((a.x + b.x) / 2, (a.y + b.y) / 2); }
-        }
-      }
+    const trophy = this.dominos.find((d) => d.trophy);
+    if (trophy && !this.trophyDown && (Math.abs(trophy.angle) > 1.05 || trophy.fallen)) {
+      this.trophyDown = true;
+      this._win();
       return;
     }
+    if (this.simTime > 12) {
+      // se ainda mexendo, dá mais tempo
+      const moving = this.dominos.some((d) => Math.abs(d.omega) > 0.15 && !d.fallen);
+      const ballMoving = this.balls.some((b) => Math.hypot(b.vx, b.vy) > 30);
+      if (!moving && !ballMoving) this._fail("A cadeia parou antes do troféu.");
+      else if (this.simTime > 20) this._fail("Tempo esgotado.");
+    }
+  }
 
-    // treat rects as capsules/circles approx + torque
-    const ra = a.kind === "ball" ? a.r : Math.max(a.w, a.h) * 0.42;
-    const rb = b.kind === "ball" ? b.r : Math.max(b.w, b.h) * 0.42;
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const dist = Math.hypot(dx, dy) || 0.001;
-    if (dist < ra + rb) {
-      const nx = dx / dist, ny = dy / dist;
-      const pen = ra + rb - dist;
-      const ma = a.fixed ? 1e9 : a.mass;
-      const mb = b.fixed ? 1e9 : b.mass;
-      const inv = 1 / ma + 1 / mb;
-      if (!a.fixed) { a.x -= nx * pen * (1 / ma) / inv; a.y -= ny * pen * (1 / ma) / inv; }
-      if (!b.fixed) { b.x += nx * pen * (1 / mb) / inv; b.y += ny * pen * (1 / mb) / inv; }
-      const rvx = (b.vx || 0) - (a.vx || 0);
-      const rvy = (b.vy || 0) - (a.vy || 0);
-      const vn = rvx * nx + rvy * ny;
-      if (vn < 0) {
-        const j = -1.15 * vn / inv;
-        if (!a.fixed) { a.vx -= (j / ma) * nx; a.vy -= (j / ma) * ny; }
-        if (!b.fixed) { b.vx += (j / mb) * nx; b.vy += (j / mb) * ny; }
-        // torque for dominos — strong tip transfer
-        if (a.kind !== "ball" && a.omega !== undefined && !a.fixed) {
-          a.omega += -ny * 10 * (j / 160);
-          a.omega += Math.sign(nx || 1) * clamp(Math.abs(j) * 0.04, 0, 6);
+  _simDominos(dt) {
+    // α = (3/2) * (g/h) * sin(θ)  — barra rígida tombando sob gravidade
+    const g = 1600;
+    for (const d of this.dominos) {
+      if (d.fallen) continue;
+      // gravidade puxa para |angle| aumentar
+      const alpha = (1.6 * g / d.h) * Math.sin(d.angle);
+      d.omega += alpha * dt;
+      // atrito leve
+      d.omega *= 0.998;
+      d.angle += d.omega * dt;
+
+      // colisão com chão (tomba de lado)
+      if (d.angle > Math.PI / 2 - 0.02) {
+        d.angle = Math.PI / 2;
+        d.omega = 0;
+        d.fallen = true;
+        audio.knock();
+        this._spark(d.x + d.h * 0.5, d.footY - 8);
+      } else if (d.angle < -Math.PI / 2 + 0.02) {
+        d.angle = -Math.PI / 2;
+        d.omega = 0;
+        d.fallen = true;
+        audio.knock();
+        this._spark(d.x - d.h * 0.5, d.footY - 8);
+      }
+    }
+  }
+
+  _dominoHits() {
+    // quando uma peça se inclina, o topo empurra a vizinha se estiver no alcance
+    for (let i = 0; i < this.dominos.length; i++) {
+      const a = this.dominos[i];
+      if (Math.abs(a.angle) < 0.2) continue;
+      const top = this._top(a);
+      for (let j = 0; j < this.dominos.length; j++) {
+        if (i === j) continue;
+        const b = this.dominos[j];
+        if (b.fallen) continue;
+        // distância horizontal entre bases
+        const dx = b.x - a.x;
+        const sameFloor = Math.abs(b.footY - a.footY) < 12;
+        if (!sameFloor) {
+          // pode empurrar de plataforma se topo alcança
         }
-        if (b.kind !== "ball" && b.omega !== undefined && !b.fixed) {
-          b.omega += ny * 10 * (j / 160);
-          b.omega += Math.sign(nx || 1) * clamp(Math.abs(j) * 0.04, 0, 6);
+        // hit se topo de A está perto do corpo de B
+        // corpo de B: de (b.x, b.footY) até topo de B
+        const bt = this._top(b);
+        // distância do top A à haste B (segmento)
+        const hit = this._distPointSeg(top.x, top.y, b.x, b.footY, bt.x, bt.y);
+        const reach = Math.abs(a.angle) > 0.35 && hit < 22;
+
+        // regra simples de cadeia no chão: se A tomba na direção de B e bases próximas
+        const spacing = Math.abs(dx);
+        const facing = Math.sign(a.angle) === Math.sign(dx) || Math.sign(a.omega) === Math.sign(dx);
+        const chain = sameFloor && spacing > 20 && spacing < 78 && facing && Math.abs(a.angle) > 0.45;
+
+        if (reach || chain) {
+          const push = clamp(Math.abs(a.omega) * 0.9 + Math.abs(a.angle) * 2.2, 0.8, 7);
+          const dir = Math.sign(dx) || Math.sign(a.angle) || 1;
+          if (Math.abs(b.omega) < push * 0.7 || Math.sign(b.omega) !== dir) {
+            b.omega += dir * push * 0.55;
+            // kick inicial de ângulo
+            if (Math.abs(b.angle) < 0.15) b.angle += dir * 0.08;
+            if (Math.random() < 0.08) audio.knock();
+          }
         }
-        // extra knock when upright domino is hit from the side
-        if ((b.kind === "domino" || b.kind === "trophy") && Math.abs(b.angle) < 0.6) {
-          b.omega += Math.sign(nx || 1) * clamp(Math.abs(j) * 0.06, 0.5, 8);
+      }
+    }
+  }
+
+  _distPointSeg(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy || 1;
+    let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+    t = clamp(t, 0, 1);
+    const qx = x1 + t * dx, qy = y1 + t * dy;
+    return Math.hypot(px - qx, py - qy);
+  }
+
+  _simBalls(dt) {
+    const g = 1600;
+    for (const b of this.balls) {
+      b.vy += g * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.vx *= 0.995;
+
+      // plataformas
+      for (const p of this.platforms) {
+        if (b.x > p.x && b.x < p.x + p.w && b.y + b.r > p.y && b.y + b.r < p.y + 24 && b.vy > 0) {
+          b.y = p.y - b.r;
+          b.vy *= -0.25;
+          b.vx *= 0.92;
         }
-        if ((a.kind === "domino" || a.kind === "trophy") && Math.abs(a.angle) < 0.6) {
-          a.omega += -Math.sign(nx || 1) * clamp(Math.abs(j) * 0.06, 0.5, 8);
+      }
+      // rampas
+      for (const r of this.ramps) {
+        const rx0 = r.x - r.w / 2, rx1 = r.x + r.w / 2;
+        if (b.x > rx0 && b.x < rx1) {
+          const t = (b.x - rx0) / r.w;
+          const surfaceY = r.y + Math.sin(r.angle) * (t - 0.5) * r.w;
+          if (b.y + b.r > surfaceY && b.y < surfaceY + 30) {
+            b.y = surfaceY - b.r;
+            // acelera na direção da rampa
+            b.vx += Math.cos(r.angle) * 40 * dt * 60;
+            b.vy = Math.min(b.vy, 0);
+          }
         }
-        if (Math.abs(j) > 28) {
+      }
+      if (b.y + b.r > FLOOR) {
+        b.y = FLOOR - b.r;
+        b.vy *= -0.3;
+        b.vx *= 0.9;
+      }
+      if (b.x < b.r) { b.x = b.r; b.vx *= -0.5; }
+      if (b.x > W - b.r) { b.x = W - b.r; b.vx *= -0.5; }
+    }
+  }
+
+  _ballDominoHits() {
+    for (const b of this.balls) {
+      for (const d of this.dominos) {
+        if (d.fallen) continue;
+        const top = this._top(d);
+        const hit = this._distPointSeg(b.x, b.y, d.x, d.footY, top.x, top.y);
+        if (hit < b.r + 8) {
+          const dir = Math.sign(b.vx) || Math.sign(b.x - d.x) || 1;
+          const power = clamp(Math.hypot(b.vx, b.vy) / 80, 0.5, 6);
+          d.omega += dir * power * 1.4;
+          if (Math.abs(d.angle) < 0.1) d.angle += dir * 0.1;
+          // bounce ball a bit
+          b.vx *= -0.4;
+          b.vy *= 0.5;
           audio.knock();
-          this._spark((a.x + b.x) / 2, (a.y + b.y) / 2);
+          this._spark(b.x, b.y);
         }
       }
     }
   }
 
   _spark(x, y) {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const a = Math.random() * Math.PI * 2;
       this.particles.push({
-        x, y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120,
-        life: 0.25 + Math.random() * 0.2, color: "#ffc857", r: 2,
+        x, y, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140,
+        life: 0.3, color: "#ffc857", r: 2,
       });
     }
   }
 
   _win() {
-    const leftover = (this.budget.domino - this.used.domino) * 20 + (this.budget.ball - this.used.ball) * 40;
-    const speedBonus = Math.max(0, Math.floor((14 - this.simTime) * 30));
+    const leftover = (this.budget.domino - this.used.domino) * 15;
+    const speedBonus = Math.max(0, Math.floor((12 - this.simTime) * 30));
     const bonus = 400 + leftover + speedBonus + this.levelIndex * 60;
     this.score += bonus;
     audio.win();
     this.shake = 10;
-    this._spark(this.trophy.x, this.trophy.y);
     if (this.score > this.best) {
       this.best = this.score;
       localStorage.setItem(STORAGE, String(this.best));
@@ -589,117 +620,153 @@ export class Game {
     if (this.shake > 0) ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
 
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#12182a");
+    bg.addColorStop(0, "#141a2c");
     bg.addColorStop(1, "#0c101c");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // grid
-    ctx.strokeStyle = "rgba(255,200,87,0.04)";
-    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    // grid suave
+    ctx.strokeStyle = "rgba(255,200,87,0.05)";
+    for (let x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
 
-    // statics
-    for (const s of this.statics) {
-      if (s.type === "ground") {
+    // plataformas
+    for (const p of this.platforms) {
+      if (p.y >= FLOOR - 1) {
         ctx.fillStyle = "#1a2236";
-        ctx.fillRect(s.x, s.y, s.w, s.h);
-        ctx.fillStyle = "rgba(86,214,255,0.15)";
-        ctx.fillRect(s.x, s.y, s.w, 4);
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.fillStyle = "rgba(86,214,255,0.25)";
+        ctx.fillRect(p.x, p.y, p.w, 5);
       } else {
         ctx.fillStyle = "#2a3348";
-        ctx.strokeStyle = "rgba(139,124,255,0.4)";
+        ctx.strokeStyle = "rgba(139,124,255,0.5)";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(s.x, s.y, s.w, s.h, 4);
-        ctx.fill(); ctx.stroke();
+        ctx.roundRect(p.x, p.y, p.w, p.h, 4);
+        ctx.fill();
+        ctx.stroke();
       }
     }
 
-    // hints ghosts
+    // hints
     if (this.state === "build") {
-      for (const h of this.hints) {
-        ctx.globalAlpha = 0.2;
-        this._drawDominoShape(ctx, h.x, h.y, 0, "#56d6ff", 14, 56);
+      for (const hx of this.hints) {
+        ctx.globalAlpha = 0.18;
+        this._drawDomino(ctx, makeDomino(hx, FLOOR), true);
         ctx.globalAlpha = 1;
       }
-      // ghost tool
-      ctx.globalAlpha = 0.45;
-      if (this.tool === "domino") this._drawDominoShape(ctx, this.pointer.x, this.pointer.y, 0, "#56d6ff", 14, 56);
-      else if (this.tool === "ball") {
+      // ghost
+      ctx.globalAlpha = 0.4;
+      if (this.tool === "domino") {
+        const f = this._snapFoot(this.pointer.x, this.pointer.y);
+        this._drawDomino(ctx, makeDomino(f.x, f.y));
+      } else if (this.tool === "ball") {
+        const f = this._snapFoot(this.pointer.x, this.pointer.y);
         ctx.fillStyle = "#ff6bcb";
-        ctx.beginPath(); ctx.arc(this.pointer.x, this.pointer.y, 16, 0, Math.PI * 2); ctx.fill();
-      } else if (this.tool === "ramp") this._drawDominoShape(ctx, this.pointer.x, this.pointer.y, -0.45, "#8b7cff", 90, 16);
+        ctx.beginPath();
+        ctx.arc(f.x, f.y - 16, 15, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (this.tool === "ramp") {
+        this._drawRamp(ctx, { x: this.pointer.x, y: this.pointer.y, w: 100, h: 14, angle: -0.4, color: "#8b7cff" });
+      }
       ctx.globalAlpha = 1;
     }
 
-    // bodies
-    for (const b of this.bodies) {
-      if (b.kind === "ball") {
-        const g = ctx.createRadialGradient(b.x - 4, b.y - 4, 2, b.x, b.y, b.r);
-        g.addColorStop(0, "#fff");
-        g.addColorStop(0.4, b.color);
-        g.addColorStop(1, "#5a1a40");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        this._drawDominoShape(ctx, b.x, b.y, b.angle || 0, b.color, b.w, b.h, b.kind === "trophy", b.starter);
-      }
+    // ramps
+    for (const r of this.ramps) this._drawRamp(ctx, r);
+
+    // dominos
+    for (const d of this.dominos) this._drawDomino(ctx, d);
+
+    // balls
+    for (const b of this.balls) {
+      const g = ctx.createRadialGradient(b.x - 4, b.y - 4, 2, b.x, b.y, b.r);
+      g.addColorStop(0, "#fff");
+      g.addColorStop(0.4, b.color);
+      g.addColorStop(1, "#5a1a40");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // particles
     for (const p of this.particles) {
-      ctx.globalAlpha = clamp(p.life / 0.4, 0, 1);
+      ctx.globalAlpha = clamp(p.life / 0.3, 0, 1);
       ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // labels
     if (this.state === "build") {
-      ctx.fillStyle = "rgba(238,242,255,0.45)";
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillRect(0, 0, W, 44);
+      ctx.fillStyle = "#eef2ff";
       ctx.font = "600 15px Outfit,sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Monte a cadeia · vermelho inicia · dourado é o alvo · Espaço = Play", W / 2, 36);
+      ctx.fillText("Enfileire dominós do VERMELHO até o DOURADO · Espaço = Play", W / 2, 28);
     } else if (this.state === "sim") {
-      ctx.fillStyle = "rgba(255,200,87,0.7)";
+      ctx.fillStyle = "rgba(255,200,87,0.8)";
       ctx.font = "600 14px JetBrains Mono,monospace";
       ctx.textAlign = "left";
-      ctx.fillText(`t=${this.simTime.toFixed(1)}s`, 24, 36);
+      ctx.fillText(`t=${this.simTime.toFixed(1)}s`, 20, 30);
     }
 
     ctx.restore();
   }
 
-  _drawDominoShape(ctx, x, y, angle, color, w, h, trophy = false, starter = false) {
+  _drawDomino(ctx, d) {
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.shadowColor = color;
-    ctx.shadowBlur = trophy || starter ? 14 : 6;
-    const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+    // pivô no pé
+    ctx.translate(d.x, d.footY);
+    ctx.rotate(d.angle);
+    ctx.shadowColor = d.color;
+    ctx.shadowBlur = d.trophy || d.starter ? 16 : 6;
+    const g = ctx.createLinearGradient(-d.w / 2, -d.h, d.w / 2, 0);
     g.addColorStop(0, "#fff");
-    g.addColorStop(0.2, color);
-    g.addColorStop(1, "#222");
+    g.addColorStop(0.25, d.color);
+    g.addColorStop(1, "#1a2030");
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.roundRect(-w / 2, -h / 2, w, h, 4);
+    ctx.roundRect(-d.w / 2, -d.h, d.w, d.h, 4);
     ctx.fill();
     ctx.shadowBlur = 0;
-    if (trophy) {
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.font = "bold 16px serif";
+    if (d.trophy) {
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "bold 18px serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("★", 0, 0);
-    } else if (!starter && w < 40) {
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillText("★", 0, -d.h / 2);
+    } else if (d.starter) {
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = "bold 11px Outfit,sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("GO", 0, -d.h / 2);
+    } else {
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.beginPath();
-      ctx.arc(0, -h * 0.2, 2.5, 0, Math.PI * 2);
-      ctx.arc(0, h * 0.2, 2.5, 0, Math.PI * 2);
+      ctx.arc(0, -d.h * 0.3, 2.2, 0, Math.PI * 2);
+      ctx.arc(0, -d.h * 0.7, 2.2, 0, Math.PI * 2);
       ctx.fill();
     }
+    // pé
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillRect(-d.w / 2 - 2, -3, d.w + 4, 4);
+    ctx.restore();
+  }
+
+  _drawRamp(ctx, r) {
+    ctx.save();
+    ctx.translate(r.x, r.y);
+    ctx.rotate(r.angle);
+    ctx.fillStyle = r.color;
+    ctx.shadowColor = r.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(-r.w / 2, -r.h / 2, r.w, r.h, 4);
+    ctx.fill();
     ctx.restore();
   }
 }
