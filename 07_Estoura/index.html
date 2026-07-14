@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="description" content="Estoura — bubble shooter clássico com visual polido" />
+  <title>Estoura</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- HUD -->
+    <header id="hud" class="glass" hidden>
+      <div class="hud-item">
+        <span class="hud-label">Pontos</span>
+        <span id="score" class="hud-value">0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Nível</span>
+        <span id="level" class="hud-value">1</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Recorde</span>
+        <span id="best" class="hud-value">0</span>
+      </div>
+      <button id="btn-pause" class="icon-btn" type="button" aria-label="Pausar" title="Pausar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Combo toast -->
+    <div id="combo-toast" class="combo-toast" aria-live="polite"></div>
+
+    <!-- Canvas -->
+    <canvas id="game" width="400" height="640" aria-label="Área de jogo Estoura"></canvas>
+
+    <!-- Next bubble preview (in-game) -->
+    <div id="next-panel" class="next-panel glass" hidden>
+      <span class="next-label">Próxima</span>
+      <canvas id="next-canvas" width="48" height="48" aria-hidden="true"></canvas>
+    </div>
+
+    <!-- Title screen -->
+    <section id="screen-title" class="screen active">
+      <div class="screen-card glass">
+        <div class="logo-wrap">
+          <div class="logo-orb logo-orb-1"></div>
+          <div class="logo-orb logo-orb-2"></div>
+          <div class="logo-orb logo-orb-3"></div>
+          <h1 class="logo-title">Estoura</h1>
+        </div>
+        <p class="tagline">Mire, atire e estoure em combos</p>
+        <ul class="howto">
+          <li>Forme grupos de <strong>3+</strong> da mesma cor</li>
+          <li>Clusters soltos caem e valem mais</li>
+          <li>Limpe o campo para avançar de nível</li>
+        </ul>
+        <button id="btn-start" class="btn btn-primary" type="button">Jogar</button>
+        <p class="hint">Mouse ou toque · Esc pausa</p>
+      </div>
+    </section>
+
+    <!-- Pause -->
+    <section id="screen-pause" class="screen" hidden>
+      <div class="screen-card glass">
+        <h2>Pausado</h2>
+        <button id="btn-resume" class="btn btn-primary" type="button">Continuar</button>
+        <button id="btn-restart-pause" class="btn btn-ghost" type="button">Recomeçar</button>
+        <button id="btn-menu-pause" class="btn btn-ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section id="screen-over" class="screen" hidden>
+      <div class="screen-card glass">
+        <h2 id="over-title">Fim de jogo</h2>
+        <p id="over-msg" class="over-msg"></p>
+        <div class="stat-row">
+          <div class="stat">
+            <span class="stat-label">Pontos</span>
+            <span id="over-score" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Nível</span>
+            <span id="over-level" class="stat-value">1</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Recorde</span>
+            <span id="over-best" class="stat-value">0</span>
+          </div>
+        </div>
+        <button id="btn-retry" class="btn btn-primary" type="button">Jogar de novo</button>
+        <button id="btn-menu-over" class="btn btn-ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <!-- Level clear / victory -->
+    <section id="screen-win" class="screen" hidden>
+      <div class="screen-card glass">
+        <h2 id="win-title">Nível limpo!</h2>
+        <p id="win-msg" class="over-msg"></p>
+        <div class="stat-row">
+          <div class="stat">
+            <span class="stat-label">Pontos</span>
+            <span id="win-score" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Bônus</span>
+            <span id="win-bonus" class="stat-value">0</span>
+          </div>
+        </div>
+        <button id="btn-next" class="btn btn-primary" type="button">Próximo nível</button>
+        <button id="btn-menu-win" class="btn btn-ghost" type="button">Menu</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
