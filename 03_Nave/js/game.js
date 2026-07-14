@@ -9,7 +9,7 @@
   const W = 480;
   const H = 720;
   /** Versão do jogo — subir a cada release visível ao jogador */
-  const GAME_VERSION = "1.6.1";
+  const GAME_VERSION = "1.6.2";
   const HS_KEY = "neonstrike_hiscore";
   const ACH_KEY = "neonstrike_achievements";
   /** Ranking local da missão curta (MVP). Sobe para 10 depois. */
