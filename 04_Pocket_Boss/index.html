@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0a12" />
+  <meta name="description" content="Pocket Boss — chefe diário em ~3 minutos. Aprenda o pattern, sobreviva e suba no ranking." />
+  <title>Pocket Boss</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Ambient background -->
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+    <canvas id="fx-canvas" aria-hidden="true"></canvas>
+
+    <!-- Screens -->
+    <main id="screens">
+      <!-- MENU -->
+      <section id="screen-menu" class="screen active" data-screen="menu">
+        <div class="menu-hero">
+          <p class="eyebrow">MINI-JOGO · DIÁRIO</p>
+          <h1 class="logo">
+            <span class="logo-pocket">POCKET</span>
+            <span class="logo-boss">BOSS</span>
+          </h1>
+          <p class="tagline">Um chefe por dia. Três vidas. ~3 minutos.</p>
+        </div>
+
+        <div class="daily-card" id="daily-card">
+          <div class="daily-card-top">
+            <span class="daily-label">BOSS DE HOJE</span>
+            <span class="daily-date" id="menu-date">—</span>
+          </div>
+          <div class="daily-boss-row">
+            <div class="boss-portrait" id="menu-portrait" aria-hidden="true"></div>
+            <div class="daily-boss-info">
+              <h2 id="menu-boss-name">…</h2>
+              <p id="menu-boss-title" class="muted">…</p>
+              <div class="stat-pills" id="menu-boss-stats"></div>
+            </div>
+          </div>
+          <p class="daily-hint" id="menu-best">Ainda não jogou hoje</p>
+        </div>
+
+        <div class="menu-actions">
+          <button class="btn btn-primary" id="btn-play" type="button">
+            <span class="btn-glow"></span>
+            ENFRENTAR
+          </button>
+          <div class="btn-row">
+            <button class="btn btn-ghost" id="btn-how" type="button">Como jogar</button>
+            <button class="btn btn-ghost" id="btn-rank" type="button">Ranking</button>
+          </div>
+        </div>
+
+        <footer class="menu-footer">
+          <span>v1.0.0</span>
+          <span class="dot">·</span>
+          <span>seed local · meia-noite</span>
+        </footer>
+      </section>
+
+      <!-- HOW TO -->
+      <section id="screen-how" class="screen" data-screen="how">
+        <header class="screen-header">
+          <button class="btn btn-icon" id="btn-how-back" type="button" aria-label="Voltar">←</button>
+          <h2>Como jogar</h2>
+        </header>
+        <div class="how-content">
+          <ol class="how-list">
+            <li>
+              <strong>Leia o pattern</strong>
+              <span>O boss telegrafa cada golpe. Observe o brilho e a cor.</span>
+            </li>
+            <li>
+              <strong>Defenda com precisão</strong>
+              <span><kbd>A</kbd>/<kbd>←</kbd> esquiva esquerda · <kbd>D</kbd>/<kbd>→</kbd> direita · <kbd>K</kbd>/<kbd>Shift</kbd> parry</span>
+            </li>
+            <li>
+              <strong>Contra-ataque</strong>
+              <span>Após esquivar ou parry, janela aberta — <kbd>J</kbd>/<kbd>Espaço</kbd> ataca.</span>
+            </li>
+            <li>
+              <strong>Três vidas</strong>
+              <span>Errou o timing? Perde um coração. Zerar = fim da run.</span>
+            </li>
+            <li>
+              <strong>Suba no ranking</strong>
+              <span>Pontos por dano, parries perfeitos e combo. Um melhor por dia.</span>
+            </li>
+          </ol>
+          <div class="tip-box">
+            <span class="tip-label">DICA</span>
+            <p>Parry no frame certo = hit-stop, dano bônus e juice. É o skill ceiling.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- RANKING -->
+      <section id="screen-rank" class="screen" data-screen="rank">
+        <header class="screen-header">
+          <button class="btn btn-icon" id="btn-rank-back" type="button" aria-label="Voltar">←</button>
+          <h2>Ranking local</h2>
+        </header>
+        <div class="rank-content">
+          <p class="muted rank-intro">Histórico dos bosses diários neste dispositivo.</p>
+          <ul id="rank-list" class="rank-list"></ul>
+          <p id="rank-empty" class="empty-state hidden">Nenhuma run salva ainda. Enfrente o boss de hoje!</p>
+        </div>
+      </section>
+
+      <!-- COMBAT -->
+      <section id="screen-combat" class="screen" data-screen="combat">
+        <header class="hud">
+          <div class="hud-left">
+            <div class="lives" id="hud-lives" aria-label="Vidas">
+              <span class="heart" data-i="0">♥</span>
+              <span class="heart" data-i="1">♥</span>
+              <span class="heart" data-i="2">♥</span>
+            </div>
+            <div class="score-block">
+              <span class="label">PTS</span>
+              <span id="hud-score">0</span>
+            </div>
+          </div>
+          <div class="hud-center">
+            <div class="combo" id="hud-combo">
+              <span class="combo-num" id="combo-num">0</span>
+              <span class="combo-label">COMBO</span>
+            </div>
+          </div>
+          <div class="hud-right">
+            <div class="timer" id="hud-timer">0:00</div>
+            <button class="btn btn-icon btn-sm" id="btn-pause" type="button" aria-label="Pausar">Ⅱ</button>
+          </div>
+        </header>
+
+        <div class="boss-hp-wrap">
+          <div class="boss-hp-meta">
+            <span id="combat-boss-name">BOSS</span>
+            <span id="combat-boss-phase">FASE 1</span>
+          </div>
+          <div class="boss-hp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+            <div class="boss-hp-fill" id="boss-hp-fill"></div>
+            <div class="boss-hp-glow" id="boss-hp-glow"></div>
+          </div>
+        </div>
+
+        <div class="arena" id="arena">
+          <div class="arena-floor"></div>
+          <div class="telegraph" id="telegraph" aria-hidden="true"></div>
+
+          <div class="fighter player" id="player">
+            <div class="fighter-body">
+              <div class="fighter-core"></div>
+              <div class="fighter-aura"></div>
+            </div>
+            <div class="fighter-label">VOCÊ</div>
+          </div>
+
+          <div class="fighter boss" id="boss">
+            <div class="fighter-body">
+              <div class="boss-ring"></div>
+              <div class="fighter-core" id="boss-core"></div>
+              <div class="fighter-aura"></div>
+            </div>
+            <div class="fighter-label" id="boss-arena-name">BOSS</div>
+          </div>
+
+          <div class="float-texts" id="float-texts"></div>
+        </div>
+
+        <div class="action-bar">
+          <button class="act-btn" data-act="dodgeL" type="button"><kbd>A</kbd><span>Esquiva</span></button>
+          <button class="act-btn act-primary" data-act="attack" type="button"><kbd>J</kbd><span>Ataque</span></button>
+          <button class="act-btn act-parry" data-act="parry" type="button"><kbd>K</kbd><span>Parry</span></button>
+          <button class="act-btn" data-act="dodgeR" type="button"><kbd>D</kbd><span>Esquiva</span></button>
+        </div>
+
+        <div class="toast" id="toast" aria-live="polite"></div>
+      </section>
+
+      <!-- PAUSE -->
+      <section id="screen-pause" class="screen overlay" data-screen="pause">
+        <div class="modal">
+          <h2>Pausado</h2>
+          <div class="menu-actions">
+            <button class="btn btn-primary" id="btn-resume" type="button">Continuar</button>
+            <button class="btn btn-ghost" id="btn-quit" type="button">Desistir</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- RESULT -->
+      <section id="screen-result" class="screen" data-screen="result">
+        <div class="result-card" id="result-card">
+          <p class="eyebrow" id="result-eyebrow">VITÓRIA</p>
+          <h2 id="result-title">Boss derrotado</h2>
+          <p class="result-boss" id="result-boss">—</p>
+
+          <div class="result-stats" id="result-stats"></div>
+
+          <div class="share-preview" id="share-preview"></div>
+
+          <div class="menu-actions">
+            <button class="btn btn-primary" id="btn-share" type="button">Compartilhar</button>
+            <div class="btn-row">
+              <button class="btn btn-ghost" id="btn-retry" type="button">Tentar de novo</button>
+              <button class="btn btn-ghost" id="btn-home" type="button">Menu</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Screen shake / flash layers -->
+    <div id="shake-layer" aria-hidden="true"></div>
+    <div id="flash-layer" aria-hidden="true"></div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
