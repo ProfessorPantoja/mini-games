@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0c14" />
+  <title>Combinação — Match-3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="shake-layer">
+      <!-- TÍTULO -->
+      <section id="screen-title" class="screen active" aria-label="Tela inicial">
+        <div class="bg-orbs" aria-hidden="true"></div>
+        <div class="title-panel glass">
+          <p class="eyebrow">Match-3</p>
+          <h1 class="logo">Combinação</h1>
+          <p class="tagline">Alinhe orbes, encadeie combos e atinja o objetivo.</p>
+
+          <div class="mission-card">
+            <h2>Missão</h2>
+            <p>Alcance <strong id="title-goal">2.500</strong> pontos em no máximo <strong id="title-moves">28</strong> movimentos.</p>
+          </div>
+
+          <div class="title-stats">
+            <div>
+              <span class="label">Recorde</span>
+              <span id="title-best" class="value">0</span>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn primary" id="btn-start" data-sfx="ui">Jogar</button>
+            <button type="button" class="btn ghost" id="btn-howto" data-sfx="ui">Como jogar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMO JOGAR -->
+      <section id="screen-howto" class="screen" aria-label="Como jogar" hidden>
+        <div class="panel glass howto-panel">
+          <h2>Como jogar</h2>
+          <ul class="howto-list">
+            <li><strong>Trocar:</strong> toque em um orbe e depois no vizinho (ou arraste). Só adjacentes contam.</li>
+            <li><strong>Match:</strong> 3+ iguais na horizontal ou vertical somem e pontuam.</li>
+            <li><strong>Cascata:</strong> orbes caem; novos nascem no topo. Combos em cadeia multiplicam pontos.</li>
+            <li><strong>Inválido:</strong> se a troca não formar match, a peça volta com feedback.</li>
+            <li><strong>4 em linha:</strong> cria <em>Raio</em> — limpa a linha ou coluna inteira.</li>
+            <li><strong>5 em linha:</strong> cria <em>Prisma</em> — troque com uma cor para limpar todos dessa cor.</li>
+            <li><strong>Forma T ou L:</strong> cria <em>Bomba</em> — limpa a área 3×3 ao redor.</li>
+            <li><strong>Sem jogadas:</strong> o tabuleiro embaralha automaticamente.</li>
+          </ul>
+          <button type="button" class="btn primary" id="btn-howto-back" data-sfx="ui">Voltar</button>
+        </div>
+      </section>
+
+      <!-- JOGO -->
+      <section id="screen-game" class="screen" aria-label="Partida" hidden>
+        <header class="hud glass">
+          <div class="hud-cell">
+            <span class="label">Pontos</span>
+            <span id="hud-score" class="value">0</span>
+          </div>
+          <div class="hud-cell">
+            <span class="label">Meta</span>
+            <span id="hud-goal" class="value">2500</span>
+          </div>
+          <div class="hud-cell">
+            <span class="label">Mov.</span>
+            <span id="hud-moves" class="value">28</span>
+          </div>
+          <div class="hud-cell">
+            <span class="label">Combo</span>
+            <span id="hud-combo" class="value">×1</span>
+          </div>
+          <button type="button" class="icon-btn" id="btn-pause" aria-label="Pausar" data-sfx="ui">❚❚</button>
+        </header>
+
+        <div class="progress-wrap">
+          <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+
+        <div id="board-wrap">
+          <div id="board" role="grid" aria-label="Tabuleiro de orbes"></div>
+          <canvas id="fx-canvas" aria-hidden="true"></canvas>
+          <div id="float-scores" aria-hidden="true"></div>
+          <div id="shuffle-toast" class="toast" hidden>Sem movimentos — embaralhando…</div>
+        </div>
+
+        <footer class="game-footer">
+          <span id="best-inline">Recorde: 0</span>
+        </footer>
+      </section>
+
+      <!-- PAUSE -->
+      <section id="screen-pause" class="screen overlay-screen" aria-label="Pausa" hidden>
+        <div class="panel glass center-panel">
+          <h2>Pausa</h2>
+          <div class="btn-col">
+            <button type="button" class="btn primary" id="btn-resume" data-sfx="ui">Continuar</button>
+            <button type="button" class="btn ghost" id="btn-restart-pause" data-sfx="ui">Reiniciar</button>
+            <button type="button" class="btn ghost" id="btn-quit-pause" data-sfx="ui">Menu</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- FIM -->
+      <section id="screen-end" class="screen overlay-screen" aria-label="Fim de partida" hidden>
+        <div class="panel glass center-panel end-panel">
+          <p id="end-eyebrow" class="eyebrow">Missão</p>
+          <h2 id="end-title">Vitória!</h2>
+          <p id="end-message" class="end-msg"></p>
+          <div class="end-stats">
+            <div>
+              <span class="label">Pontos</span>
+              <span id="end-score" class="value">0</span>
+            </div>
+            <div>
+              <span class="label">Recorde</span>
+              <span id="end-best" class="value">0</span>
+            </div>
+          </div>
+          <div class="btn-col">
+            <button type="button" class="btn primary" id="btn-again" data-sfx="ui">Jogar de novo</button>
+            <button type="button" class="btn ghost" id="btn-menu" data-sfx="ui">Menu</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
