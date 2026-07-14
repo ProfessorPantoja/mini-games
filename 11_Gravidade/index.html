@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a14" />
+  <meta name="description" content="Gravidade — pinte campos gravitacionais e guie a órbita." />
+  <title>Gravidade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%238b7cff' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%2356d6ff'/%3E%3Cpath d='M32 10 L36 22 L32 18 L28 22 Z' fill='%23ffc857'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="noise"></span></div>
+    <header id="hud" class="hud" hidden>
+      <div class="stat"><span class="label">Nível</span><span class="value mono" id="hud-level">1</span></div>
+      <div class="stat"><span class="label">Tinta</span><span class="value mono" id="hud-ink">0</span></div>
+      <div class="stat"><span class="label">Modo</span><span class="value" id="hud-mode">Pintar</span></div>
+      <div class="stat align-right"><span class="label">Pontos</span><span class="value mono" id="hud-score">0</span></div>
+      <button id="btn-pause" class="icon-btn" type="button" aria-label="Pausar">❚❚</button>
+    </header>
+
+    <main class="stage">
+      <canvas id="game" width="960" height="640" aria-label="Área de jogo Gravidade"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+    </main>
+
+    <div id="toolbar" class="toolbar" hidden>
+      <button class="tool active" data-dir="down" type="button">↓ Baixo</button>
+      <button class="tool" data-dir="up" type="button">↑ Cima</button>
+      <button class="tool" data-dir="left" type="button">← Esq</button>
+      <button class="tool" data-dir="right" type="button">→ Dir</button>
+      <button class="tool" data-dir="erase" type="button">Apagar</button>
+      <button id="btn-launch" class="tool play" type="button">▶ Lançar</button>
+      <button id="btn-clear" class="tool" type="button">Limpar</button>
+    </div>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <section id="screen-title" class="screen active">
+      <div class="panel">
+        <div class="badge">campos vetoriais</div>
+        <h1>Gravidade</h1>
+        <p class="tagline">Pinte a lei do universo.<br />Guie a partícula até o portal com campos de gravidade.</p>
+        <ul class="howto">
+          <li>Escolha uma direção e <strong>pinte</strong> o grid</li>
+          <li>Tinta é limitada — pense antes de rabiscar</li>
+          <li><strong>Lançar</strong> e a partícula obedece aos campos</li>
+        </ul>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="title-best">0</span></div>
+          <div class="chip"><span class="chip-label">Níveis</span><span class="chip-value mono">8</span></div>
+        </div>
+        <button id="btn-start" class="btn primary" type="button">Jogar</button>
+        <p class="hint">Arraste para pintar · Espaço lança · Esc pausa</p>
+      </div>
+    </section>
+
+    <section id="screen-pause" class="screen" hidden>
+      <div class="panel">
+        <h2>Pausado</h2>
+        <button id="btn-resume" class="btn primary" type="button">Continuar</button>
+        <button id="btn-restart-pause" class="btn ghost" type="button">Recomeçar nível</button>
+        <button id="btn-menu-pause" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <section id="screen-over" class="screen" hidden>
+      <div class="panel">
+        <h2 id="over-title">Colapso</h2>
+        <p id="over-msg" class="msg"></p>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Pontos</span><span class="chip-value mono" id="over-score">0</span></div>
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="over-best">0</span></div>
+        </div>
+        <button id="btn-retry" class="btn primary" type="button">Tentar de novo</button>
+        <button id="btn-menu-over" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <section id="screen-win" class="screen" hidden>
+      <div class="panel">
+        <h2 id="win-title">Órbita resolvida!</h2>
+        <p id="win-msg" class="msg"></p>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Pontos</span><span class="chip-value mono" id="win-score">0</span></div>
+          <div class="chip"><span class="chip-label">Bônus</span><span class="chip-value mono" id="win-bonus">0</span></div>
+        </div>
+        <button id="btn-next" class="btn primary" type="button">Próximo nível</button>
+        <button id="btn-menu-win" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
