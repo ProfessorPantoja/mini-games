@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#07090f" />
-  <meta name="description" content="Bolinha — um clássico de rebote elevado ao extremo." />
-  <title>Bolinha</title>
+  <meta name="description" content="Breakout — clássico de rebote e blocos, elevado ao extremo." />
+  <title>Breakout</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -53,7 +53,7 @@
 
     <!-- Game stage -->
     <main class="stage" id="stage">
-      <canvas id="game" width="960" height="640" aria-label="Área de jogo Bolinha"></canvas>
+      <canvas id="game" width="960" height="640" aria-label="Área de jogo Breakout"></canvas>
       <div class="vignette" aria-hidden="true"></div>
       <div class="scanlines" aria-hidden="true"></div>
     </main>
@@ -63,7 +63,7 @@
       <div class="panel title-panel">
         <div class="badge">clássico refinado</div>
         <h1 class="logo">
-          <span class="logo-glow">Bolinha</span>
+          <span class="logo-glow">Breakout</span>
         </h1>
         <p class="tagline">Rebote. Quebre. Encadeie combos.<br />Sinta cada impacto.</p>
 
@@ -89,16 +89,16 @@
         <h2>Como jogar</h2>
         <ul class="how-list">
           <li><strong>Mova a barra</strong> com o mouse, toque ou teclado.</li>
-          <li><strong>Lance a bolinha</strong> com clique, toque ou Espaço.</li>
+          <li><strong>Lance a bola</strong> com clique, toque ou Espaço.</li>
           <li><strong>Acerte a borda da barra</strong> para aplicar ângulo e spin.</li>
           <li><strong>Combine quebras</strong> sem deixar cair para multiplicar pontos.</li>
           <li><strong>Pegue power-ups</strong> que caem dos blocos especiais.</li>
         </ul>
         <div class="power-grid">
-          <div class="power-card"><span class="dot multi"></span><div><strong>Multi</strong><small>Três bolinhas</small></div></div>
+          <div class="power-card"><span class="dot multi"></span><div><strong>Multi</strong><small>Três bolas</small></div></div>
           <div class="power-card"><span class="dot wide"></span><div><strong>Larga</strong><small>Barra expandida</small></div></div>
           <div class="power-card"><span class="dot slow"></span><div><strong>Slow</strong><small>Tempo reduzido</small></div></div>
-          <div class="power-card"><span class="dot sticky"></span><div><strong>Ímã</strong><small>Bolinha gruda</small></div></div>
+          <div class="power-card"><span class="dot sticky"></span><div><strong>Ímã</strong><small>Bola gruda</small></div></div>
           <div class="power-card"><span class="dot fire"></span><div><strong>Fogo</strong><small>Atravessa blocos</small></div></div>
           <div class="power-card"><span class="dot life"></span><div><strong>Vida</strong><small>+1 vida extra</small></div></div>
         </div>
@@ -165,7 +165,7 @@
     <div class="toast" id="toast" hidden></div>
 
     <!-- Mobile launch hint -->
-    <button class="mobile-launch hidden" id="mobile-launch" type="button" aria-label="Lançar bolinha">
+    <button class="mobile-launch hidden" id="mobile-launch" type="button" aria-label="Lançar bola">
       <span>Toque para lançar</span>
     </button>
   </div>

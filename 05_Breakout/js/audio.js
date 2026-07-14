@@ -1,5 +1,5 @@
 /**
- * Bolinha — synthesized audio (Web Audio API)
+ * Breakout — synthesized audio (Web Audio API)
  * No external assets. Soft, game-feel oriented.
  */
 

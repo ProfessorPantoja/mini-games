@@ -1,5 +1,5 @@
 /**
- * Bolinha — ultra-refined breakout engine
+ * Breakout — ultra-refined breakout engine
  * Canvas 2D · 60fps · juice · power-ups · 8 levels
  */
 
@@ -11,7 +11,16 @@ import { audio } from "./audio.js";
 
 const W = 960;
 const H = 640;
-const STORAGE_KEY = "bolinha.best.v1";
+const STORAGE_KEY = "breakout.best.v1";
+const LEGACY_STORAGE_KEY = "bolinha.best.v1";
+
+function loadBestScore() {
+  const cur = Number(localStorage.getItem(STORAGE_KEY) || 0);
+  const legacy = Number(localStorage.getItem(LEGACY_STORAGE_KEY) || 0);
+  const best = Math.max(cur, legacy);
+  if (best > 0 && cur < best) localStorage.setItem(STORAGE_KEY, String(best));
+  return best;
+}
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -47,7 +56,7 @@ const C = {
 };
 
 const POWER_META = {
-  multi:  { color: C.violet, label: "Multi-bolinha",  icon: "◎" },
+  multi:  { color: C.violet, label: "Multi-bola",     icon: "◎" },
   wide:   { color: C.cyan,   label: "Barra larga",    icon: "↔" },
   slow:   { color: C.lime,   label: "Câmera lenta",   icon: "◌" },
   sticky: { color: C.amber,  label: "Ímã",            icon: "⊕" },
@@ -307,7 +316,7 @@ class Game {
     this.state = "title"; // title | ready | playing | paused | levelclear | gameover | win
     this.levelIndex = 0;
     this.score = 0;
-    this.best = Number(localStorage.getItem(STORAGE_KEY) || 0);
+    this.best = loadBestScore();
     this.lives = 3;
     this.combo = 0;
     this.maxCombo = 1;
@@ -1035,7 +1044,7 @@ class Game {
       audio.gameOver();
       const isRecord = this.score >= this.best && this.score > 0;
       document.getElementById("go-badge").textContent = isRecord ? "recorde" : "fim de jogo";
-      document.getElementById("go-title").textContent = isRecord ? "Novo recorde!" : "A bolinha caiu";
+      document.getElementById("go-title").textContent = isRecord ? "Novo recorde!" : "A bola caiu";
       document.getElementById("go-score").textContent = String(this.score);
       document.getElementById("go-combo").textContent = `×${this.maxCombo}`;
       document.getElementById("go-level").textContent = String(this.levelIndex + 1);
