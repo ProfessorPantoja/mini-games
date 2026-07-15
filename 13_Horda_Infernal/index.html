@@ -143,6 +143,7 @@
             <div class="m-value" id="meta-stage">1/4</div>
           </div>
         </div>
+        <div class="recap" id="defeat-recap"></div>
         <div class="btn-row">
           <button id="btn-retry" class="btn" type="button">NOVA RUN</button>
         </div>
@@ -167,11 +168,22 @@
             <div class="m-value" id="win-dmg">0</div>
           </div>
         </div>
+        <div class="recap" id="victory-recap"></div>
         <div class="btn-row">
           <button id="btn-retry-win" class="btn" type="button">OUTRA RUN</button>
           <button id="btn-menu-win" class="btn ghost" type="button">MENU</button>
         </div>
       </section>
+
+      <!-- Level-up power select -->
+      <div id="power-panel" class="loot-panel" role="dialog" aria-modal="true">
+        <div class="loot-card power-card">
+          <p class="loot-eyebrow">SUBIU DE NÍVEL</p>
+          <h2 id="power-title">Escolha um poder</h2>
+          <p class="slot-label">Um presente da carnificina · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></p>
+          <div id="power-choices" class="power-choices"></div>
+        </div>
+      </div>
 
       <!-- Loot compare -->
       <div id="loot-panel" class="loot-panel" role="dialog" aria-modal="true">

@@ -28,6 +28,7 @@ export class UI {
     this.screenDefeat = document.getElementById("screen-defeat");
     this.screenVictory = document.getElementById("screen-victory");
     this.lootPanel = document.getElementById("loot-panel");
+    this.powerPanel = document.getElementById("power-panel");
 
     this._toastTimer = null;
     this._bannerTimer = null;
@@ -43,6 +44,7 @@ export class UI {
     this.screenDefeat.classList.remove("active");
     this.screenVictory.classList.remove("active");
     this.lootPanel.classList.remove("active");
+    this.powerPanel?.classList.remove("active");
   }
 
   showTitle() {
@@ -59,19 +61,66 @@ export class UI {
     this.hideAllScreens();
     this.showHud(false);
     this.screenDefeat.classList.add("active");
-    document.getElementById("meta-kills").textContent = game.kills;
-    document.getElementById("meta-level").textContent = game.player.level;
-    document.getElementById("meta-stage").textContent = `${game.stageIndex + 1}/${STAGES.length}`;
+    const recap = game.getRunRecap();
+    document.getElementById("meta-kills").textContent = recap.kills;
+    document.getElementById("meta-level").textContent = recap.level;
+    document.getElementById("meta-stage").textContent = recap.stage;
+    this._fillRecap("defeat-recap", recap);
   }
 
   showVictory(game) {
     this.hideAllScreens();
     this.showHud(false);
     this.screenVictory.classList.add("active");
-    document.getElementById("win-kills").textContent = game.kills;
-    document.getElementById("win-level").textContent = game.player.level;
+    const recap = game.getRunRecap();
+    document.getElementById("win-kills").textContent = recap.kills;
+    document.getElementById("win-level").textContent = recap.level;
     document.getElementById("win-dmg").textContent =
-      game.maxCombo > 1 ? `${game.damageDealt} · combo ×${game.maxCombo}` : game.damageDealt;
+      recap.maxCombo > 1 ? `${recap.damage} · ×${recap.maxCombo}` : recap.damage;
+    this._fillRecap("victory-recap", recap);
+  }
+
+  _fillRecap(elId, r) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const mm = String(Math.floor(r.time / 60)).padStart(2, "0");
+    const ss = String(r.time % 60).padStart(2, "0");
+    el.innerHTML = `
+      <div class="recap-row"><span>Tempo</span><span>${mm}:${ss}</span></div>
+      <div class="recap-row"><span>Combo máx</span><span>×${r.maxCombo || 1}</span></div>
+      <div class="recap-row"><span>Cura total</span><span>${r.heal}</span></div>
+      <div class="recap-row"><span>Arma</span><span>${r.weapon}</span></div>
+      <div class="recap-row"><span>Armadura</span><span>${r.armor}</span></div>
+      <div class="recap-powers">${r.powers}</div>
+    `;
+  }
+
+  showPowerSelect(choices, level) {
+    if (!this.powerPanel) return;
+    this.powerPanel.classList.add("active");
+    const title = document.getElementById("power-title");
+    if (title) title.textContent = `Nível ${level} — escolha um poder`;
+    const box = document.getElementById("power-choices");
+    if (!box) return;
+    box.innerHTML = "";
+    choices.forEach((pw, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "power-btn";
+      btn.dataset.powerId = pw.id;
+      btn.innerHTML = `
+        <span class="p-key">${i + 1}</span>
+        <span class="p-icon">${pw.icon}</span>
+        <div class="p-name">${pw.name}</div>
+        <div class="p-desc">${pw.desc}</div>
+        <div class="p-stack">${pw.stacks > 0 ? `Stack ${pw.nextStacks}/${pw.max}` : `Novo · máx ${pw.max}`}</div>
+      `;
+      box.appendChild(btn);
+    });
+  }
+
+  hidePowerSelect() {
+    this.powerPanel?.classList.remove("active");
   }
 
   updateHud(game) {
