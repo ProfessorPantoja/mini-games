@@ -2,7 +2,8 @@
  * NEON SERPENT — Snake arcade com fases, poderes e boss
  */
 import { audio } from "./audio.js";
-import { LEVELS, POWER_DEFS } from "./levels.js";
+import { DEV_FLAGS } from "./dev.js";
+import { LEVELS, POWER_DEFS, DEFAULT_THEME } from "./levels.js";
 
 const W = 480;
 const H = 720;
@@ -70,6 +71,13 @@ export class Game {
       if (k === "r" && (this.state === "playing" || this.state === "pause")) {
         this.start(this.levelIndex);
         return;
+      }
+      // Dev: N pula fase (só se DEV_FLAGS.infiniteContinue)
+      if (k === "n" && DEV_FLAGS.infiniteContinue) {
+        if (this.state === "playing" || this.state === "pause" || this.state === "over" || this.state === "inter") {
+          this.skipLevelDev();
+          return;
+        }
       }
       if (this.state === "title" && (k === "enter" || k === " ")) {
         this.start(0);
@@ -142,44 +150,269 @@ export class Game {
     this.particles = [];
     this.alive = true;
     this.levelClear = false;
-
-    // snake center
-    const cx = Math.floor(COLS / 2);
-    const cy = Math.floor(ROWS / 2);
-    this.snake = [
-      { x: cx, y: cy },
-      { x: cx - 1, y: cy },
-      { x: cx - 2, y: cy },
-    ];
+    this.snake = [];
     this.grow = 0;
 
-    this._placeHazards();
+    // Ordem: boss → hazards → snake segura → comida
+    // (snake precisa nascer fora de braços/hub/espinhos)
     if (cfg.boss) this._initBoss();
+    this._placeHazards();
+    this._spawnSnakeSafe();
     this._spawnFood();
     this.emit("hud");
   }
 
   _placeHazards() {
     this.hazards = [];
+    const seen = new Set();
+    const add = (x, y) => {
+      if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return;
+      const k = key(x, y);
+      if (seen.has(k)) return;
+      // nunca colocar espinho em cima do hub/braços iniciais da Hidra
+      if (this.boss) {
+        for (const c of this._bossCells()) {
+          if (c.x === x && c.y === y) return;
+        }
+      }
+      seen.add(k);
+      this.hazards.push({ x, y });
+    };
+
+    for (const shape of this.cfg.terrain || []) {
+      for (const c of this._expandShape(shape)) add(c.x, c.y);
+    }
+
+    // extras aleatórios opcionais (layouts manuais preferem hazards: 0)
     const n = this.cfg.hazards || 0;
     for (let i = 0; i < n; i++) {
       const p = this._emptyCell();
-      if (p) this.hazards.push(p);
+      if (p) {
+        const k = key(p.x, p.y);
+        if (!seen.has(k)) {
+          seen.add(k);
+          this.hazards.push(p);
+        }
+      }
     }
   }
 
+  /**
+   * Expande primitivas de terreno em células.
+   * Formas pensadas para layouts manuais legíveis (não ruído aleatório).
+   */
+  _expandShape(shape) {
+    const cells = [];
+    const push = (x, y) => cells.push({ x, y });
+    const t = shape.t;
+
+    if (t === "h") {
+      for (let i = 0; i < shape.len; i++) push(shape.x + i, shape.y);
+    } else if (t === "v") {
+      for (let i = 0; i < shape.len; i++) push(shape.x, shape.y + i);
+    } else if (t === "L") {
+      const w = shape.w || 3;
+      const h = shape.h || 3;
+      const fx = !!shape.flipX;
+      const fy = !!shape.flipY;
+      const x0 = shape.x;
+      const y0 = shape.y;
+      // barra horizontal
+      const hy = fy ? y0 + h - 1 : y0;
+      const hx0 = fx ? x0 : x0;
+      for (let i = 0; i < w; i++) push(hx0 + i, hy);
+      // barra vertical
+      const vx = fx ? x0 + w - 1 : x0;
+      for (let j = 0; j < h; j++) push(vx, y0 + j);
+    } else if (t === "cross") {
+      const arm = shape.arm || 2;
+      const { x, y } = shape;
+      push(x, y);
+      for (let i = 1; i <= arm; i++) {
+        push(x + i, y);
+        push(x - i, y);
+        push(x, y + i);
+        push(x, y - i);
+      }
+    } else if (t === "ring") {
+      const { cx, cy, r } = shape;
+      const gap = (shape.gap || "").toLowerCase();
+      for (let a = 0; a < 360; a += 6) {
+        const rad = (a * Math.PI) / 180;
+        const x = Math.round(cx + Math.cos(rad) * r);
+        const y = Math.round(cy + Math.sin(rad) * r);
+        // aberturas cardeais (~60°). ângulo 0 = leste
+        if (gap === "e" && (a < 30 || a > 330)) continue;
+        if (gap === "w" && a > 150 && a < 210) continue;
+        if (gap === "s" && a > 60 && a < 120) continue;
+        if (gap === "n" && a > 240 && a < 300) continue;
+        push(x, y);
+      }
+    } else if (t === "rect") {
+      const { x, y, w, h } = shape;
+      if (shape.fill) {
+        for (let j = 0; j < h; j++) {
+          for (let i = 0; i < w; i++) push(x + i, y + j);
+        }
+      } else {
+        for (let i = 0; i < w; i++) {
+          push(x + i, y);
+          push(x + i, y + h - 1);
+        }
+        for (let j = 1; j < h - 1; j++) {
+          push(x, y + j);
+          push(x + w - 1, y + j);
+        }
+      }
+    } else if (t === "dots" && Array.isArray(shape.cells)) {
+      for (const [x, y] of shape.cells) push(x, y);
+    }
+
+    return cells;
+  }
+
+  /**
+   * Hidra no terço superior + braços em diagonal no ângulo inicial.
+   * Deixa corredores livres embaixo/lados para spawn seguro.
+   */
   _initBoss() {
     const cx = COLS / 2;
-    const cy = ROWS / 2 - 2;
+    // hub acima do centro — não compartilha célula com spawn típico
+    const cy = Math.floor(ROWS * 0.32);
     this.boss = {
-      cx, cy,
-      angle: 0,
+      cx,
+      cy,
+      angle: Math.PI / 4, // diagonal: eixos cardeais mais legíveis
       arms: 4,
       radius: 4.2,
       spin: 1.1 + this.levelIndex * 0.08,
       pulse: 0,
     };
     this._spawnBossCore();
+  }
+
+  /**
+   * Coloca a cobra em células 100% seguras no frame 0 e no 1º passo.
+   * Prioriza zona inferior (longe do hub) em fases boss.
+   */
+  _spawnSnakeSafe() {
+    const len = 3;
+    const candidates = [];
+
+    if (this.cfg.boss) {
+      // Preferência: base do mapa, corredores laterais e faixas livres
+      for (let y = ROWS - 4; y >= Math.floor(ROWS * 0.55); y--) {
+        for (let x = 3; x <= COLS - 4; x++) {
+          candidates.push({ hx: x, hy: y, dir: "right" });
+          candidates.push({ hx: x, hy: y, dir: "left" });
+        }
+      }
+      for (let y = 3; y <= ROWS - 4; y++) {
+        candidates.push({ hx: 3, hy: y, dir: "up" });
+        candidates.push({ hx: 3, hy: y, dir: "down" });
+        candidates.push({ hx: COLS - 4, hy: y, dir: "up" });
+        candidates.push({ hx: COLS - 4, hy: y, dir: "down" });
+      }
+    } else {
+      // Fases normais: centro, com fallbacks
+      const cx = Math.floor(COLS / 2);
+      const cy = Math.floor(ROWS / 2);
+      candidates.push({ hx: cx, hy: cy, dir: "right" });
+      candidates.push({ hx: cx, hy: cy + 3, dir: "right" });
+      candidates.push({ hx: cx, hy: cy - 3, dir: "right" });
+      candidates.push({ hx: 4, hy: cy, dir: "right" });
+      candidates.push({ hx: COLS - 5, hy: cy, dir: "left" });
+      for (let y = 4; y < ROWS - 4; y += 2) {
+        for (let x = 4; x < COLS - 4; x += 2) {
+          candidates.push({ hx: x, hy: y, dir: "right" });
+        }
+      }
+    }
+
+    for (const c of candidates) {
+      const body = this._buildSnakeBody(c.hx, c.hy, c.dir, len);
+      if (!body) continue;
+      if (!this._isSpawnLayoutSafe(body, c.dir)) continue;
+      this.snake = body;
+      this.dir = c.dir;
+      this.queue = [];
+      return;
+    }
+
+    // Último recurso: varredura exaustiva
+    for (let hy = 2; hy < ROWS - 2; hy++) {
+      for (let hx = 2; hx < COLS - 2; hx++) {
+        for (const dir of ["right", "left", "up", "down"]) {
+          const body = this._buildSnakeBody(hx, hy, dir, len);
+          if (!body) continue;
+          if (!this._isSpawnLayoutSafe(body, dir)) continue;
+          this.snake = body;
+          this.dir = dir;
+          this.queue = [];
+          return;
+        }
+      }
+    }
+
+    // Fallback absoluto (não deve ocorrer com grid 20×28)
+    this.snake = [
+      { x: 2, y: ROWS - 3 },
+      { x: 1, y: ROWS - 3 },
+      { x: 0, y: ROWS - 3 },
+    ];
+    this.dir = "right";
+    this.queue = [];
+  }
+
+  _buildSnakeBody(hx, hy, dir, len) {
+    const d = DIRS[dir];
+    // corpo atrás da cabeça (oposto à direção)
+    const body = [];
+    for (let i = 0; i < len; i++) {
+      const x = hx - d.x * i;
+      const y = hy - d.y * i;
+      if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return null;
+      body.push({ x, y });
+    }
+    return body;
+  }
+
+  /** Corpo inteiro + célula do 1º passo livres de boss/hazards/paredes letais. */
+  _isSpawnLayoutSafe(body, dir) {
+    for (const p of body) {
+      if (this._isLethalCell(p.x, p.y)) return false;
+    }
+    const d = DIRS[dir];
+    let nx = body[0].x + d.x;
+    let ny = body[0].y + d.y;
+    if (this.cfg.wrap) {
+      if (nx < 0) nx = COLS - 1;
+      if (ny < 0) ny = ROWS - 1;
+      if (nx >= COLS) nx = 0;
+      if (ny >= ROWS) ny = 0;
+    } else if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) {
+      return false;
+    }
+    if (this._isLethalCell(nx, ny)) return false;
+    // 1º passo não pode ser o próprio corpo
+    for (let i = 0; i < body.length - 1; i++) {
+      if (body[i].x === nx && body[i].y === ny) return false;
+    }
+    return true;
+  }
+
+  /** Célula letal para a cobra (sem poder fantasma). */
+  _isLethalCell(x, y) {
+    if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return !this.cfg?.wrap;
+    for (const h of this.hazards) {
+      if (h.x === x && h.y === y) return true;
+    }
+    if (this.boss) {
+      for (const c of this._bossCells()) {
+        if (c.x === x && c.y === y) return true;
+      }
+    }
+    return false;
   }
 
   _spawnBossCore() {
@@ -208,6 +441,10 @@ export class Game {
     if (this.food) s.add(key(this.food.x, this.food.y));
     if (this.special) s.add(key(this.special.x, this.special.y));
     for (const c of this.bossCores) s.add(key(c.x, c.y));
+    // Braços/hub da Hidra ocupam grade (spawn e comida evitam)
+    if (this.boss) {
+      for (const c of this._bossCells()) s.add(key(c.x, c.y));
+    }
     return s;
   }
 
@@ -454,11 +691,12 @@ export class Game {
           this.bossHits++;
           this.score += 50 + this.levelIndex * 10;
           this.grow += 1;
-          this.shake = 0.35;
-          this.flash = 0.4;
+          this.shake = 0.4;
+          this.flash = 0.5;
           audio.hit();
-          this._burst(nx, ny, "#ff2bd6", 18);
-          this.emit("toast", "NÚCLEO · -1");
+          this._burst(nx, ny, "#ffc857", 16);
+          this._burst(nx, ny, "#ff2bd6", 14);
+          this.emit("toast", `NÚCLEO · ${this.bossHits}/${this.cfg.bossHits || 3}`);
           if (this.bossHits >= (this.cfg.bossHits || 3)) {
             this._clearLevel();
             return;
@@ -488,7 +726,9 @@ export class Game {
     this.score += pts;
     this.levelScore += pts;
     audio.eat();
-    this._burst(this.food.x, this.food.y, "#00f0ff", 12);
+    this._burst(this.food.x, this.food.y, "#00f0ff", 14);
+    this.shake = Math.max(this.shake, 0.12);
+    this.flash = Math.max(this.flash, 0.15);
     this.food = null;
 
     if (!this.cfg.boss && this.eaten >= this.cfg.goal) {
@@ -518,8 +758,14 @@ export class Game {
   _clearLevel() {
     this.levelClear = true;
     audio.level();
-    this.shake = 0.25;
-    this.flash = 0.5;
+    this.shake = 0.35;
+    this.flash = 0.65;
+    // confete no centro da cabeça
+    if (this.snake[0]) {
+      this._burst(this.snake[0].x, this.snake[0].y, "#00f0ff", 20);
+      this._burst(this.snake[0].x, this.snake[0].y, "#ffc857", 12);
+      this._burst(this.snake[0].x, this.snake[0].y, "#ff2bd6", 10);
+    }
     const next = this.levelIndex + 1;
     if (next >= LEVELS.length) {
       this.state = "win";
@@ -564,6 +810,43 @@ export class Game {
     this.emit("hud");
   }
 
+  /**
+   * Dev / QA: pula a fase atual (marca como limpa ou avança).
+   * Só funciona com DEV_FLAGS.infiniteContinue === true.
+   */
+  skipLevelDev() {
+    if (!DEV_FLAGS.infiniteContinue) return;
+    audio.unlock();
+    // Na tela inter, só avança; senão força clear da fase atual
+    if (this.state === "inter") {
+      this._continueCampaign();
+      return;
+    }
+    if (this.state === "win") {
+      // loop de teste: recomeça campanha
+      this.start(0);
+      return;
+    }
+    // over / playing / pause → trata como fase limpa
+    this.alive = true;
+    this._clearLevel();
+  }
+
+  /** Expõe flags de dev para a UI (sem import circular). */
+  getDevFlags() {
+    return { ...DEV_FLAGS };
+  }
+
+  /** Rótulo curto do modo de borda da fase. */
+  wallModeLabel() {
+    if (!this.cfg) return "";
+    return this.cfg.wrap ? "BORDA · PORTAL" : "BORDA · ELÉTRICA";
+  }
+
+  isWallLethal() {
+    return !!(this.cfg && !this.cfg.wrap);
+  }
+
   _die(reason) {
     this.alive = false;
     audio.die();
@@ -599,27 +882,149 @@ export class Game {
   }
 
   // ─── DRAW ───────────────────────────────────────────
+  _theme() {
+    return this.cfg?.theme || DEFAULT_THEME;
+  }
+
+  /**
+   * Desenha a borda do campo de forma legível:
+   * - wrap: portal suave + setas (atravessa)
+   * - !wrap: cerca elétrica pulsante (letal)
+   */
+  _drawBoardBorder(theme) {
+    const ctx = this.ctx;
+    const x = OX - 1;
+    const y = OY - 1;
+    const w = COLS * CELL + 2;
+    const h = ROWS * CELL + 2;
+    const lethal = this.cfg && !this.cfg.wrap;
+
+    if (!lethal) {
+      // Portal: traço tracejado ciano + setas nos meios
+      ctx.save();
+      ctx.strokeStyle = theme.border || "rgba(0, 240, 255, 0.35)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.lineDashOffset = -this.time * 18;
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+      // brilho interno suave
+      ctx.strokeStyle = "rgba(0, 240, 255, 0.12)";
+      ctx.lineWidth = 5;
+      ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+      // setas “passa”
+      ctx.fillStyle = "rgba(0, 240, 255, 0.55)";
+      ctx.font = "700 9px Orbitron, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const midx = x + w / 2;
+      const midy = y + h / 2;
+      ctx.globalAlpha = 0.55 + 0.25 * Math.sin(this.time * 3);
+      ctx.fillText("⇄", midx, y - 6);
+      ctx.fillText("⇄", midx, y + h + 7);
+      ctx.fillText("⇅", x - 8, midy);
+      ctx.fillText("⇅", x + w + 8, midy);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
+
+    // Cerca elétrica letal
+    const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(this.time * 10));
+    const col = theme.borderLethal || "rgba(255, 93, 122, 0.85)";
+    ctx.save();
+    // glow externo
+    ctx.shadowColor = "rgba(255, 60, 90, 0.85)";
+    ctx.shadowBlur = 12 + pulse * 10;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, w, h);
+    ctx.shadowBlur = 0;
+
+    // segundo anel interno “carregado”
+    ctx.strokeStyle = `rgba(255, 200, 80, ${0.25 + pulse * 0.35})`;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 3, y + 3, w - 6, h - 6);
+
+    // faíscas ao longo das 4 arestas
+    this._drawElectricEdge(x, y, w, 0, true);       // top
+    this._drawElectricEdge(x, y + h, w, 0, true);   // bottom
+    this._drawElectricEdge(x, y, 0, h, false);      // left
+    this._drawElectricEdge(x + w, y, 0, h, false);  // right
+
+    // selo de perigo
+    ctx.fillStyle = `rgba(255, 93, 122, ${0.75 + pulse * 0.2})`;
+    ctx.font = "800 8px Orbitron, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(255, 40, 70, 0.9)";
+    ctx.shadowBlur = 8;
+    ctx.fillText("⚡ LETAL ⚡", x + w / 2, y - 8);
+    ctx.restore();
+  }
+
+  /** Segmentos em zigue-zague + pontos de faísca numa aresta. */
+  _drawElectricEdge(x0, y0, w, h, horizontal) {
+    const ctx = this.ctx;
+    const len = horizontal ? w : h;
+    const segs = Math.max(6, Math.floor(len / 28));
+    const t = this.time;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(255, 220, 120, ${0.35 + 0.35 * Math.sin(t * 14)})`;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs;
+      const zig = ((i % 2) * 2 - 1) * (2 + Math.sin(t * 20 + i) * 1.5);
+      const px = horizontal ? x0 + u * w : x0 + zig;
+      const py = horizontal ? y0 + zig : y0 + u * h;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // faíscas pontuais
+    for (let i = 0; i < 3; i++) {
+      const u = (Math.sin(t * 7 + i * 2.1) * 0.5 + 0.5);
+      const jolt = Math.sin(t * 18 + i * 5) > 0.4;
+      if (!jolt) continue;
+      const px = horizontal ? x0 + u * w : x0;
+      const py = horizontal ? y0 : y0 + u * h;
+      ctx.fillStyle = "#fff6c8";
+      ctx.shadowColor = "#ff5d7a";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.6 + Math.random(), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
   draw() {
     const ctx = this.ctx;
+    const theme = this._theme();
     ctx.save();
     const shx = this.shake ? (Math.random() - 0.5) * 8 * this.shake : 0;
     const shy = this.shake ? (Math.random() - 0.5) * 8 * this.shake : 0;
     ctx.translate(shx, shy);
 
-    // bg
-    ctx.fillStyle = "#05070f";
+    // bg + atmosfera da fase
+    ctx.fillStyle = theme.bg || "#05070f";
     ctx.fillRect(-10, -10, W + 20, H + 20);
+    if (theme.ambience) {
+      ctx.fillStyle = theme.ambience;
+      ctx.fillRect(OX - 4, OY - 4, COLS * CELL + 8, ROWS * CELL + 8);
+    }
 
     // stars
     for (const s of this.stars) {
       ctx.globalAlpha = s.a;
-      ctx.fillStyle = "#a8c4ff";
+      ctx.fillStyle = theme.star || "#a8c4ff";
       ctx.fillRect(s.x, s.y, s.s, s.s);
     }
     ctx.globalAlpha = 1;
 
-    // grid soft
-    ctx.strokeStyle = "rgba(0, 240, 255, 0.04)";
+    // grid soft (cor por fase)
+    ctx.strokeStyle = theme.grid || "rgba(0, 240, 255, 0.04)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= COLS; x++) {
       ctx.beginPath();
@@ -634,31 +1039,46 @@ export class Game {
       ctx.stroke();
     }
 
-    // board border
-    ctx.strokeStyle = this.cfg?.wrap ? "rgba(0, 240, 255, 0.2)" : "rgba(255, 93, 122, 0.45)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(OX - 1, OY - 1, COLS * CELL + 2, ROWS * CELL + 2);
+    // borda do tabuleiro: portal (atravessa) vs cerca elétrica (mata)
+    this._drawBoardBorder(theme);
 
-    // hazards
+    // hazards / terreno
+    const hazardColor = theme.hazard || "#ff5d7a";
     for (const h of this.hazards) {
-      this._cell(h.x, h.y, "#ff5d7a", 0.85, true);
+      this._cell(h.x, h.y, hazardColor, 0.85, true);
     }
 
-    // boss
+    // boss — braços magenta (hitbox) vs hub mais denso (âncora visual)
     if (this.boss) {
+      const hubX = Math.round(this.boss.cx);
+      const hubY = Math.round(this.boss.cy);
+      const pulse = 0.55 + 0.2 * Math.sin(this.boss.pulse);
       for (const c of this._bossCells()) {
-        this._cell(c.x, c.y, "#ff2bd6", 0.55 + 0.2 * Math.sin(this.boss.pulse), true);
+        const isHub = c.x === hubX && c.y === hubY;
+        if (isHub) continue; // hub desenhado à parte
+        this._cell(c.x, c.y, "#ff2bd6", pulse, true);
       }
-      // hub glow
-      const hx = OX + Math.round(this.boss.cx) * CELL + CELL / 2;
-      const hy = OY + Math.round(this.boss.cy) * CELL + CELL / 2;
-      const g = ctx.createRadialGradient(hx, hy, 2, hx, hy, CELL * 2.2);
-      g.addColorStop(0, "rgba(255, 43, 214, 0.45)");
+      // hub: núcleo denso + anel — distinto dos braços e dos orbs dourados
+      this._cell(hubX, hubY, "#ff4de8", 0.9 + 0.1 * Math.sin(this.boss.pulse * 1.3), true);
+      const hx = OX + hubX * CELL + CELL / 2;
+      const hy = OY + hubY * CELL + CELL / 2;
+      const g = ctx.createRadialGradient(hx, hy, 2, hx, hy, CELL * 2.4);
+      g.addColorStop(0, "rgba(255, 80, 220, 0.55)");
+      g.addColorStop(0.45, "rgba(255, 43, 214, 0.2)");
       g.addColorStop(1, "rgba(255, 43, 214, 0)");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(hx, hy, CELL * 2.2, 0, Math.PI * 2);
+      ctx.arc(hx, hy, CELL * 2.4, 0, Math.PI * 2);
       ctx.fill();
+      // contorno do hub para leitura da hitbox central
+      ctx.strokeStyle = "rgba(255, 220, 255, 0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(
+        OX + hubX * CELL + 2,
+        OY + hubY * CELL + 2,
+        CELL - 4,
+        CELL - 4
+      );
     }
 
     // food
