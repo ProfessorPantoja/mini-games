@@ -59,8 +59,8 @@ export default {
   weaponFlavor: true,
 
   colors: {
-    body: "#e8d5c4",
-    armor: "#6a3a28",
+    body: "#c48a58",   // pele bronzeada (não pálida de monge)
+    armor: "#4a2818",  // couro escuro / peles
     accent: "#ff5a1f",
   },
 };
