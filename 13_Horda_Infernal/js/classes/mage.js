@@ -1,4 +1,4 @@
-/** Classe: Mago — cajado, bola de fogo com splash, MANA */
+/** Classe: Mago — cajado, bola de fogo com splash, MANA (feel snappy) */
 
 export default {
   id: "mage",
@@ -9,54 +9,54 @@ export default {
   style: "caster",
 
   stats: {
-    maxHp: 92,
-    damage: 18,
+    maxHp: 95,
+    damage: 17,
     defense: 0,
-    moveSpeed: 198,
-    attackRange: 300,
+    moveSpeed: 205,
+    attackRange: 310,
     attackArc: 0,
-    attackCooldown: 0.52,
-    attackWindup: 0.12,
-    attackActive: 0.1,
-    attackRecover: 0.1,
+    // mais próximo do arqueiro em responsividade
+    attackCooldown: 0.40,
+    attackWindup: 0.055,
+    attackActive: 0.06,
+    attackRecover: 0.05,
     attackLunge: 0,
-    projectileSpeed: 340,
-    projectileRadius: 9,
-    /** raio do splash ao acertar */
-    splashRadius: 52,
-    splashMult: 0.55,
-    dashSpeed: 520,
+    projectileSpeed: 440,
+    projectileRadius: 8,
+    splashRadius: 58,
+    splashMult: 0.62,
+    dashSpeed: 540,
     dashDuration: 0.15,
-    dashCooldown: 0.85,
+    dashCooldown: 0.78,
     radius: 15,
-    invulnAfterHit: 0.42,
-    critChance: 0.13,
-    critMult: 2.05,
+    invulnAfterHit: 0.4,
+    critChance: 0.14,
+    critMult: 2.1,
   },
 
   resource: {
     id: "mana",
     label: "MANA",
     max: 100,
-    perHit: 8,
-    perKill: 15,
-    perCrit: 6,
-    decay: 7,
-    duration: 4.5,
-    dmgMult: 1.4,
-    atkSpeed: 0.7,
-    moveMult: 1.06,
+    perHit: 10,
+    perKill: 16,
+    perCrit: 7,
+    decay: 8,
+    duration: 4.8,
+    dmgMult: 1.38,
+    atkSpeed: 0.62,
+    moveMult: 1.08,
   },
 
   starterWeapon: {
     name: "Cajado Ember",
-    damage: 12,
+    damage: 11,
   },
 
   starterArmor: {
     name: "Manto de Aprendiz",
     defense: 0,
-    hpBonus: 8,
+    hpBonus: 10,
   },
 
   colors: {
