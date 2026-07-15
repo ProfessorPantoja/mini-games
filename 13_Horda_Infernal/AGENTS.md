@@ -24,6 +24,7 @@ Abra só o módulo que vai mudar.
 3. Em `registry.js`: `import` + entrada em `CLASSES` e `CLASS_ORDER`
 4. Card no `index.html` (`data-class="nova"`)
 5. Se o estilo for novo, estenda `combat/styles.js` (não enfie ifs no `game.js`)
+6. Visual em `combat/playerDraw.js` — **Monge**: já existe `drawMonkHero` (reservado; `cls.id === "monk"`). Não reutilizar o body do bárbaro atual.
 
 ## Regras de manutenção
 
