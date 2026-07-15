@@ -28,4 +28,46 @@
 
 ## Status
 
-**Scaffold + memória + prompt.** Implementação começa na próxima sessão com o prompt em `PROMPT.md`.
+**Core jogável (rodada 1).**
+
+### O que roda hoje
+
+| Peça | Status |
+|------|--------|
+| Labirinto top-down conectado | OK |
+| Carro com aceleração / freio / curva arcade | OK |
+| Óleo no chão + derrapagem (grip baixo + fumaça) | OK |
+| Flags coletáveis · limpar mapa = vitória | OK |
+| VS IA (perseguição + drop de óleo) | OK |
+| Duo local (P1 WASD+Espaço · P2 setas+Enter) | OK |
+| Visual neon, HUD, menu, pausa | OK |
+| Listado no portal (`games.js`) | OK |
+
+### Controles
+
+- **VS IA:** WASD ou setas · **Espaço** = óleo · **P** pausa · **R** menu  
+- **Duo:** P1 `WASD` + Espaço · P2 `↑←↓→` + Enter  
+
+### Stack
+
+HTML + CSS + Canvas 2D vanilla (`index.html`, `css/style.css`, `js/game.js`). Sem build.
+
+### Backlog (próximas rodadas)
+
+1. Juice extra: screen shake ao bater, combo de flags, radar mini-mapa (estilo Rally-X).
+2. Tanque de óleo / posto de reabastecimento como meta secundária.
+3. Mais oponentes IA ou “especial” curto (boost / fumaça densa).
+4. Touch / gamepad para mobile e controles de sofá.
+5. Online só depois do duo local viciar de verdade.
+6. Fases com labirintos diferentes + ranking de tempo.
+
+## Arquivos
+
+```
+15_Neon_Rally/
+  index.html
+  css/style.css
+  js/game.js
+  MEMORIA.md
+  PROMPT.md
+```
