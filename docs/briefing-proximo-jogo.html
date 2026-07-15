@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Briefing — Portal, catálogo e próximo jogo</title>
+  <style>
+    :root {
+      --bg: #0b0d14;
+      --panel: #141824;
+      --line: rgba(255,255,255,0.08);
+      --text: #eef2ff;
+      --muted: #9aa3bd;
+      --cyan: #4de1ff;
+      --green: #6dffb0;
+      --amber: #ffc857;
+      --rose: #ff6b9d;
+      --violet: #9b8cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 20% 0%, rgba(77,225,255,0.08), transparent 50%), var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 32px 18px 64px;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 1.7rem; margin: 0 0 6px; letter-spacing: 0.02em; }
+    h2 {
+      font-size: 1.15rem;
+      margin: 36px 0 12px;
+      color: var(--cyan);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    h3 { font-size: 1.02rem; margin: 22px 0 8px; color: var(--amber); }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 12px 0;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      margin-right: 6px;
+    }
+    .tag.on { color: var(--green); border-color: rgba(109,255,176,0.35); }
+    .tag.off { color: var(--rose); border-color: rgba(255,107,157,0.35); }
+    .tag.p1 { color: var(--amber); border-color: rgba(255,200,87,0.4); }
+    .tag.p2 { color: var(--violet); border-color: rgba(155,140,255,0.4); }
+    ul { margin: 8px 0 8px 1.2em; padding: 0; }
+    li { margin: 6px 0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: rgba(0,0,0,0.35);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.92em;
+    }
+    pre {
+      background: #0a0c12;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow: auto;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+    .idea-num {
+      font-weight: 700;
+      color: var(--cyan);
+      margin-right: 6px;
+    }
+    .why { color: var(--muted); font-size: 0.95rem; }
+    footer { margin-top: 40px; color: var(--muted); font-size: 0.85rem; }
+    .copy-box {
+      white-space: pre-wrap;
+      font-size: 0.92rem;
+      color: #d7dced;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Briefing do portal + próximo jogo</h1>
+    <p class="sub">Documento para decisão interna e pesquisa com outra IA / mercado. Atualizado com o catálogo <code>games.js</code>.</p>
+
+    <h2>1. O que foi feito no portal</h2>
+    <div class="card">
+      <p><strong>Organização recomendada (e implementada):</strong> um arquivo único de catálogo.</p>
+      <ul>
+        <li>Arquivo: <code>games.js</code> na raiz do projeto</li>
+        <li>Cada jogo tem <code>active: true|false</code></li>
+        <li><code>active: false</code> = some do menu (pasta do jogo <em>não</em> é apagada)</li>
+        <li>Ordem do array = ordem dos cards</li>
+        <li>URLs diretas dos jogos desativados ainda funcionam (só não aparecem no portal)</li>
+      </ul>
+      <p>Exemplo:</p>
+      <pre>{
+  id: "pocket-boss",
+  active: false,  // liga/desliga aqui
+  status: "live",
+  title: "POCKET BOSS",
+  path: "/04_Pocket_Boss/",
+  ...
+}</pre>
+      <p class="why">Por que isso e não “deletar o card do HTML”? Porque o HTML vira só um render; a lista viva fica num lugar só. Em 5 segundos você reativa um jogo sem caçar markup.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag off">desativado</span> Pocket Boss &nbsp;
+      <span class="tag off">desativado</span> Dominó &nbsp;
+      <span class="tag off">desativado</span> Gravidade
+      <p style="margin-top:10px;margin-bottom:0">Pastas intactas. Motivo: percepção de “fracos” no momento; possíveis no futuro se forem reforçados.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag on">ativos no menu</span>
+      Horda Infernal · Neon Drive · Neon Strike · Breakout · Combinação · Estoura · Pêndulo · Gelatina · (Survival em breve)
+    </div>
+
+    <h2>2. Critérios do próximo jogo (do pedido original, limpos)</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Não inventar no vácuo</strong> — basear no que o público já joga e comenta que gosta.</li>
+        <li><strong>Memorável e rejogável</strong> — a pessoa quer “mais uma partida”.</li>
+        <li><strong>Direção / progressão clara</strong> — evolução entre fases, meta, sensação de avanço.</li>
+        <li><strong>Complexidade média-baixa</strong> — não um AAA, mas também não um toy sem gosto.</li>
+        <li><strong>Simples e eficiente é ok</strong> (ex.: estilo Snake, se for afiado).</li>
+        <li><strong>Coerência entre fases</strong> — cada fase ensina ou puxa o mesmo loop, com variação legível.</li>
+        <li><strong>Foco no interesse do público</strong>, não em gosto pessoal de nicho (ex.: fractal art não).</li>
+        <li><strong>Pode ser genérico “que funciona”</strong> — não precisa ser original a qualquer custo.</li>
+      </ul>
+    </div>
+
+    <h2>3. O que jogadores costumam querer (padrões que funcionam em browser/mobile)</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Sessão curta com vitória tangível</strong> (2–8 min) + “só mais uma”.</li>
+        <li><strong>Feedback imediato</strong>: score, combo, hit-stop, partículas, som (juice).</li>
+        <li><strong>Progressão legível</strong>: níveis, waves, rank, desbloqueios leves.</li>
+        <li><strong>Controle de 1 dedo / teclas óbvias</strong> no mobile e no PC.</li>
+        <li><strong>Falha justa</strong>: “eu errei”, não “o jogo trapaceou”.</li>
+        <li><strong>Meta social fraca mas útil</strong>: recorde local, compartilhar score, daily opcional.</li>
+        <li><strong>Fantasy conhecida</strong>: matar horda, dirigir, combinar, voar, roguelite curto — fantasia já validada.</li>
+        <li>Comentários típicos que viram roadmap: “quero upgrade”, “quero boss”, “quero mais níveis”, “dificuldade sobe bem”, “controles ruins matam”, “viciante demais”, “paguei só por isso no celular”.</li>
+      </ul>
+    </div>
+
+    <h2>4. Dez opções de próximo jogo (opinião + fit com o portal)</h2>
+    <p class="why">Todas cabem em HTML5/canvas, no mesmo stack atual, e batem “direção + rejogabilidade”. Priorizei o que <em>já funciona no mercado</em> e o que <em>ainda não cobrimos bem</em>.</p>
+
+    <div class="card">
+      <h3><span class="idea-num">01</span> Roguelite de sala única — “Cleared Rooms”</h3>
+      <span class="tag p1">prioridade alta</span>
+      <p>Mapa em salas (tipo Vampire Survivors × Binding of Isaac leve): entra, limpa, escolhe porta, 1 poder a cada 2 salas, boss a cada 5.</p>
+      <p class="why"><strong>Por que funciona:</strong> progresso de run óbvio, build crafting leve, “uma runzinha”. Comentários de jogadores adoram “só mais uma run” e upgrades. Diferente da Horda (arena aberta) porque tem <em>navegação + escolha de rota</em>.</p>
+      <p><strong>Complexidade:</strong> média · <strong>Sessão:</strong> 5–12 min · <strong>Mobile:</strong> bom</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">02</span> Tower Defense em trilha — “Neon Towers”</h3>
+      <span class="tag p1">prioridade alta</span>
+      <p>Onda de inimigos na trilha; coloca torres baratas; upgrades simples; boss de fim de wave set.</p>
+      <p class="why"><strong>Por que funciona:</strong> direção cristalina (sobreviver N waves), estratégia sem reflexo absurdo, público casual enorme (Kingdom Rush, Bloons). Ainda não temos TD no portal.</p>
+      <p><strong>Complexidade:</strong> média · <strong>Sessão:</strong> 8–15 min · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">03</span> Snake com poderes e boss — “Neon Serpent”</h3>
+      <span class="tag p1">prioridade alta</span>
+      <p>Snake clássico + frutas especiais + salas com meta (comer X / sobreviver timer) + boss que muda a arena.</p>
+      <p class="why"><strong>Por que funciona:</strong> loop eterno validado, “simples e poderoso”. Com fases e power-ups vira progressão sem reinventar a roda. Google Snake / Snake.io mostram retenção absurda do core.</p>
+      <p><strong>Complexidade:</strong> baixa–média · <strong>Sessão:</strong> 2–6 min · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">04</span> Runner vertical / endless com builds — “Sky Drop”</h3>
+      <span class="tag p2">forte</span>
+      <p>Cai / sobe por plataformas; pegar ouro; escolher 1 de 3 upgrades a cada marco; hazard patterns.</p>
+      <p class="why"><strong>Por que funciona:</strong> Doodle Jump / Geometry Dash light — score + near-death. Direção vertical legível. Bom “só mais uma”.</p>
+      <p><strong>Complexidade:</strong> baixa–média · <strong>Sessão:</strong> 1–4 min · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">05</span> Autobattler micro — “Squad Forge”</h3>
+      <span class="tag p2">forte</span>
+      <p>Entre rounds compra 1 peão / merge iguais (estilo TFT micro); 5 rounds + boss; composição simples (melee/range/tank).</p>
+      <p class="why"><strong>Por que funciona:</strong> auto-chess e merge games (Merge Mansion / AFK Arena loops) são viciantes por progressão de board. Pouco reflexo, muita decisão.</p>
+      <p><strong>Complexidade:</strong> média · <strong>Sessão:</strong> 6–10 min · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">06</span> Shoot ’em up com campanha de 10 setores — “Sector Sweep”</h3>
+      <span class="tag p2">forte</span>
+      <p>Como Neon Strike, mas com <em>mapa de campanha</em>, 3 estrelas por setor, e recompensa de arma entre fases.</p>
+      <p class="why"><strong>Por que funciona:</strong> shmups e “star rating levels” (Angry Birds DNA) dão rejogabilidade. Você já tem base de nave — evoluir em “direção de campanha” em vez de jogo zero.</p>
+      <p><strong>Complexidade:</strong> média (reuso) · <strong>Sessão:</strong> por setor 2–4 min · <strong>Mobile:</strong> bom</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">07</span> Idle + clicker com burst — “Forge Clicker”</h3>
+      <span class="tag">válido</span>
+      <p>Clica para forjar; compra geradores; a cada marco um mini-desafio arcade (esquivar / acertar timing) que multiplica ouro.</p>
+      <p class="why"><strong>Por que funciona:</strong> cookie clickers e idle são vício de número subindo. O “burst challenge” evita ser só spreadsheet. Público mobile adora.</p>
+      <p><strong>Complexidade:</strong> baixa–média · <strong>Sessão:</strong> aberta · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">08</span> Puzzle de path / flow com meta diária — “Pipe Rush”</h3>
+      <span class="tag">válido</span>
+      <p>Conecte tubos / cores sob timer; 50 fases curtas + daily seed; 3 estrelas (tempo / movimentos).</p>
+      <p class="why"><strong>Por que funciona:</strong> Flow Free / Numberlink / Plumber — satisfação de “fechou”. Direção = nível N de 50. Melhor que Gravidade porque a regra é óbvia em 3 segundos.</p>
+      <p><strong>Complexidade:</strong> baixa · <strong>Sessão:</strong> 30s–2 min · <strong>Mobile:</strong> excelente</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">09</span> Survivor com meta de tempo + elites nomeados — “10 Minutes Alive”</h3>
+      <span class="tag p2">forte</span>
+      <p>Sobreviva 10 minutos; relógio na UI; a cada minuto um evento (elite, choque, power free); fim = boss do relógio.</p>
+      <p class="why"><strong>Por que funciona:</strong> Vampire Survivors / Brotato DNA — o relógio <em>é</em> a direção. Vocês já exploraram survival; aqui o produto é “cronometrado e legível”.</p>
+      <p><strong>Complexidade:</strong> média · <strong>Sessão:</strong> 10 min fixos · <strong>Mobile:</strong> bom</p>
+    </div>
+
+    <div class="card">
+      <h3><span class="idea-num">10</span> Kart / arena top-down de itens — “Arena Kart Mini”</h3>
+      <span class="tag">válido</span>
+      <p>3 voltas, 4 oponentes IA boba, caixas de item (casca, boost, ímã). 8 pistas curtas com medalhas.</p>
+      <p class="why"><strong>Por que funciona:</strong> Mario Kart fantasy em miniatura — caos divertido, multiplayer local futuro. Neon Drive é endless; isto tem <em>corrida com começo-meio-fim</em>.</p>
+      <p><strong>Complexidade:</strong> média–alta p/ IA · <strong>Sessão:</strong> 2–4 min · <strong>Mobile:</strong> médio</p>
+    </div>
+
+    <h2>5. Recomendação curta (opinião)</h2>
+    <div class="card">
+      <p>Se o objetivo é <strong>vício + direção + não reinventar</strong>, a ordem sugerida para o próximo título do zero:</p>
+      <ol>
+        <li><strong>Neon Serpent (Snake com fases/boss)</strong> — mais barato, hit mais rápido, “simples e poderoso”.</li>
+        <li><strong>Neon Towers (TD)</strong> — preenche lacuna do portal, direção por waves, público casual enorme.</li>
+        <li><strong>Cleared Rooms (roguelite de salas)</strong> — se quiser o “jogo de sessão” mais memorável, um degrau acima em craft.</li>
+      </ol>
+      <p class="why">Evitar agora: clones fracos de física “curiosidade” (tipo Domino/Gravidade sem meta forte). Evitar: jogos de nicho artístico sem fantasy de jogo.</p>
+    </div>
+
+    <h2>6. Texto organizado do pedido (para colar em outra IA / pesquisa de mercado)</h2>
+    <div class="card">
+      <pre class="copy-box">BRIEFING DE PRODUTO — Mini Games Portal
+
+CONTEXTO
+- Temos um portal de mini-games HTML5 com vários jogos já publicados.
+- Queremos enxugar o menu principal (não apagar jogos, só desativar a vitrine).
+- Jogos desativados por percepção de qualidade baixa no momento: Pocket Boss, Dominó, Gravidade.
+- Pastas devem permanecer no repositório para possível recuperação futura.
+- Precisamos de um sistema simples para ativar/desativar qualquer jogo no menu.
+
+REQUISITOS DO SISTEMA DE CATÁLOGO
+- Não deletar código dos jogos.
+- Um único lugar para ligar/desligar cada título.
+- Ideal: flag active true/false e ordem de exibição controlável.
+- (Implementado: arquivo games.js na raiz; active:false remove do portal.)
+
+OBJETIVO DO PRÓXIMO JOGO
+- Criar algo memorável e viciante: a pessoa deve querer jogar de novo.
+- Preferir complexidade moderada: não super complexo, não tão simples que perca interesse — a menos que seja “simples e poderoso” (ex.: Snake bem feito).
+- Deve ter direção: evolução clara, coerência entre fases, progresso legível.
+- Basear-se no que o público já gosta e comenta (YouTube, reviews, mobile hits), não em gosto pessoal de nicho.
+- Não inventar conceito obscuro que ninguém pede (ex.: jogo de arte fractal).
+- Focar no que já funciona no mercado: loops validados, fantasy conhecida, rejogabilidade.
+
+CRITÉRIOS DE AVALIAÇÃO DAS IDEIAS
+1. Rejogabilidade / “só mais uma”
+2. Clareza de meta e progressão entre fases
+3. Controles simples (mobile + desktop)
+4. Custo de produção em HTML5/canvas
+5. Diferenciação em relação ao catálogo atual (Horda, Neon Drive, Neon Strike, Breakout, Match-3, Bubble, Pêndulo, Gelatina…)
+6. Fit com sessão curta (ideal 2–12 min)
+
+PEDIDO DE PESQUISA / OPINIÃO
+- Sugerir ~10 conceitos de jogos alinhados aos critérios acima.
+- Priorizar o que jogadores pedem e o que performa em browser/mobile casual.
+- Indicar top 3 para implementar em seguida.
+- Opcional: validar com dados de mercado (categorias top em itch/CrazyGames/Poki, comentários recorrentes em trailers de hits casuais).</pre>
+    </div>
+
+    <h2>7. Próximos passos práticos</h2>
+    <div class="card">
+      <ol>
+        <li>Validar se o menu ficou no tamanho certo (3 desativados).</li>
+        <li>Você cola a seção 6 em outra IA / pesquisa de mercado e traz o resultado.</li>
+        <li>Escolhemos 1 conceito (ou fundimos 2) e abrimos design + implementação.</li>
+        <li>Quando quiser reativar Pocket Boss / Dominó / Gravidade: só <code>active: true</code> em <code>games.js</code>.</li>
+      </ol>
+    </div>
+
+    <footer>
+      docs/briefing-proximo-jogo.html · Mini Games · uso interno
+    </footer>
+  </div>
+</body>
+</html>
