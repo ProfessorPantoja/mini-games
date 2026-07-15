@@ -36,4 +36,4 @@ Abra só o módulo que vai mudar.
 
 - Obstáculos que só dificultam sem diversão (pedido do dono).
 - Expandir inventário / crafting / lore longo.
-- Classes novas sem provar o registry (padrão já validado: bárbaro + arqueiro).
+- Classes novas sem passar pelo registry (`classes/` + `combat/`).

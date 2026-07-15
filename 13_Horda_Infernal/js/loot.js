@@ -2,7 +2,7 @@
 
 import {
   RARITY, RARITY_ORDER, RARITY_MULT,
-  WEAPON_NAMES, ARMOR_NAMES, PLAYER_BASE,
+  WEAPON_NAMES, ARMOR_NAMES,
 } from "./config.js";
 
 let _id = 1;
@@ -43,7 +43,8 @@ export function generateItem(slot, stageIndex = 0, luckBoost = 0, forceRarity = 
   const stageScale = 1 + stageIndex * 0.28;
 
   if (slot === "weapon") {
-    const baseDmg = Math.round((PLAYER_BASE.damage * 0.55 + stageIndex * 3.5) * mult * stageScale);
+    // 14 = âncora de escala de loot (independente da classe)
+    const baseDmg = Math.round((14 * 0.55 + stageIndex * 3.5) * mult * stageScale);
     const name = pick(WEAPON_NAMES[rarity]);
     return {
       id: nextId(),
