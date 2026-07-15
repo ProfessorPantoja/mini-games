@@ -35,7 +35,14 @@ document.getElementById("btn-menu-win")?.addEventListener("click", () => {
 document.getElementById("btn-equip").addEventListener("click", () => game.acceptLoot());
 document.getElementById("btn-skip-loot").addEventListener("click", () => game.rejectLoot());
 
-// keyboard loot shortcuts
+// power select clicks
+document.getElementById("power-choices")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".power-btn");
+  if (!btn || !btn.dataset.powerId) return;
+  game.pickPower(btn.dataset.powerId);
+});
+
+// keyboard loot / power shortcuts
 window.addEventListener("keydown", (e) => {
   if (game.state === "loot") {
     if (e.code === "KeyE" || e.code === "Enter" || e.code === "Space") {
@@ -43,6 +50,13 @@ window.addEventListener("keydown", (e) => {
       game.acceptLoot();
     } else if (e.code === "KeyQ" || e.code === "Escape") {
       game.rejectLoot();
+    }
+  }
+  if (game.state === "levelup") {
+    const map = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 };
+    if (e.code in map && game.pendingPowerChoices?.[map[e.code]]) {
+      e.preventDefault();
+      game.pickPower(game.pendingPowerChoices[map[e.code]].id);
     }
   }
   if (game.state === "title" && (e.code === "Enter" || e.code === "Space")) {
@@ -136,7 +150,7 @@ function frame(now) {
   // clamp big hitches
   if (dt > 0.05) dt = 0.05;
 
-  if (game.state === "playing" || game.state === "loot") {
+  if (game.state === "playing" || game.state === "loot" || game.state === "levelup") {
     game.update(dt);
   } else {
     // still animate particles lightly on title? skip

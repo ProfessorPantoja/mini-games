@@ -7,6 +7,9 @@ import {
   compareItems, rarityColor, generateItem,
 } from "./loot.js";
 import { STAGES, ENEMY_DEFS, scaleEnemyStats } from "./stages.js";
+import {
+  createEmptyMods, recomputeMods, rollPowerChoices, applyPower, listOwnedPowers,
+} from "./powers.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const len = (x, y) => Math.hypot(x, y);
@@ -27,7 +30,7 @@ export class Game {
     this.particles = new ParticleSystem();
     this.shake = new CameraShake();
 
-    this.state = "title"; // title | playing | loot | pause | victory | defeat
+    this.state = "title"; // title | playing | loot | levelup | pause | victory | defeat
     this.keys = Object.create(null);
     this.mouse = { x: W / 2, y: H / 2, down: false };
     this.touchMove = { x: 0, y: 0 };
@@ -104,6 +107,10 @@ export class Game {
     this.kills = 0;
     this.damageDealt = 0;
     this.pendingLoot = null;
+    this.pendingPowerChoices = null;
+    this.levelUpQueue = 0;
+    this.runStartedAt = performance.now();
+    this.healDone = 0;
 
     this.particles.clear();
     this.enemies = [];
@@ -130,8 +137,7 @@ export class Game {
   _createPlayer() {
     const weapon = starterWeapon();
     const armor = starterArmor();
-    const maxHp = PLAYER_BASE.maxHp + (armor.hpBonus || 0);
-    return {
+    const player = {
       x: W / 2,
       y: H / 2,
       radius: PLAYER_BASE.radius,
@@ -143,8 +149,8 @@ export class Game {
       level: 1,
       xp: 0,
       xpToLevel: PLAYER_BASE.xpBase,
-      maxHp,
-      hp: maxHp,
+      maxHp: PLAYER_BASE.maxHp + (armor.hpBonus || 0),
+      hp: 0,
       invuln: 0,
       atkCd: 0,
       atkPhase: "idle", // idle | windup | active | recover
@@ -160,7 +166,21 @@ export class Game {
       furyActive: 0,
       swingCount: 0,
       lastHitCount: 0,
+      powerStacks: Object.create(null),
+      mods: createEmptyMods(),
     };
+    player.hp = player.maxHp;
+    recomputeMods(player);
+    player.maxHp = this._calcMaxHp(player);
+    player.hp = player.maxHp;
+    return player;
+  }
+
+  _calcMaxHp(p = this.player) {
+    return PLAYER_BASE.maxHp
+      + (p.armor?.hpBonus || 0)
+      + (p.level - 1) * 12
+      + (p.mods?.hpFlat || 0);
   }
 
   isFury() {
@@ -170,6 +190,46 @@ export class Game {
   getPlayerDamage() {
     const base = PLAYER_BASE.damage + (this.player.weapon?.damage || 0);
     return Math.round(base * (this.isFury() ? PLAYER_BASE.furyDmgMult : 1));
+  }
+
+  getPlayerDefense() {
+    return PLAYER_BASE.defense
+      + (this.player.armor?.defense || 0)
+      + (this.player.mods?.defenseFlat || 0);
+  }
+
+  getPlayerMaxHp() {
+    return this._calcMaxHp(this.player);
+  }
+
+  getAttackRange() {
+    const fury = this.isFury() ? 1.12 : 1;
+    return PLAYER_BASE.attackRange * (this.player.mods?.rangeMult || 1) * fury;
+  }
+
+  getAttackArc() {
+    const fury = this.isFury() ? 1.08 : 1;
+    return PLAYER_BASE.attackArc * (this.player.mods?.arcMult || 1) * fury;
+  }
+
+  getRunRecap() {
+    const p = this.player;
+    const secs = Math.max(1, Math.round((performance.now() - (this.runStartedAt || performance.now())) / 1000));
+    const powers = listOwnedPowers(p);
+    return {
+      kills: this.kills,
+      level: p?.level || 1,
+      stage: `${(this.stageIndex || 0) + 1}/${STAGES.length}`,
+      damage: this.damageDealt,
+      maxCombo: this.maxCombo,
+      heal: Math.round(this.healDone || 0),
+      time: secs,
+      weapon: p?.weapon?.name || "—",
+      weaponRarity: p?.weapon?.rarity || "common",
+      armor: p?.armor?.name || "—",
+      armorRarity: p?.armor?.rarity || "common",
+      powers: powers.map((pw) => `${pw.name} ×${pw.stacks}`).join(" · ") || "Nenhum",
+    };
   }
 
   _addHitstop(t) {
@@ -183,14 +243,15 @@ export class Game {
   _addFury(amount) {
     const p = this.player;
     if (!p || p.furyActive > 0) return;
-    p.fury = clamp(p.fury + amount, 0, PLAYER_BASE.furyMax);
+    const gain = amount * (p.mods?.furyGainMult || 1);
+    p.fury = clamp(p.fury + gain, 0, PLAYER_BASE.furyMax);
     if (p.fury >= PLAYER_BASE.furyMax) this._activateFury();
   }
 
   _activateFury() {
     const p = this.player;
     p.fury = PLAYER_BASE.furyMax;
-    p.furyActive = PLAYER_BASE.furyDuration;
+    p.furyActive = PLAYER_BASE.furyDuration * (p.mods?.furyDurationMult || 1);
     this.audio.furyActivate();
     this.particles.furyBurst(p.x, p.y);
     this.shake.add(7, 0.25);
@@ -198,14 +259,6 @@ export class Game {
     this._addFlash(0.45);
     this.ui.toast("FÚRIA!");
     this.ui.showBanner("FÚRIA");
-  }
-
-  getPlayerDefense() {
-    return PLAYER_BASE.defense + (this.player.armor?.defense || 0);
-  }
-
-  getPlayerMaxHp() {
-    return PLAYER_BASE.maxHp + (this.player.armor?.hpBonus || 0) + (this.player.level - 1) * 12;
   }
 
   _startStage(idx) {
@@ -271,8 +324,8 @@ export class Game {
 
     if (this.state === "playing") {
       this._updatePlaying(simDt);
-    } else if (this.state === "loot") {
-      // freeze combat; only particles
+    } else if (this.state === "loot" || this.state === "levelup") {
+      // combate congelado; partículas seguem
     }
 
     this.ui.updateHud(this);
@@ -291,7 +344,8 @@ export class Game {
     // fúria
     if (p.furyActive > 0) {
       p.furyActive -= dt;
-      p.fury = (p.furyActive / PLAYER_BASE.furyDuration) * PLAYER_BASE.furyMax;
+      const maxDur = PLAYER_BASE.furyDuration * (p.mods?.furyDurationMult || 1);
+      p.fury = (p.furyActive / maxDur) * PLAYER_BASE.furyMax;
       if (p.furyActive <= 0) {
         p.furyActive = 0;
         p.fury = 0;
@@ -352,7 +406,7 @@ export class Game {
       const d = norm(dx, dy);
       p.dashDir = d;
       p.dashing = PLAYER_BASE.dashDuration;
-      p.dashCd = PLAYER_BASE.dashCooldown;
+      p.dashCd = PLAYER_BASE.dashCooldown * (p.mods?.dashCdMult || 1);
       p.invuln = Math.max(p.invuln, PLAYER_BASE.dashDuration + 0.05);
       this.audio.dash();
       this.particles.burst(p.x, p.y, {
@@ -406,7 +460,7 @@ export class Game {
   _updatePlayerAttack(dt) {
     const p = this.player;
     const wantAtk = this.mouse.down || this.keys["KeyJ"] || this.touchAttack;
-    const cdMult = this.isFury() ? PLAYER_BASE.furyAtkSpeed : 1;
+    const cdMult = (this.isFury() ? PLAYER_BASE.furyAtkSpeed : 1) * (p.mods?.atkCdMult || 1);
 
     if (p.atkPhase === "idle") {
       if (wantAtk && p.atkCd <= 0 && p.dashing <= 0) {
@@ -441,6 +495,8 @@ export class Game {
       p.y = clamp(p.y, a.y + p.radius, a.y + a.h - p.radius);
 
       const fury = this.isFury();
+      const range = this.getAttackRange();
+      const arc = this.getAttackArc();
       this.effects.push({
         type: "slash",
         x: p.x,
@@ -448,8 +504,8 @@ export class Game {
         facing: p.facing,
         life: fury ? 0.2 : 0.16,
         maxLife: fury ? 0.2 : 0.16,
-        range: PLAYER_BASE.attackRange * (fury ? 1.12 : 1),
-        arc: PLAYER_BASE.attackArc * (fury ? 1.08 : 1),
+        range,
+        arc,
         fury,
       });
       this.particles.slashDebris(
@@ -477,8 +533,8 @@ export class Game {
   _resolveMeleeHits() {
     const p = this.player;
     const dmg = this.getPlayerDamage();
-    const range = PLAYER_BASE.attackRange * (this.isFury() ? 1.12 : 1);
-    const halfArc = (PLAYER_BASE.attackArc * (this.isFury() ? 1.08 : 1)) / 2;
+    const range = this.getAttackRange();
+    const halfArc = this.getAttackArc() / 2;
 
     for (const e of this.enemies) {
       if (e.dead || p.hitSet.has(e.id)) continue;
@@ -498,14 +554,26 @@ export class Game {
   }
 
   _damageEnemy(e, rawDmg, knockDir) {
-    const isCrit = Math.random() < PLAYER_BASE.critChance + (this.isFury() ? 0.08 : 0);
+    const p = this.player;
+    const critChance = PLAYER_BASE.critChance + (p.mods?.critChance || 0) + (this.isFury() ? 0.08 : 0);
+    const critMult = PLAYER_BASE.critMult + (p.mods?.critMult || 0);
+    const isCrit = Math.random() < critChance;
     const dmg = Math.round(
-      rawDmg * (isCrit ? PLAYER_BASE.critMult : 1) * (0.94 + Math.random() * 0.12),
+      rawDmg * (isCrit ? critMult : 1) * (0.94 + Math.random() * 0.12),
     );
     e.hp -= dmg;
     e.flash = 0.14;
     e.hitStun = isCrit ? 0.12 : 0.09;
     this.damageDealt += dmg;
+
+    // lifesteal
+    const ls = p.mods?.lifesteal || 0;
+    if (ls > 0 && p.hp > 0) {
+      const heal = dmg * ls;
+      const before = p.hp;
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      this.healDone += Math.max(0, p.hp - before);
+    }
 
     const knock = (e.kind === "boss" ? 5 : 14) * (isCrit ? 1.3 : 1) * (this.isFury() ? 1.2 : 1);
     e.x += Math.cos(knockDir) * knock;
@@ -588,9 +656,11 @@ export class Game {
   _grantXp(amount) {
     const p = this.player;
     p.xp += amount;
+    let leveled = 0;
     while (p.xp >= p.xpToLevel) {
       p.xp -= p.xpToLevel;
       p.level++;
+      leveled++;
       p.xpToLevel = Math.round(PLAYER_BASE.xpBase * Math.pow(PLAYER_BASE.xpGrowth, p.level - 1));
       const newMax = this.getPlayerMaxHp();
       const heal = newMax - p.maxHp + 20;
@@ -603,6 +673,53 @@ export class Game {
       this.shake.punch(0.05);
       this._addFlash(0.25);
       this._addFury(25);
+    }
+    if (leveled > 0) {
+      this.levelUpQueue += leveled;
+      this._openPowerSelectIfNeeded();
+    }
+  }
+
+  _openPowerSelectIfNeeded() {
+    if (this.levelUpQueue <= 0) return;
+    if (this.state === "loot" || this.state === "levelup") return;
+    if (this.state !== "playing") return;
+
+    const choices = rollPowerChoices(this.player, 3);
+    if (choices.length === 0) {
+      this.levelUpQueue = 0;
+      return;
+    }
+    this.pendingPowerChoices = choices;
+    this.state = "levelup";
+    this.ui.showPowerSelect(choices, this.player.level);
+  }
+
+  pickPower(powerId) {
+    if (this.state !== "levelup" || !this.pendingPowerChoices) return;
+    const ok = applyPower(this.player, powerId);
+    if (!ok) return;
+
+    // reaplicar HP se pegou vitalidade
+    const newMax = this.getPlayerMaxHp();
+    if (newMax > this.player.maxHp) {
+      const gain = newMax - this.player.maxHp;
+      this.player.maxHp = newMax;
+      this.player.hp = Math.min(newMax, this.player.hp + gain);
+    }
+
+    this.audio.equip();
+    this.particles.levelUp(this.player.x, this.player.y);
+    this.ui.hidePowerSelect();
+    this.pendingPowerChoices = null;
+    this.levelUpQueue = Math.max(0, this.levelUpQueue - 1);
+    this.state = "playing";
+    this.ui.toast(this.player.powerStacks[powerId] > 1 ? "PODER REFORÇADO" : "PODER ADQUIRIDO");
+    this.ui.updateHud(this);
+
+    // se subiu vários níveis de uma vez
+    if (this.levelUpQueue > 0) {
+      this._openPowerSelectIfNeeded();
     }
   }
 
@@ -1016,7 +1133,8 @@ export class Game {
     if (p.invuln > 0 || p.dead) return;
 
     const def = this.getPlayerDefense();
-    const reduced = Math.max(1, Math.round(rawDmg * (100 / (100 + def * 8))));
+    const takenMult = p.mods?.dmgTakenMult || 1;
+    const reduced = Math.max(1, Math.round(rawDmg * (100 / (100 + def * 8)) * takenMult));
     p.hp -= reduced;
     p.invuln = PLAYER_BASE.invulnAfterHit;
     p.flash = 0.15;
@@ -1113,6 +1231,7 @@ export class Game {
     });
     this.ui.toast(item.name.toUpperCase());
     this.ui.updateHud(this);
+    this._openPowerSelectIfNeeded();
   }
 
   rejectLoot() {
@@ -1126,6 +1245,7 @@ export class Game {
     this.state = "playing";
     this.ui.hideLootCompare();
     this.audio.uiClick();
+    this._openPowerSelectIfNeeded();
   }
 
   // ─── Stage flow ───
@@ -1220,7 +1340,10 @@ export class Game {
     this.particles.draw(ctx);
 
     // boss hp bar
-    if (this.bossRef && !this.bossRef.dead && (this.state === "playing" || this.state === "loot")) {
+    if (
+      this.bossRef && !this.bossRef.dead &&
+      (this.state === "playing" || this.state === "loot" || this.state === "levelup")
+    ) {
       this._drawBossBar(ctx);
     }
 
@@ -1303,71 +1426,169 @@ export class Game {
 
   _drawArena(ctx) {
     const a = this.arena;
-    const tint = this.stage?.floorTint || 0;
+    const tint = this.stage?.floorTint ?? 0;
+
+    // paleta por etapa
+    const themes = [
+      { // Portal Infernal — brasas quentes
+        void0: "#1c0c10", void1: "#10080a", floor: "#1a0e10",
+        tile: "rgba(255,90,31,0.05)", crack: "rgba(255,90,31,0.1)",
+        wall: "rgba(196,30,58,0.5)", glow: "rgba(255,90,31,0.22)",
+        accent: "#ff5a1f",
+      },
+      { // Corredor de Cinzas — cinza quente
+        void0: "#14100e", void1: "#0c0a08", floor: "#181410",
+        tile: "rgba(180,160,120,0.05)", crack: "rgba(160,140,100,0.12)",
+        wall: "rgba(140,110,70,0.4)", glow: "rgba(200,160,80,0.15)",
+        accent: "#c4a060",
+      },
+      { // Fossa das Sombras — roxo abismo
+        void0: "#100818", void1: "#080410", floor: "#120a16",
+        tile: "rgba(120,60,180,0.06)", crack: "rgba(160,80,220,0.12)",
+        wall: "rgba(120,40,160,0.45)", glow: "rgba(140,60,200,0.2)",
+        accent: "#b44dff",
+      },
+      { // Trono do Abismo — sangue e ouro
+        void0: "#1a0608", void1: "#0a0204", floor: "#16080c",
+        tile: "rgba(200,30,50,0.08)", crack: "rgba(240,193,75,0.1)",
+        wall: "rgba(220,40,60,0.55)", glow: "rgba(255,60,80,0.28)",
+        accent: "#ff3b5c",
+      },
+    ];
+    const th = themes[clamp(tint, 0, 3)];
 
     // outer void
     const bg = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, 420);
-    bg.addColorStop(0, "#1a0c10");
-    bg.addColorStop(0.5, "#10080a");
-    bg.addColorStop(1, "#060304");
+    bg.addColorStop(0, th.void0);
+    bg.addColorStop(0.55, th.void1);
+    bg.addColorStop(1, "#040204");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
     // floor
-    ctx.fillStyle = tint >= 2 ? "#160a0e" : COLORS.floor;
+    ctx.fillStyle = th.floor;
     ctx.fillRect(a.x, a.y, a.w, a.h);
 
-    // tile grid
     ctx.save();
     ctx.beginPath();
     ctx.rect(a.x, a.y, a.w, a.h);
     ctx.clip();
-    const tile = 40;
+
+    // tile grid
+    const tile = tint === 1 ? 36 : tint === 2 ? 48 : 40;
     for (let y = a.y; y < a.y + a.h; y += tile) {
       for (let x = a.x; x < a.x + a.w; x += tile) {
         const odd = ((x / tile) | 0) + ((y / tile) | 0);
         if (odd % 2 === 0) {
-          ctx.fillStyle = tint >= 3 ? "rgba(80,15,25,0.15)" : "rgba(255,90,31,0.03)";
+          ctx.fillStyle = th.tile;
           ctx.fillRect(x, y, tile, tile);
         }
       }
     }
 
-    // cracks / runes subtle
-    ctx.strokeStyle = "rgba(255,90,31,0.06)";
+    // trono: carpete central
+    if (tint === 3) {
+      const cx = a.x + a.w / 2;
+      ctx.fillStyle = "rgba(120, 10, 25, 0.35)";
+      ctx.fillRect(cx - 48, a.y, 96, a.h);
+      ctx.strokeStyle = "rgba(240,193,75,0.25)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 48, a.y);
+      ctx.lineTo(cx - 48, a.y + a.h);
+      ctx.moveTo(cx + 48, a.y);
+      ctx.lineTo(cx + 48, a.y + a.h);
+      ctx.stroke();
+      // trono silhueta no fundo
+      ctx.fillStyle = "rgba(40, 8, 12, 0.7)";
+      ctx.fillRect(cx - 36, a.y + 18, 72, 28);
+      ctx.fillStyle = "rgba(240,193,75,0.2)";
+      ctx.fillRect(cx - 20, a.y + 10, 40, 10);
+    }
+
+    // fossa: poças de sombra
+    if (tint === 2) {
+      for (let i = 0; i < 5; i++) {
+        const px = a.x + 80 + i * 150;
+        const py = a.y + 100 + (i % 2) * 160;
+        const g = ctx.createRadialGradient(px, py, 4, px, py, 55);
+        g.addColorStop(0, "rgba(80,20,120,0.25)");
+        g.addColorStop(1, "rgba(80,20,120,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, 55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // cinzas: linhas de corredor
+    if (tint === 1) {
+      ctx.strokeStyle = "rgba(180,150,100,0.08)";
+      ctx.lineWidth = 1;
+      for (let x = a.x + 60; x < a.x + a.w; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, a.y);
+        ctx.lineTo(x, a.y + a.h);
+        ctx.stroke();
+      }
+    }
+
+    // portal: runas circulares no centro
+    if (tint === 0) {
+      ctx.strokeStyle = "rgba(255,90,31,0.12)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, 70, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, 110, 0.2, Math.PI * 1.4);
+      ctx.stroke();
+    }
+
+    // cracks
+    ctx.strokeStyle = th.crack;
     ctx.lineWidth = 1;
-    for (let i = 0; i < 8; i++) {
-      const rx = a.x + ((i * 97) % a.w);
-      const ry = a.y + ((i * 61) % a.h);
+    for (let i = 0; i < 10; i++) {
+      const rx = a.x + ((i * 97 + tint * 40) % a.w);
+      const ry = a.y + ((i * 61 + tint * 30) % a.h);
       ctx.beginPath();
       ctx.moveTo(rx, ry);
-      ctx.lineTo(rx + 30, ry + 18);
-      ctx.lineTo(rx + 12, ry + 40);
+      ctx.lineTo(rx + 28 + tint * 4, ry + 16);
+      ctx.lineTo(rx + 10, ry + 38);
       ctx.stroke();
     }
     ctx.restore();
 
-    // walls border glow
-    ctx.strokeStyle = "rgba(196,30,58,0.45)";
+    // walls
+    ctx.strokeStyle = th.wall;
     ctx.lineWidth = 3;
     ctx.strokeRect(a.x + 1.5, a.y + 1.5, a.w - 3, a.h - 3);
-    ctx.strokeStyle = "rgba(255,90,31,0.2)";
+    ctx.strokeStyle = th.glow;
     ctx.lineWidth = 8;
     ctx.strokeRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
 
     // corner pillars
-    this._drawPillar(ctx, a.x + 8, a.y + 8);
-    this._drawPillar(ctx, a.x + a.w - 8, a.y + 8);
-    this._drawPillar(ctx, a.x + 8, a.y + a.h - 8);
-    this._drawPillar(ctx, a.x + a.w - 8, a.y + a.h - 8);
+    const pillarCol = th.accent;
+    this._drawPillar(ctx, a.x + 8, a.y + 8, pillarCol);
+    this._drawPillar(ctx, a.x + a.w - 8, a.y + 8, pillarCol);
+    this._drawPillar(ctx, a.x + 8, a.y + a.h - 8, pillarCol);
+    this._drawPillar(ctx, a.x + a.w - 8, a.y + a.h - 8, pillarCol);
+
+    // trono: pilares laterais extras
+    if (tint === 3) {
+      this._drawPillar(ctx, a.x + 60, a.y + 40, "#f0c14b");
+      this._drawPillar(ctx, a.x + a.w - 60, a.y + 40, "#f0c14b");
+      this._drawPillar(ctx, a.x + 60, a.y + a.h - 40, "#f0c14b");
+      this._drawPillar(ctx, a.x + a.w - 60, a.y + a.h - 40, "#f0c14b");
+    }
   }
 
-  _drawPillar(ctx, x, y) {
+  _drawPillar(ctx, x, y, accent = "rgba(255,90,31,0.35)") {
     ctx.fillStyle = "#2a1418";
     ctx.beginPath();
     ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,90,31,0.35)";
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 2;
     ctx.stroke();
   }
@@ -1878,8 +2099,8 @@ export class Game {
       ctx.rotate(p.facing);
       ctx.globalAlpha = p.atkPhase === "active" ? (fury ? 0.32 : 0.24) : 0.12;
       ctx.fillStyle = fury ? "#ff5a1f" : "#ffb347";
-      const range = PLAYER_BASE.attackRange * (fury ? 1.12 : 1);
-      const arc = PLAYER_BASE.attackArc * (fury ? 1.08 : 1);
+      const range = this.getAttackRange();
+      const arc = this.getAttackArc();
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, range, -arc / 2, arc / 2);
