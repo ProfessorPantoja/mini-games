@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt — Horda Infernal</title>
+  <style>
+    :root {
+      --bg: #0c0a10;
+      --panel: #16121c;
+      --text: #f2eef8;
+      --muted: #9a90a8;
+      --accent: #ff6b4a;
+      --gold: #ffc857;
+      --ok: #7dffb3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 36px 20px 72px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 {
+      font-size: 1.75rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+    }
+    .sub { color: var(--muted); margin: 0 0 28px; }
+    h2 {
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 28px 0 10px;
+    }
+    .box {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 0 0 12px;
+    }
+    .box.gold { border-color: rgba(255, 200, 87, 0.28); }
+    .box.ok { border-color: rgba(125, 255, 179, 0.25); }
+    p { margin: 0 0 10px; }
+    p:last-child { margin-bottom: 0; }
+    ul { margin: 6px 0 0; padding-left: 1.15em; }
+    li { margin: 6px 0; color: var(--text); }
+    li span { color: var(--muted); }
+    strong { color: #fff; }
+    .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+      border: 1px solid rgba(255, 200, 87, 0.35);
+      padding: 3px 8px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    footer {
+      margin-top: 36px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="tag">ARPG minimalista · pasta 13</span>
+    <h1>Horda Infernal</h1>
+    <p class="sub">
+      Um Diablo em miniatura: você é o herói no meio da tela, hordas vêm de todos os lados,
+      você bate, sobe de nível, veste o que cai no chão e avança mapa a mapa até o chefão.
+      Polido, viciante e direto — sem virar um MMO.
+    </p>
+
+    <h2>A sensação que o jogo precisa entregar</h2>
+    <div class="box">
+      <p>
+        A diversão principal é <strong>matar e ficar mais forte</strong>.
+        Cada sala deve parecer “mais uma rodada e eu fico monstro”.
+        O jogador sente o poder crescer: no começo morre fácil; depois limpa a tela com satisfação.
+      </p>
+      <p>
+        Ritmo de ação contínua — não é puzzle, não é estratégia lenta.
+        É entrar, bater, loot, subir, avançar.
+      </p>
+    </div>
+
+    <h2>Personagem e classes</h2>
+    <div class="box">
+      <p>
+        Existem <strong>três classes</strong> no design: <strong>Bárbaro</strong>, <strong>Arqueiro</strong> e <strong>Mago</strong>.
+        Na primeira versão jogável, o jogador <strong>só pode começar com o Bárbaro</strong> —
+        as outras classes existem no conceito e podem ser liberadas depois, mas o foco agora é
+        deixar uma classe impecável.
+      </p>
+      <ul>
+        <li><strong>Bárbaro</strong> — corpo a corpo, tanque, golpes em área curta, “sinto o impacto”.</li>
+        <li><strong>Arqueiro</strong> — distância, mobilidade, furar a horda por trás / pelas laterais.</li>
+        <li><strong>Mago</strong> — dano em área, controle, mais frágil se cercado.</li>
+      </ul>
+      <p>
+        O herói tem status simples e legíveis: vida, dano, defesa, velocidade.
+        Subir de nível gasta pontos (ou sobe automático de forma clara) — o jogador
+        <strong>vê</strong> que ficou mais forte, não só um número escondido.
+      </p>
+    </div>
+
+    <h2>Combate e hordas</h2>
+    <div class="box">
+      <p>
+        O campo é vista de cima (ou levemente isométrica), herói no centro do controle.
+        Inimigos vêm em <strong>ondas / multidões</strong>: fracos no começo, misturados no meio,
+        elites e mini-ameaças mais à frente.
+      </p>
+      <p>
+        Bater tem peso: feedback visual e sonoro em cada hit, inimigo reage, some com juice.
+        Morrer dói um pouco, mas recomeçar a fase (ou o mapa) é rápido — zero fricção.
+      </p>
+      <p>
+        O “desafio” não é decoração: densidade de inimigos, tipos diferentes
+        (rápido, tanque, atirador, explodidor) e salas que apertam o jogador.
+      </p>
+    </div>
+
+    <h2>Progressão: nível, itens e poder</h2>
+    <div class="box gold">
+      <p>
+        Matar dá experiência. Encher a barra = <strong>nível</strong> = mais forte
+        (e/ou escolha rápida de bônus).
+      </p>
+      <p>
+        Inimigos <strong>dropam itens no chão</strong>: armas, armaduras, talvez anéis ou amuletos.
+        O jogador equipa o que for melhor — o inventário é <strong>simples</strong>
+        (equipado vs mochila curta), sem planilha de contador.
+      </p>
+      <p>
+        Itens têm raridade visível (comum → mágico → raro → lendário) e o “clique gostoso”
+        de achar algo roxo/dourado no meio da porrada.
+      </p>
+      <p>
+        A fantasia é clara: <strong>entrei pelado, saí blindado com machado absurdo</strong>.
+      </p>
+    </div>
+
+    <h2>Mapa e estrutura da run</h2>
+    <div class="box">
+      <p>
+        Não é mundo aberto gigante. É um <strong>mapa de etapas</strong> (atos / biomas / nós):
+        o jogador escolhe ou avança por fases curtas, cada uma com algumas salas ou uma arena de horda.
+      </p>
+      <ul>
+        <li><strong>Fases normais</strong> — limpar hordas, achar baú ou saída.</li>
+        <li><strong>Fases de desafio</strong> — mais densas, melhor loot, risco maior.</li>
+        <li><strong>Chefão</strong> — no fim do ato: padrão legível, fases do boss, recompensa grande.</li>
+      </ul>
+      <p>
+        Uma run completa deve caber em sessão de jogo casual (minutos a dezenas de minutos),
+        não em 40 horas de campanha.
+      </p>
+    </div>
+
+    <h2>O que importa na hora de fazer bem</h2>
+    <div class="box ok">
+      <ul>
+        <li><strong>Controle imediato</strong> — em 5 segundos já estou andando e batendo.</li>
+        <li><strong>Horda legível</strong> — caos controlado, não confusão ilegível.</li>
+        <li><strong>Loot viciante</strong> — cada drop conta; upgrade se sente.</li>
+        <li><strong>Poder crescente</strong> — curva de poder gostosa até o boss.</li>
+        <li><strong>Polimento</strong> — impacto, som, partículas, UI clara de vida/XP/equip.</li>
+        <li><strong>Uma classe perfeita primeiro</strong> — Bárbaro; mago e arqueiro depois.</li>
+      </ul>
+    </div>
+
+    <h2>O que explicitamente não é</h2>
+    <div class="box">
+      <ul>
+        <li>Não é Diablo completo (sem economia multiplayer, sem 12 atos, sem 200 skills).</li>
+        <li>Não é crafting profundo nem inventário de 40 slots.</li>
+        <li>Não é texto e lore longos — atmosfera sim, manual de RPG não.</li>
+        <li>Não é “sandbox genérico”: tem objetivo, avanço e chefão.</li>
+      </ul>
+    </div>
+
+    <h2>Nome e vibe</h2>
+    <div class="box">
+      <p>
+        Nome de trabalho: <strong>Horda Infernal</strong>.
+        Vibe: neon-dark / fogo / masmorra compacta, no mesmo universo visual “arcade polido”
+        do portal de mini-games — só que com sangue de ARPG.
+      </p>
+      <p>
+        Frase de capa: <em>Entre sozinho. Saia lendário.</em>
+      </p>
+    </div>
+
+    <footer>
+      Pasta pronta para a próxima sessão: só este prompt.
+      Implementação ainda não começou — de propósito.
+    </footer>
+  </div>
+</body>
+</html>
