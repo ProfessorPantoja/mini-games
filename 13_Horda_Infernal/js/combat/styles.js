@@ -23,16 +23,22 @@ function stats(game) {
   return game.classDef.stats;
 }
 
+function wantAttack(game) {
+  return game.mouse.down || game.keys["KeyJ"] || game.touchAttack
+    || (game.touchAim?.active && Math.hypot(game.touchAim.x, game.touchAim.y) > 0.35);
+}
+
 function updateMelee(game, dt) {
   const p = game.player;
   const s = stats(game);
-  const wantAtk = game.mouse.down || game.keys["KeyJ"] || game.touchAttack;
+  const wantAtk = wantAttack(game);
   const res = game.classDef.resource;
   const furyOn = game.isResourceActive();
   const cdMult = (furyOn ? res.atkSpeed : 1) * (p.mods?.atkCdMult || 1);
 
   if (p.atkPhase === "idle") {
     if (wantAtk && p.atkCd <= 0 && p.dashing <= 0) {
+      game.updateFacing?.(game.touchMove.x, game.touchMove.y, true);
       p.atkPhase = "windup";
       p.atkTimer = s.attackWindup * (furyOn ? 0.7 : 1);
       p.hitSet = new Set();
@@ -122,7 +128,9 @@ function resolveMeleeHits(game) {
 function updateRanged(game, dt) {
   const p = game.player;
   const s = stats(game);
-  const wantAtk = game.mouse.down || game.keys["KeyJ"] || game.touchAttack;
+  const wantAtk =
+    game.mouse.down || game.keys["KeyJ"] || game.touchAttack
+    || (game.touchAim?.active && Math.hypot(game.touchAim.x, game.touchAim.y) > 0.35);
   const res = game.classDef.resource;
   const active = game.isResourceActive();
   const cdMult = (active ? res.atkSpeed : 1) * (p.mods?.atkCdMult || 1);
@@ -138,7 +146,8 @@ function updateRanged(game, dt) {
 
   if (!wantAtk || p.atkCd > 0 || p.dashing > 0) return;
 
-  // tiro
+  // tiro (auto-mira no celular se não houver stick de mira)
+  game.updateFacing?.(game.touchMove.x, game.touchMove.y, true);
   p.atkPhase = "active";
   p.atkTimer = s.attackActive + s.attackRecover;
   p.atkCd = s.attackCooldown * cdMult;
@@ -192,20 +201,19 @@ function updateRanged(game, dt) {
 function updateCaster(game, dt) {
   const p = game.player;
   const s = stats(game);
-  const wantAtk = game.mouse.down || game.keys["KeyJ"] || game.touchAttack;
+  const wantAtk = wantAttack(game);
   const res = game.classDef.resource;
   const active = game.isResourceActive();
   const cdMult = (active ? res.atkSpeed : 1) * (p.mods?.atkCdMult || 1);
 
-  // mirar sempre no mouse enquanto castando
-  if (p.atkPhase === "windup" || p.atkPhase === "active") {
-    const dx = game.mouse.x - p.x;
-    const dy = game.mouse.y - p.y;
-    if (Math.hypot(dx, dy) > 4) p.facing = Math.atan2(dy, dx);
+  // mira contínua (touch stick / mouse / auto-aim)
+  if (p.atkPhase === "windup" || p.atkPhase === "active" || wantAtk) {
+    game.updateFacing?.(game.touchMove.x, game.touchMove.y, true);
   }
 
   if (p.atkPhase === "idle") {
     if (wantAtk && p.atkCd <= 0 && p.dashing <= 0) {
+      game.updateFacing?.(game.touchMove.x, game.touchMove.y, true);
       p.atkPhase = "windup";
       p.atkTimer = s.attackWindup * (active ? 0.55 : 1);
       p.swingCount = (p.swingCount || 0) + 1;

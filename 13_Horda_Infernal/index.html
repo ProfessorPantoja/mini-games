@@ -70,10 +70,15 @@
       <div id="wave-banner" class="wave-banner" aria-hidden="true"></div>
       <div id="toast" class="toast" aria-live="polite"></div>
 
-      <!-- Touch -->
+      <!-- Touch: twin-stick (esq. move · dir. mira/fogo) + dash -->
       <div id="touch-ui" class="touch-ui" aria-hidden="true">
-        <div id="stick-zone" class="stick-zone">
+        <div id="stick-zone" class="stick-zone stick-move" aria-label="Mover">
           <div id="stick-knob" class="stick-knob"></div>
+          <span class="stick-label">MOVER</span>
+        </div>
+        <div id="aim-zone" class="stick-zone stick-aim" aria-label="Mirar e atacar">
+          <div id="aim-knob" class="stick-knob aim"></div>
+          <span class="stick-label">MIRAR</span>
         </div>
         <button id="dash-btn" class="dash-btn" type="button">DASH</button>
         <button id="atk-btn" class="atk-btn" type="button">ATACAR</button>
@@ -110,8 +115,8 @@
           <button id="btn-ranking" class="btn ghost" type="button">RANKING</button>
         </div>
         <p class="hint" id="title-hint">
-          <kbd>WASD</kbd> mover · mouse mirar · clique atacar ·
-          <kbd>Espaço</kbd> dash · <kbd>E</kbd> loot · encha o recurso da classe
+          <kbd>WASD</kbd> + mouse no PC · no celular: stick esq. move, dir. mira/atira ·
+          <kbd>Espaço</kbd> dash · encha o recurso da classe
         </p>
       </section>
 

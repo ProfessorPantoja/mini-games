@@ -35,10 +35,14 @@ export class Game {
 
     this.state = "title"; // title | playing | loot | levelup | pause | victory | defeat
     this.keys = Object.create(null);
-    this.mouse = { x: W / 2, y: H / 2, down: false };
+    this.mouse = { x: W / 2, y: H / 2, down: false, used: false };
     this.touchMove = { x: 0, y: 0 };
+    /** Stick direito: mira independente do movimento (celular) */
+    this.touchAim = { x: 0, y: 0, active: false };
     this.touchAttack = false;
     this.touchDash = false;
+    /** true quando controles touch estão ativos */
+    this.mobileTouch = false;
 
     this.time = 0;
     this.arena = { x: 48, y: 48, w: W - 96, h: H - 96 };
@@ -106,17 +110,80 @@ export class Game {
     window.addEventListener("keyup", (e) => { this.keys[e.code] = false; });
 
     this.canvas.addEventListener("mousemove", (e) => {
+      // em touch não usa mouse como mira
+      if (this.mobileTouch) return;
       const r = this.canvas.getBoundingClientRect();
       const sx = this.canvas.width / r.width;
       const sy = this.canvas.height / r.height;
       this.mouse.x = (e.clientX - r.left) * sx;
       this.mouse.y = (e.clientY - r.top) * sy;
+      this.mouse.used = true;
     });
     this.canvas.addEventListener("mousedown", (e) => {
+      if (this.mobileTouch) return;
       if (e.button === 0) this.mouse.down = true;
     });
     window.addEventListener("mouseup", () => { this.mouse.down = false; });
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
+  /**
+   * Inimigo vivo mais próximo (auto-mira no celular).
+   * @param {number} [maxDist]
+   */
+  nearestEnemy(maxDist = 9999) {
+    if (!this.player || !this.enemies?.length) return null;
+    let best = null;
+    let bestD = maxDist;
+    for (const e of this.enemies) {
+      if (e.dead || (e.spawnGrace || 0) > 0) continue;
+      const d = dist(this.player, e);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Atualiza facing: mira touch > mouse desktop > auto-mira se atacando > movimento.
+   */
+  updateFacing(ix, iy, attacking) {
+    const p = this.player;
+    if (!p) return;
+
+    // 1) Stick de mira (celular) — prioridade máxima
+    if (this.touchAim.active) {
+      const m = Math.hypot(this.touchAim.x, this.touchAim.y);
+      if (m > 0.2) {
+        p.facing = ang(this.touchAim.x, this.touchAim.y);
+        return;
+      }
+    }
+
+    // 2) Mouse (desktop)
+    if (!this.mobileTouch && this.mouse.used) {
+      const toMouse = { x: this.mouse.x - p.x, y: this.mouse.y - p.y };
+      if (Math.hypot(toMouse.x, toMouse.y) > 8) {
+        p.facing = ang(toMouse.x, toMouse.y);
+        return;
+      }
+    }
+
+    // 3) Ao atacar no celular sem mira: auto-aim no mais próximo
+    if (attacking && this.mobileTouch) {
+      const e = this.nearestEnemy(420);
+      if (e) {
+        p.facing = ang(e.x - p.x, e.y - p.y);
+        return;
+      }
+    }
+
+    // 4) Direção do movimento
+    if (ix || iy) {
+      p.facing = ang(ix, iy);
+    }
   }
 
   startRun(classId = null) {
@@ -432,13 +499,9 @@ export class Game {
     ix += this.touchMove.x;
     iy += this.touchMove.y;
 
-    // Face mouse when aiming, else movement
-    const toMouse = { x: this.mouse.x - p.x, y: this.mouse.y - p.y };
-    if (Math.hypot(toMouse.x, toMouse.y) > 8) {
-      p.facing = ang(toMouse.x, toMouse.y);
-    } else if (ix || iy) {
-      p.facing = ang(ix, iy);
-    }
+    const attacking =
+      this.mouse.down || this.keys["KeyJ"] || this.touchAttack || this.touchAim.active;
+    this.updateFacing(ix, iy, attacking);
 
     // Dash
     const wantDash = this.keys["Space"] || this.keys["ShiftLeft"] || this.touchDash;
