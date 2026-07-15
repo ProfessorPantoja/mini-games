@@ -265,11 +265,12 @@ export class Game {
       maxCombo: this.maxCombo,
       heal: Math.round(this.healDone || 0),
       time: secs,
+      className: this.classDef?.name || "—",
       weapon: p?.weapon?.name || "—",
       weaponRarity: p?.weapon?.rarity || "common",
       armor: p?.armor?.name || "—",
       armorRarity: p?.armor?.rarity || "common",
-      powers: powers.map((pw) => `${pw.name} ×${pw.stacks}`).join(" · ") || "Nenhum",
+      powers: powers.map((pw) => `${pw.icon} ${pw.name} ×${pw.stacks}`).join(" · ") || "Nenhum",
     };
   }
 
@@ -601,6 +602,7 @@ export class Game {
 
     if (e.kind === "boss") {
       this.bossRef = null;
+      this.audio.setBossAmbience(false);
       this.slowMo = 1.1;
       this.loot.push(createLootDrop(e.x + 20, e.y, generateItem("weapon", this.stageIndex, 1, "legendary")));
       this.loot.push(createLootDrop(e.x - 20, e.y, generateItem("armor", this.stageIndex, 1, "epic")));
@@ -830,6 +832,7 @@ export class Game {
       this.bossRef = e;
       this.bossSpawned = true;
       this.audio.bossAppear();
+      this.audio.setBossAmbience(true);
       this.ui.showBanner("SENHOR DA HORDA");
       this.shake.add(10, 0.45);
       this.shake.punch(0.07);
@@ -973,11 +976,12 @@ export class Game {
       e.lastPhase = e.bossPhase;
       if (e.bossPhase === 1) {
         this.ui.showBanner("FASE II");
-        this.audio.bossAppear();
+        this.audio.bossPhase();
         this.particles.ring(e.x, e.y, "#ffb347", 100, 0.5);
         this._addFlash(0.3);
       } else if (e.bossPhase === 2) {
         this.ui.showBanner("FÚRIA DO TRONO");
+        this.audio.bossPhase();
         this.audio.furyActivate();
         this.particles.furyBurst(e.x, e.y);
         this._addFlash(0.4);
@@ -1014,6 +1018,7 @@ export class Game {
       e.bossAtkCd = 2.0 - e.bossPhase * 0.35;
       const col = atk === "ring" ? "#b44dff" : atk === "charge" ? "#ffb347" : "#ff3b5c";
       this.particles.ring(e.x, e.y, col, atk === "ring" ? 150 : atk === "slam" ? 95 : 60, e.bossWindup);
+      this.audio.bossTelegraph();
     }
   }
 
@@ -1253,6 +1258,7 @@ export class Game {
 
   _onDefeat() {
     this.state = "defeat";
+    this.audio.setBossAmbience(false);
     this.audio.defeat();
     this.audio.stopAmbience();
     this.particles.death(this.player.x, this.player.y, "#e8d5c4");
@@ -1263,6 +1269,7 @@ export class Game {
 
   _onVictory() {
     this.state = "victory";
+    this.audio.setBossAmbience(false);
     this.audio.victory();
     this.audio.stopAmbience();
     this._saveBest();

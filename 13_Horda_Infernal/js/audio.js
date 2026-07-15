@@ -98,9 +98,54 @@ export class AudioBus {
   }
 
   swing() {
-    this._noise(0.08, 0.1, 2200, "highpass");
-    this._tone({ type: "sawtooth", freq: 200, dur: 0.07, peak: 0.07, slide: -100 });
-    this._tone({ type: "sine", freq: 90, dur: 0.06, peak: 0.04 });
+    this.swingMelee(false);
+  }
+
+  /** Bárbaro — whoosh + peso */
+  swingMelee(powered = false) {
+    this._noise(0.09, powered ? 0.14 : 0.1, 1800, "highpass");
+    this._tone({ type: "sawtooth", freq: powered ? 160 : 200, dur: 0.09, peak: powered ? 0.1 : 0.07, slide: -120 });
+    this._tone({ type: "sine", freq: 70, dur: 0.08, peak: 0.05 });
+    if (powered) this._tone({ type: "square", freq: 90, dur: 0.06, peak: 0.06, delay: 0.02 });
+  }
+
+  /** Arqueiro — corda + flecha */
+  swingBow(powered = false) {
+    this._noise(0.04, 0.06, 3200, "highpass");
+    this._tone({ type: "triangle", freq: powered ? 520 : 420, dur: 0.05, peak: 0.07, slide: 80 });
+    this._tone({ type: "sine", freq: powered ? 880 : 720, dur: 0.08, peak: 0.06, slide: -200 });
+    if (powered) this._tone({ type: "sine", freq: 1100, dur: 0.05, peak: 0.04, delay: 0.03 });
+  }
+
+  /** Mago — carga */
+  castStart(powered = false) {
+    this._tone({ type: "sine", freq: 180, dur: 0.1, peak: 0.06, slide: 120 });
+    this._tone({ type: "triangle", freq: 280, dur: 0.12, peak: 0.07, delay: 0.02, slide: 100 });
+    if (powered) this._noise(0.08, 0.06, 600);
+  }
+
+  /** Mago — liberar orbe */
+  castFire(powered = false) {
+    this._noise(0.07, 0.1, 900);
+    this._tone({ type: "sawtooth", freq: powered ? 140 : 180, dur: 0.1, peak: 0.1, slide: 60 });
+    this._tone({ type: "sine", freq: powered ? 420 : 360, dur: 0.12, peak: 0.08, delay: 0.02 });
+  }
+
+  mageExplode(powered = false) {
+    this._noise(0.18, powered ? 0.2 : 0.14, 500);
+    this._tone({ type: "square", freq: 90, dur: 0.16, peak: 0.12, slide: -40 });
+    this._tone({ type: "sine", freq: 220, dur: 0.14, peak: 0.08, delay: 0.03, slide: -80 });
+    if (powered) this._tone({ type: "triangle", freq: 160, dur: 0.2, peak: 0.07, delay: 0.05 });
+  }
+
+  arrowHit() {
+    this._noise(0.04, 0.08, 1400, "highpass");
+    this._tone({ type: "triangle", freq: 380, dur: 0.05, peak: 0.06, slide: -100 });
+  }
+
+  cleaveHit(n = 3) {
+    this._noise(0.1, 0.12, 500);
+    this._tone({ type: "sawtooth", freq: 100 + n * 8, dur: 0.12, peak: 0.11, slide: -50 });
   }
 
   hit() {
@@ -176,9 +221,35 @@ export class AudioBus {
   }
 
   bossAppear() {
-    this._noise(0.4, 0.18, 200);
-    this._tone({ type: "sawtooth", freq: 55, dur: 0.5, peak: 0.16, slide: -20 });
-    this._tone({ type: "square", freq: 70, dur: 0.35, peak: 0.1, delay: 0.1 });
+    this._noise(0.45, 0.2, 180);
+    this._tone({ type: "sawtooth", freq: 48, dur: 0.55, peak: 0.18, slide: -15 });
+    this._tone({ type: "square", freq: 65, dur: 0.4, peak: 0.12, delay: 0.08 });
+    this._tone({ type: "sine", freq: 90, dur: 0.5, peak: 0.08, delay: 0.15, slide: -30 });
+  }
+
+  bossTelegraph() {
+    this._tone({ type: "sine", freq: 110, dur: 0.15, peak: 0.07, slide: 40 });
+    this._noise(0.1, 0.06, 250);
+  }
+
+  bossPhase() {
+    this._noise(0.3, 0.16, 220);
+    this._tone({ type: "sawtooth", freq: 60, dur: 0.35, peak: 0.14, slide: 30 });
+    this._tone({ type: "square", freq: 80, dur: 0.28, peak: 0.1, delay: 0.06 });
+  }
+
+  /** Intensifica drone ambiente no boss */
+  setBossAmbience(on) {
+    if (!this._ambience) return;
+    const t = this._t();
+    const g = on ? 0.032 : 0.018;
+    const f = on ? 280 : 180;
+    try {
+      this._ambience.g.gain.setTargetAtTime(g, t, 0.3);
+      this._ambience.f.frequency.setTargetAtTime(f, t, 0.4);
+      if (on) this._ambience.o.frequency.setTargetAtTime(38, t, 0.5);
+      else this._ambience.o.frequency.setTargetAtTime(42, t, 0.5);
+    } catch { /* ignore */ }
   }
 
   portal() {
