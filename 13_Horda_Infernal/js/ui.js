@@ -107,7 +107,15 @@ export class UI {
 
     if (game.stage) {
       const hard = game.stage.hard ? " ☠" : "";
-      this.stagePill.textContent = `${game.stageIndex + 1}/${STAGES.length} · ${game.stage.name}${hard}`;
+      // Durante o chefe a barra de vida ocupa o centro — some com o pill
+      // para não sobrepor o nome/HP do boss no canvas.
+      const bossUp = game.bossRef && !game.bossRef.dead;
+      if (this.stagePill) {
+        this.stagePill.style.visibility = bossUp ? "hidden" : "visible";
+        if (!bossUp) {
+          this.stagePill.textContent = `${game.stageIndex + 1}/${STAGES.length} · ${game.stage.name}${hard}`;
+        }
+      }
     }
 
     this._fillChip(this.chipWeapon, p.weapon, "ARMA");
