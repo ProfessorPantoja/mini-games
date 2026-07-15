@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Neon Serpent — Log de feedback & mudanças</title>
+  <style>
+    :root {
+      --bg: #070a12; --card: #0e1422; --line: #243048;
+      --cyan: #00f0ff; --mag: #ff2bd6; --amber: #ffc857;
+      --text: #e8eefc; --muted: #8a96b8; --ok: #7dffb3; --todo: #ffb070;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5;
+      padding: 28px 18px 60px;
+    }
+    .wrap { max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 1.45rem; letter-spacing: 0.04em; margin: 0 0 6px; }
+    .sub { color: var(--muted); margin-bottom: 22px; font-size: 0.95rem; }
+    .entry {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 18px 18px 14px; margin-bottom: 16px;
+    }
+    .entry header {
+      display: flex; flex-wrap: wrap; gap: 8px 14px;
+      align-items: baseline; margin-bottom: 10px;
+    }
+    .date {
+      font-family: ui-monospace, monospace; font-size: 0.8rem;
+      color: var(--cyan); letter-spacing: 0.06em;
+    }
+    .tag {
+      font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .tag.done { color: var(--ok); border-color: rgba(125,255,179,.35); }
+    .tag.idea { color: var(--amber); border-color: rgba(255,200,87,.35); }
+    .tag.feedback { color: var(--mag); border-color: rgba(255,43,214,.35); }
+    h2 { font-size: 1.05rem; margin: 0; }
+    h3 { font-size: 0.85rem; color: var(--muted); margin: 12px 0 6px; letter-spacing: 0.06em; text-transform: uppercase; }
+    ul { margin: 0 0 4px; padding-left: 1.15rem; }
+    li { margin: 4px 0; }
+    li strong { color: #fff; }
+    .status { color: var(--ok); font-size: 0.85rem; }
+    .status.pending { color: var(--todo); }
+    code {
+      font-family: ui-monospace, monospace; font-size: 0.84em;
+      background: rgba(0,0,0,.35); padding: 1px 5px; border-radius: 4px;
+    }
+    a { color: var(--cyan); }
+    footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>NEON SERPENT — Log de memória</h1>
+    <p class="sub">
+      Registro simples do que foi <strong>pedido</strong>, <strong>feito</strong> e o que fica no
+      <strong>backlog</strong>. Completa (não substitui) o histórico do git.
+      Atualizar a cada sessão de feedback.
+    </p>
+
+    <!-- ═══════════ ENTRADA MAIS RECENTE NO TOPO ═══════════ -->
+
+    <article class="entry">
+      <header>
+        <span class="date">2026-07-15 · sessão 2</span>
+        <span class="tag feedback">feedback</span>
+        <span class="tag done">implementado parcial</span>
+      </header>
+      <h2>Paredes legíveis, dev skip, abertura, multi/modos (visão)</h2>
+
+      <h3>Pedido do Fábio</h3>
+      <ul>
+        <li><strong>Paredes letais</strong> precisam parecer perigosas (ex.: “elétricas”); portal precisa parecer que atravessa.</li>
+        <li><strong>Botão continuar/pular infinito</strong> com flag true/false para testar e depois desligar.</li>
+        <li><strong>Tela de abertura</strong> mais presente (estava “faltando” personalidade).</li>
+        <li><strong>Log de memória</strong> além do commit — o que foi falado e modificado.</li>
+        <li>Visão de produto: single, duo local, online; speedrun; poderes ativos (estilo Mario Kart); fantasma/anti-colisão.</li>
+        <li>Micro-commits + push no final.</li>
+      </ul>
+
+      <h3>Feito nesta sessão</h3>
+      <ul>
+        <li class="status">✓ Borda <strong>portal</strong> (tracejada + setas) vs <strong>elétrica</strong> (glow, faíscas, selo ⚡ LETAL).</li>
+        <li class="status">✓ Chip no HUD: <code>BORDA · PORTAL</code> / <code>BORDA · ELÉTRICA</code>.</li>
+        <li class="status">✓ Flag <code>DEV_FLAGS.infiniteContinue</code> em <code>js/dev.js</code> + botões PULAR + tecla <code>N</code>.</li>
+        <li class="status">✓ Tela título: logo animado, modos (campanha on / outros “em breve”), legenda portal vs elétrica.</li>
+        <li class="status">✓ Este arquivo <code>LOG_DEV.html</code>.</li>
+      </ul>
+
+      <h3>Backlog (ainda não feito)</h3>
+      <ul>
+        <li class="status pending">○ Poderes <strong>ativos</strong> (pegar e apertar botão para usar).</li>
+        <li class="status pending">○ Modo <strong>speedrun</strong> (timer, PB, restart rápido).</li>
+        <li class="status pending">○ <strong>Duo local</strong> mesma tela (2 cobras / cores / inputs).</li>
+        <li class="status pending">○ <strong>Online</strong> (ver nota de arquitetura no final deste log).</li>
+        <li class="status pending">○ Polir fantasma (feedback visual mais “fantasma”, duração/velocidade).</li>
+        <li class="status pending">○ Mais modos de corrida / run.</li>
+      </ul>
+    </article>
+
+    <article class="entry">
+      <header>
+        <span class="date">2026-07-15 · sessão 1</span>
+        <span class="tag done">implementado</span>
+      </header>
+      <h2>Spawn no boss + layouts por fase</h2>
+      <h3>Pedido</h3>
+      <ul>
+        <li>Bug crítico: nascer morrendo no boss (Hidra fases 3/6/9).</li>
+        <li>Cada fase com terreno/identidade visual distinta.</li>
+        <li>Polimento leve (juice, boss legível).</li>
+      </ul>
+      <h3>Feito</h3>
+      <ul>
+        <li class="status">✓ Spawn seguro: hub da Hidra no terço superior, braços diagonais, snake na base.</li>
+        <li class="status">✓ <code>_spawnSnakeSafe</code> valida corpo + 1º passo vs boss/hazards/paredes.</li>
+        <li class="status">✓ 10 layouts manuais em <code>levels.js</code> (h/v/L/cross/ring/rect/dots) + temas de cor.</li>
+        <li class="status">✓ Juice em comer / clear / núcleo; hub do boss mais legível.</li>
+      </ul>
+    </article>
+
+    <article class="entry">
+      <header>
+        <span class="date">visão · multiplayer</span>
+        <span class="tag idea">arquitetura</span>
+      </header>
+      <h2>Como eu faria o online (recomendação)</h2>
+      <ul>
+        <li><strong>Ordem de implementação:</strong> (1) single polido → (2) duo local same-screen → (3) online. Duo local prova regras de 2 jogadores sem rede.</li>
+        <li><strong>Modelo de netcode:</strong> autoritativo no servidor (servidor simula o step da snake; clientes só enviam input). Snake é discreto em grade — perfeito para lockstep por tick.</li>
+        <li><strong>Stack leve:</strong> Node + WebSocket (ou Cloudflare Durable Objects / PartyKit se quiser hospedar barato). Sala de 2–4, matchmaking simples por código de sala.</li>
+        <li><strong>Tick:</strong> ex. 8–12 Hz de estado; inputs com sequência; reconciliação leve no cliente (predição só da própria cobra).</li>
+        <li><strong>Não faça primeiro:</strong> rollback complexo tipo GGPO — overkill para snake em grid. Comece com “servidor manda estado a cada step”.</li>
+        <li><strong>Escopo online MVP:</strong> 1 arena, 2 jogadores, sem campanha, score + “último vivo” ou “primeiro a N orbes”. Campanha online fica para depois.</li>
+        <li><strong>Anti-cheat básico:</strong> servidor valida movimento; cliente nunca decide morte do oponente.</li>
+      </ul>
+    </article>
+
+    <footer>
+      Manter este log vivo: a cada feedback grande, nova <code>&lt;article class="entry"&gt;</code> no topo.
+      Commits = o “como”; este log = o “por quê” e o “o que pediu o Fábio”.
+    </footer>
+  </div>
+</body>
+</html>
