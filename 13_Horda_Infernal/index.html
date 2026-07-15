@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0608" />
+  <meta name="description" content="Horda Infernal — ARPG minimalista. Mate, loot, equipe, sobreviva ao chefão." />
+  <title>Horda Infernal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%231a080c'/%3E%3Cpath d='M20 40 L32 12 L44 40 Z' fill='%23ff5a1f'/%3E%3Ccircle cx='32' cy='36' r='6' fill='%23c41e3a'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <div class="stage">
+      <a class="back-link" href="/">← PORTAL</a>
+      <canvas id="game" width="960" height="640" aria-label="Horda Infernal"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+
+      <!-- HUD -->
+      <header id="hud" class="hud" hidden>
+        <div class="hud-top">
+          <div class="hud-block">
+            <span class="label">MORTES</span>
+            <span class="value" id="kill-count">0</span>
+          </div>
+          <div class="stage-pill" id="stage-pill">1/4 · Portal Infernal</div>
+          <div class="equip-chips">
+            <div class="chip" id="chip-weapon" data-rarity="common">
+              <span class="slot">ARMA</span>
+              <div class="name">—</div>
+            </div>
+            <div class="chip" id="chip-armor" data-rarity="common">
+              <span class="slot">ARMADURA</span>
+              <div class="name">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-center">
+          <div class="stats-strip">
+            <span>NV <b id="stat-lvl">1</b></span>
+            <span>DMG <b id="stat-dmg">24</b></span>
+            <span>DEF <b id="stat-def">3</b></span>
+            <span class="dash-ind" id="dash-ind" title="Dash">DASH</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row">
+              <span class="tag">HP</span>
+              <div class="bar-track"><div id="hp-fill" class="bar-fill hp"></div></div>
+              <span class="num" id="hp-num">120/120</span>
+            </div>
+            <div class="bar-row">
+              <span class="tag">XP</span>
+              <div class="bar-track"><div id="xp-fill" class="bar-fill xp"></div></div>
+              <span class="num" id="xp-num">0/40</span>
+            </div>
+            <div class="bar-row fury-row">
+              <span class="tag">FÚRIA</span>
+              <div class="bar-track fury-track"><div id="fury-fill" class="bar-fill fury"></div></div>
+              <span class="num" id="fury-num">0</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div id="wave-banner" class="wave-banner" aria-hidden="true"></div>
+      <div id="toast" class="toast" aria-live="polite"></div>
+
+      <!-- Touch -->
+      <div id="touch-ui" class="touch-ui" aria-hidden="true">
+        <div id="stick-zone" class="stick-zone">
+          <div id="stick-knob" class="stick-knob"></div>
+        </div>
+        <button id="dash-btn" class="dash-btn" type="button">DASH</button>
+        <button id="atk-btn" class="atk-btn" type="button">ATACAR</button>
+      </div>
+
+      <!-- Title -->
+      <section id="screen-title" class="screen active">
+        <p class="eyebrow">SESSÃO ÚNICA · ARPG</p>
+        <h1>HORDA<br />INFERNAL</h1>
+        <p class="tagline">
+          Você no centro. A horda vem. Mate, equipe o que cai e fique mais forte até o chefão.
+        </p>
+
+        <div class="class-row">
+          <div class="class-card selected">
+            <div class="icon">🪓</div>
+            <div class="cname">BÁRBARO</div>
+            <div class="cmeta">Corpo a corpo<br />corte em arco</div>
+          </div>
+          <div class="class-card locked">
+            <div class="icon">🏹</div>
+            <div class="cname">ARQUEIRO</div>
+            <div class="cmeta">Em breve</div>
+            <span class="lock">BLOQUEADO</span>
+          </div>
+          <div class="class-card locked">
+            <div class="icon">🔥</div>
+            <div class="cname">MAGO</div>
+            <div class="cmeta">Em breve</div>
+            <span class="lock">BLOQUEADO</span>
+          </div>
+        </div>
+
+        <button id="btn-start" class="btn" type="button">ENTRAR NO PORTAL</button>
+        <p class="hint">
+          <kbd>WASD</kbd> mover · mouse mirar · clique atacar ·
+          <kbd>Espaço</kbd> dash · <kbd>E</kbd> loot · encha a <b style="color:#ff5a1f">FÚRIA</b>
+        </p>
+      </section>
+
+      <!-- Pause -->
+      <section id="screen-pause" class="screen">
+        <p class="eyebrow">PAUSADO</p>
+        <h2>RESPIRAÇÃO</h2>
+        <p class="tagline">A horda espera. Mal.</p>
+        <div class="btn-row">
+          <button id="btn-resume" class="btn" type="button">CONTINUAR</button>
+          <button id="btn-menu" class="btn ghost" type="button">MENU</button>
+        </div>
+      </section>
+
+      <!-- Defeat -->
+      <section id="screen-defeat" class="screen defeat">
+        <p class="eyebrow">RUN ENCERRADA</p>
+        <h2>VOCÊ CAIU</h2>
+        <p class="tagline">O abismo cobra seu preço. Tente outra run.</p>
+        <div class="meta-grid">
+          <div class="meta-cell">
+            <div class="m-label">MORTES</div>
+            <div class="m-value" id="meta-kills">0</div>
+          </div>
+          <div class="meta-cell">
+            <div class="m-label">NÍVEL</div>
+            <div class="m-value" id="meta-level">1</div>
+          </div>
+          <div class="meta-cell">
+            <div class="m-label">ETAPA</div>
+            <div class="m-value" id="meta-stage">1/4</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-retry" class="btn" type="button">NOVA RUN</button>
+        </div>
+      </section>
+
+      <!-- Victory -->
+      <section id="screen-victory" class="screen victory">
+        <p class="eyebrow">TRONO TOMADO</p>
+        <h2>VITÓRIA</h2>
+        <p class="tagline">A horda se calou. Por enquanto.</p>
+        <div class="meta-grid">
+          <div class="meta-cell">
+            <div class="m-label">MORTES</div>
+            <div class="m-value" id="win-kills">0</div>
+          </div>
+          <div class="meta-cell">
+            <div class="m-label">NÍVEL</div>
+            <div class="m-value" id="win-level">1</div>
+          </div>
+          <div class="meta-cell">
+            <div class="m-label">DANO</div>
+            <div class="m-value" id="win-dmg">0</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-retry-win" class="btn" type="button">OUTRA RUN</button>
+          <button id="btn-menu-win" class="btn ghost" type="button">MENU</button>
+        </div>
+      </section>
+
+      <!-- Loot compare -->
+      <div id="loot-panel" class="loot-panel" role="dialog" aria-modal="true">
+        <div class="loot-card">
+          <p class="loot-eyebrow" id="loot-rarity">RARO</p>
+          <h2 id="loot-name">Item</h2>
+          <p class="slot-label" id="loot-slot">Arma</p>
+          <div class="compare">
+            <div class="col">
+              <div class="col-title">EQUIPADO</div>
+              <div class="item-name" id="eq-name">—</div>
+              <div id="eq-stats"></div>
+            </div>
+            <div class="vs">VS</div>
+            <div class="col">
+              <div class="col-title">NOVO</div>
+              <div class="item-name" id="new-name">—</div>
+              <div id="new-stats"></div>
+            </div>
+          </div>
+          <p id="loot-verdict" class="loot-verdict" hidden></p>
+          <div class="loot-actions">
+            <button id="btn-skip-loot" class="btn ghost" type="button">DEIXAR <kbd style="margin-left:4px">Q</kbd></button>
+            <button id="btn-equip" class="btn" type="button">EQUIPAR <kbd style="margin-left:4px">E</kbd></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
