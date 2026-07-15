@@ -59,8 +59,47 @@ document.getElementById("power-choices")?.addEventListener("click", (e) => {
   game.pickPower(btn.dataset.powerId);
 });
 
+// ranking
+document.getElementById("btn-ranking")?.addEventListener("click", () => {
+  audio.uiClick();
+  ui.showRanking("title");
+});
+document.getElementById("btn-ranking-win")?.addEventListener("click", () => {
+  audio.uiClick();
+  ui.showRanking("victory");
+});
+document.getElementById("btn-ranking-defeat")?.addEventListener("click", () => {
+  audio.uiClick();
+  ui.showRanking("defeat");
+});
+document.getElementById("btn-ranking-back")?.addEventListener("click", () => {
+  audio.uiClick();
+  ui.closeRanking();
+});
+document.getElementById("btn-save-rank-victory")?.addEventListener("click", () => {
+  ui.handleSaveRanking("victory", audio);
+});
+document.getElementById("btn-save-rank-defeat")?.addEventListener("click", () => {
+  ui.handleSaveRanking("defeat", audio);
+});
+
+function isTypingInField() {
+  const t = document.activeElement;
+  return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+}
+
 // keyboard loot / power shortcuts
 window.addEventListener("keydown", (e) => {
+  // não engolir teclas enquanto digita nome no ranking
+  if (isTypingInField()) {
+    if (e.code === "Enter" && (game.state === "victory" || game.state === "defeat")) {
+      e.preventDefault();
+      const prefix = game.state === "victory" ? "victory" : "defeat";
+      ui.handleSaveRanking(prefix, audio);
+    }
+    return;
+  }
+
   if (game.state === "loot") {
     if (e.code === "KeyE" || e.code === "Enter" || e.code === "Space") {
       e.preventDefault();

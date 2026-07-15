@@ -105,7 +105,10 @@
           </button>
         </div>
 
-        <button id="btn-start" class="btn" type="button">ENTRAR NO PORTAL</button>
+        <div class="btn-row">
+          <button id="btn-start" class="btn" type="button">ENTRAR NO PORTAL</button>
+          <button id="btn-ranking" class="btn ghost" type="button">RANKING</button>
+        </div>
         <p class="hint" id="title-hint">
           <kbd>WASD</kbd> mover · mouse mirar · clique atacar ·
           <kbd>Espaço</kbd> dash · <kbd>E</kbd> loot · encha o recurso da classe
@@ -143,8 +146,17 @@
           </div>
         </div>
         <div class="recap" id="defeat-recap"></div>
+        <div class="rank-submit" id="defeat-rank-box">
+          <p class="rank-hint">Salvar marca (DNF) no ranking local</p>
+          <label class="rank-label" for="defeat-name">SEU NOME</label>
+          <input id="defeat-name" class="rank-input" type="text" maxlength="14" placeholder="Herói" autocomplete="off" spellcheck="false" />
+          <div id="defeat-flags" class="flag-picker" role="group" aria-label="País"></div>
+          <button type="button" id="btn-save-rank-defeat" class="btn ghost">SALVAR NO RANKING</button>
+          <p id="defeat-rank-msg" class="rank-msg" hidden></p>
+        </div>
         <div class="btn-row">
           <button id="btn-retry" class="btn" type="button">NOVA RUN</button>
+          <button id="btn-ranking-defeat" class="btn ghost" type="button">RANKING</button>
         </div>
       </section>
 
@@ -163,14 +175,34 @@
             <div class="m-value" id="win-level">1</div>
           </div>
           <div class="meta-cell">
-            <div class="m-label">DANO</div>
-            <div class="m-value" id="win-dmg">0</div>
+            <div class="m-label">TEMPO</div>
+            <div class="m-value" id="win-time">00:00</div>
           </div>
         </div>
         <div class="recap" id="victory-recap"></div>
+        <div class="rank-submit" id="victory-rank-box">
+          <p class="rank-hint">Speedrun — salve tempo, classe e país</p>
+          <label class="rank-label" for="victory-name">SEU NOME</label>
+          <input id="victory-name" class="rank-input" type="text" maxlength="14" placeholder="Herói" autocomplete="off" spellcheck="false" />
+          <div id="victory-flags" class="flag-picker" role="group" aria-label="País"></div>
+          <button type="button" id="btn-save-rank-victory" class="btn">SALVAR NO RANKING</button>
+          <p id="victory-rank-msg" class="rank-msg" hidden></p>
+        </div>
         <div class="btn-row">
           <button id="btn-retry-win" class="btn" type="button">OUTRA RUN</button>
+          <button id="btn-ranking-win" class="btn ghost" type="button">RANKING</button>
           <button id="btn-menu-win" class="btn ghost" type="button">MENU</button>
+        </div>
+      </section>
+
+      <!-- Ranking local -->
+      <section id="screen-ranking" class="screen">
+        <p class="eyebrow">SPEEDRUN LOCAL</p>
+        <h2>RANKING</h2>
+        <p class="tagline">Menor tempo no Trono · gravado neste navegador</p>
+        <div id="ranking-list" class="ranking-list"></div>
+        <div class="btn-row">
+          <button id="btn-ranking-back" class="btn" type="button">VOLTAR</button>
         </div>
       </section>
 

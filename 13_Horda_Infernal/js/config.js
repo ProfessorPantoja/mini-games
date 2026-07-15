@@ -71,3 +71,4 @@ export const COLORS = {
 };
 
 export const STORAGE_KEY = "horda_infernal_best";
+// ranking: ver ranking.js (RANK_KEY / PREF_KEY)

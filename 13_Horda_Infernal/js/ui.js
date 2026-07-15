@@ -3,6 +3,10 @@
 import { rarityColor, rarityLabel, compareItems } from "./loot.js";
 import { STAGES } from "./stages.js";
 import { listOwnedPowers } from "./powers.js";
+import {
+  FLAGS, flagMeta, loadPlayerPref, savePlayerPref,
+  loadRanking, buildEntry, addToRanking, formatTime, escapeHtml,
+} from "./ranking.js";
 
 export class UI {
   constructor() {
@@ -30,11 +34,15 @@ export class UI {
     this.screenPause = document.getElementById("screen-pause");
     this.screenDefeat = document.getElementById("screen-defeat");
     this.screenVictory = document.getElementById("screen-victory");
+    this.screenRanking = document.getElementById("screen-ranking");
     this.lootPanel = document.getElementById("loot-panel");
     this.powerPanel = document.getElementById("power-panel");
 
     this._toastTimer = null;
     this._bannerTimer = null;
+    this._lastRecap = null;
+    this._lastVictory = false;
+    this._rankingReturn = "title";
   }
 
   showHud(on) {
@@ -46,6 +54,7 @@ export class UI {
     this.screenPause.classList.remove("active");
     this.screenDefeat.classList.remove("active");
     this.screenVictory.classList.remove("active");
+    this.screenRanking?.classList.remove("active");
     this.lootPanel.classList.remove("active");
     this.powerPanel?.classList.remove("active");
   }
@@ -65,10 +74,13 @@ export class UI {
     this.showHud(false);
     this.screenDefeat.classList.add("active");
     const recap = game.getRunRecap();
+    this._lastRecap = recap;
+    this._lastVictory = false;
     document.getElementById("meta-kills").textContent = recap.kills;
     document.getElementById("meta-level").textContent = recap.level;
     document.getElementById("meta-stage").textContent = recap.stage;
     this._fillRecap("defeat-recap", recap);
+    this.prepareRankForm("defeat");
   }
 
   showVictory(game) {
@@ -76,22 +88,24 @@ export class UI {
     this.showHud(false);
     this.screenVictory.classList.add("active");
     const recap = game.getRunRecap();
+    this._lastRecap = recap;
+    this._lastVictory = true;
     document.getElementById("win-kills").textContent = recap.kills;
     document.getElementById("win-level").textContent = recap.level;
-    document.getElementById("win-dmg").textContent =
-      recap.maxCombo > 1 ? `${recap.damage} · ×${recap.maxCombo}` : recap.damage;
+    const timeEl = document.getElementById("win-time");
+    if (timeEl) timeEl.textContent = formatTime(recap.time);
     this._fillRecap("victory-recap", recap);
+    this.prepareRankForm("victory");
   }
 
   _fillRecap(elId, r) {
     const el = document.getElementById(elId);
     if (!el) return;
-    const mm = String(Math.floor(r.time / 60)).padStart(2, "0");
-    const ss = String(r.time % 60).padStart(2, "0");
     el.innerHTML = `
       <div class="recap-row"><span>Classe</span><span>${r.className || "—"}</span></div>
-      <div class="recap-row"><span>Tempo</span><span>${mm}:${ss}</span></div>
+      <div class="recap-row"><span>Tempo</span><span>${formatTime(r.time)}</span></div>
       <div class="recap-row"><span>Combo máx</span><span>×${r.maxCombo || 1}</span></div>
+      <div class="recap-row"><span>Dano</span><span>${r.damage || 0}</span></div>
       <div class="recap-row"><span>Cura total</span><span>${r.heal}</span></div>
       <div class="recap-row"><span>Arma</span><span>${r.weapon}</span></div>
       <div class="recap-row"><span>Armadura</span><span>${r.armor}</span></div>
@@ -108,16 +122,31 @@ export class UI {
     if (!box) return;
     box.innerHTML = "";
     choices.forEach((pw, i) => {
+      const isNew = pw.stacks === 0;
+      const isMax = pw.nextStacks >= pw.max;
+      const kind = isNew ? "is-new" : isMax ? "is-max" : "is-stack";
+      const badge = isNew
+        ? "✦ NOVO"
+        : isMax
+          ? `★ MÁXIMO ${pw.nextStacks}/${pw.max}`
+          : `STACK ${pw.nextStacks}/${pw.max}`;
+      const stackLine = isNew
+        ? `Primeira vez · máx ${pw.max}`
+        : isMax
+          ? `${pw.nextStacks} de ${pw.max} — no teto`
+          : `${pw.nextStacks} de ${pw.max}`;
+
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "power-btn";
+      btn.className = `power-btn ${kind}`;
       btn.dataset.powerId = pw.id;
       btn.innerHTML = `
         <span class="p-key">${i + 1}</span>
+        <span class="p-badge">${badge}</span>
         <span class="p-icon">${pw.icon}</span>
         <div class="p-name">${pw.name}</div>
         <div class="p-desc">${pw.desc}</div>
-        <div class="p-stack">${pw.stacks > 0 ? `Stack ${pw.nextStacks}/${pw.max}` : `Novo · máx ${pw.max}`}</div>
+        <div class="p-stack">${stackLine}</div>
       `;
       box.appendChild(btn);
     });
@@ -125,6 +154,128 @@ export class UI {
 
   hidePowerSelect() {
     this.powerPanel?.classList.remove("active");
+  }
+
+  // ─── Ranking ───
+  prepareRankForm(prefix) {
+    const pref = loadPlayerPref();
+    const nameEl = document.getElementById(`${prefix}-name`);
+    if (nameEl) nameEl.value = pref.name;
+    this.renderFlagPicker(`${prefix}-flags`, pref.flag);
+    const msg = document.getElementById(`${prefix}-rank-msg`);
+    if (msg) {
+      msg.hidden = true;
+      msg.textContent = "";
+    }
+    const btn = document.getElementById(`btn-save-rank-${prefix}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "SALVAR NO RANKING";
+    }
+  }
+
+  renderFlagPicker(containerId, selected) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.innerHTML = "";
+    box.dataset.selected = selected || "BR";
+    FLAGS.forEach((f) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "flag-btn" + (f.code === (selected || "BR") ? " selected" : "");
+      btn.dataset.flag = f.code;
+      btn.title = f.name;
+      btn.setAttribute("aria-label", f.name);
+      btn.textContent = f.emoji;
+      btn.addEventListener("click", () => {
+        box.dataset.selected = f.code;
+        box.querySelectorAll(".flag-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  handleSaveRanking(prefix, audio) {
+    if (!this._lastRecap) return;
+    const nameEl = document.getElementById(`${prefix}-name`);
+    const flagsEl = document.getElementById(`${prefix}-flags`);
+    const name = (nameEl?.value || "").trim();
+    const flag = flagsEl?.dataset.selected || "BR";
+    if (!name) {
+      nameEl?.focus();
+      const msg = document.getElementById(`${prefix}-rank-msg`);
+      if (msg) {
+        msg.hidden = false;
+        msg.textContent = "Digite seu nome para salvar.";
+        msg.style.color = "#ff6b7a";
+      }
+      return;
+    }
+    savePlayerPref(name, flag);
+    const entry = buildEntry(this._lastRecap, this._lastVictory, name, flag);
+    const { position } = addToRanking(entry);
+    const msg = document.getElementById(`${prefix}-rank-msg`);
+    if (msg) {
+      msg.hidden = false;
+      msg.style.color = "";
+      msg.textContent =
+        position > 0
+          ? `Salvo! #${position} no ranking local`
+          : "Salvo! (fora do top)";
+    }
+    const btn = document.getElementById(`btn-save-rank-${prefix}`);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "SALVO ✓";
+    }
+    audio?.uiClick?.();
+  }
+
+  showRanking(returnTo = "title") {
+    this._rankingReturn = returnTo;
+    this.hideAllScreens();
+    this.showHud(false);
+    this.screenRanking?.classList.add("active");
+    this.refreshRankingList();
+  }
+
+  closeRanking() {
+    this.hideAllScreens();
+    if (this._rankingReturn === "victory") {
+      this.screenVictory.classList.add("active");
+    } else if (this._rankingReturn === "defeat") {
+      this.screenDefeat.classList.add("active");
+    } else {
+      this.screenTitle.classList.add("active");
+    }
+  }
+
+  refreshRankingList() {
+    const listEl = document.getElementById("ranking-list");
+    if (!listEl) return;
+    const list = loadRanking();
+    if (!list.length) {
+      listEl.innerHTML =
+        '<p class="ranking-empty">Nenhum recorde ainda.<br/>Vença o Trono e salve sua marca!</p>';
+      return;
+    }
+    listEl.innerHTML = list
+      .map((e, i) => {
+        const fl = flagMeta(e.flag);
+        const dnf = e.completed ? "" : '<span class="dnf-tag">DNF</span>';
+        const rowCls = e.completed ? "rank-row" : "rank-row dnf";
+        return `<div class="${rowCls}">
+          <span class="rank-pos">#${i + 1}</span>
+          <span class="rank-flag" title="${fl.name}">${fl.emoji}</span>
+          <span class="rank-name">${escapeHtml(e.name)}
+            <span class="rn-class">${escapeHtml(e.className || "—")}</span>
+          </span>
+          <span class="rank-time">${formatTime(e.time)}${dnf}</span>
+          <span class="rank-meta">${e.kills} kills · nv ${e.level} · combo ×${e.maxCombo || 1}</span>
+        </div>`;
+      })
+      .join("");
   }
 
   updateHud(game) {
