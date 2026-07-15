@@ -2,6 +2,7 @@
 
 import { rarityColor, rarityLabel, compareItems } from "./loot.js";
 import { STAGES } from "./stages.js";
+import { listOwnedPowers } from "./powers.js";
 
 export class UI {
   constructor() {
@@ -22,6 +23,8 @@ export class UI {
     this.chipArmor = document.getElementById("chip-armor");
     this.banner = document.getElementById("wave-banner");
     this.toastEl = document.getElementById("toast");
+    this.powerStrip = document.getElementById("power-strip");
+    this._powerSig = "";
 
     this.screenTitle = document.getElementById("screen-title");
     this.screenPause = document.getElementById("screen-pause");
@@ -86,6 +89,7 @@ export class UI {
     const mm = String(Math.floor(r.time / 60)).padStart(2, "0");
     const ss = String(r.time % 60).padStart(2, "0");
     el.innerHTML = `
+      <div class="recap-row"><span>Classe</span><span>${r.className || "—"}</span></div>
       <div class="recap-row"><span>Tempo</span><span>${mm}:${ss}</span></div>
       <div class="recap-row"><span>Combo máx</span><span>×${r.maxCombo || 1}</span></div>
       <div class="recap-row"><span>Cura total</span><span>${r.heal}</span></div>
@@ -179,6 +183,25 @@ export class UI {
 
     // HP low pulse on fill
     this.hpFill.classList.toggle("critical", hpPct < 0.3);
+
+    this._updatePowerStrip(p);
+  }
+
+  _updatePowerStrip(player) {
+    if (!this.powerStrip) return;
+    const owned = listOwnedPowers(player);
+    const sig = owned.map((pw) => `${pw.id}:${pw.stacks}`).join("|");
+    if (sig === this._powerSig) return;
+    this._powerSig = sig;
+    if (owned.length === 0) {
+      this.powerStrip.innerHTML = "";
+      return;
+    }
+    this.powerStrip.innerHTML = owned.map((pw) =>
+      `<span class="power-chip" title="${pw.name}: ${pw.desc}">` +
+      `<span class="pc-icon">${pw.icon}</span>` +
+      `<span class="pc-n">×${pw.stacks}</span></span>`,
+    ).join("");
   }
 
   _fillChip(el, item, slotLabel) {

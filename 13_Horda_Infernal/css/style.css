@@ -256,6 +256,34 @@ body {
   color: var(--muted);
 }
 
+.power-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 6px;
+  min-height: 0;
+  max-width: min(360px, 80vw);
+}
+
+.power-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  background: rgba(8, 4, 6, 0.72);
+  border: 1px solid rgba(255, 90, 31, 0.28);
+  color: var(--ember-hot);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.power-chip .pc-icon { font-size: 0.85rem; }
+.power-chip .pc-n { opacity: 0.85; font-size: 0.65rem; }
+
 .loot-verdict {
   font-family: var(--font-display);
   font-size: 0.72rem;
