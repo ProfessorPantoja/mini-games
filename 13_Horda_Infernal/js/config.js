@@ -13,44 +13,22 @@ export const RARITY = {
 
 export const RARITY_ORDER = ["common", "magic", "rare", "epic", "legendary"];
 
-export const PLAYER_BASE = {
-  maxHp: 130,
-  damage: 15,
-  defense: 2,
-  moveSpeed: 205,
-  attackRange: 84,
-  attackArc: Math.PI * 0.95,
-  attackCooldown: 0.36,
-  attackWindup: 0.05,
-  attackActive: 0.12,
-  attackRecover: 0.06,
-  attackLunge: 38,
-  dashSpeed: 560,
-  dashDuration: 0.15,
-  dashCooldown: 0.72,
-  radius: 16,
-  invulnAfterHit: 0.4,
+/**
+ * Constantes compartilhadas da run (não dependem de classe).
+ * Stats de combate ficam em js/classes/<id>.js
+ */
+export const SHARED = {
   xpBase: 36,
   xpGrowth: 1.32,
-  /** Fúria — identidade do bárbaro */
-  furyMax: 100,
-  furyPerHit: 7,
-  furyPerKill: 14,
-  furyPerCrit: 5,
-  furyDecay: 11,
-  furyActiveCost: 0, // mode drains over time instead
-  furyDuration: 4.2,
-  furyDmgMult: 1.4,
-  furyAtkSpeed: 0.72, // mult on cooldown
-  furyMoveMult: 1.12,
-  critChance: 0.14,
-  critMult: 1.85,
   hitstopHit: 0.028,
   hitstopKill: 0.055,
   hitstopCrit: 0.04,
   hitstopBoss: 0.045,
   comboWindow: 1.35,
 };
+
+/** @deprecated use SHARED + classDef.stats — mantido só p/ imports legados */
+export const PLAYER_BASE = SHARED;
 
 /** Multiplicadores de raridade aplicados aos stats base do item */
 export const RARITY_MULT = {

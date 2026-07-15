@@ -1,15 +1,18 @@
-/** Horda Infernal — loop principal de combate */
+/** Horda Infernal — loop principal de combate (orquestrador) */
 
-import { W, H, PLAYER_BASE, COLORS, STORAGE_KEY } from "./config.js";
+import { W, H, SHARED, COLORS, STORAGE_KEY } from "./config.js";
 import { ParticleSystem, CameraShake } from "./particles.js";
 import {
   starterWeapon, starterArmor, rollDropForKill, createLootDrop,
-  compareItems, rarityColor, generateItem,
+  rarityColor, generateItem,
 } from "./loot.js";
 import { STAGES, ENEMY_DEFS, scaleEnemyStats } from "./stages.js";
 import {
   createEmptyMods, recomputeMods, rollPowerChoices, applyPower, listOwnedPowers,
 } from "./powers.js";
+import { getClass } from "./classes/registry.js";
+import { updateClassAttack, updatePlayerProjectiles } from "./combat/styles.js";
+import { drawPlayer, drawPlayerBody } from "./combat/playerDraw.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const len = (x, y) => Math.hypot(x, y);
@@ -48,9 +51,29 @@ export class Game {
     this.comboTimer = 0;
     this.maxCombo = 0;
     this.spawnMarks = [];
+    this.selectedClassId = "barbarian";
+    this.classDef = getClass("barbarian");
 
     this._bindInput();
     this._loadBest();
+  }
+
+  /** Stats da classe ativa (atalho) */
+  cs() {
+    return this.classDef?.stats || getClass("barbarian").stats;
+  }
+
+  /** Recurso especial da classe (fúria / foco / mana) */
+  res() {
+    return this.classDef?.resource || getClass("barbarian").resource;
+  }
+
+  setClass(classId) {
+    const c = getClass(classId);
+    if (!c.unlocked) return false;
+    this.selectedClassId = c.id;
+    this.classDef = c;
+    return true;
   }
 
   _loadBest() {
@@ -96,7 +119,10 @@ export class Game {
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
-  startRun() {
+  startRun(classId = null) {
+    if (classId) this.setClass(classId);
+    this.classDef = getClass(this.selectedClassId);
+
     this.audio.unlock();
     this.audio.startAmbience();
     this.audio.uiClick();
@@ -135,25 +161,28 @@ export class Game {
   }
 
   _createPlayer() {
-    const weapon = starterWeapon();
-    const armor = starterArmor();
+    const cls = this.classDef;
+    const s = cls.stats;
+    const weapon = starterWeapon(cls);
+    const armor = starterArmor(cls);
     const player = {
       x: W / 2,
       y: H / 2,
-      radius: PLAYER_BASE.radius,
+      radius: s.radius,
       facing: -Math.PI / 2,
       vx: 0,
       vy: 0,
       weapon,
       armor,
+      classId: cls.id,
       level: 1,
       xp: 0,
-      xpToLevel: PLAYER_BASE.xpBase,
-      maxHp: PLAYER_BASE.maxHp + (armor.hpBonus || 0),
+      xpToLevel: SHARED.xpBase,
+      maxHp: s.maxHp + (armor.hpBonus || 0),
       hp: 0,
       invuln: 0,
       atkCd: 0,
-      atkPhase: "idle", // idle | windup | active | recover
+      atkPhase: "idle",
       atkTimer: 0,
       hitSet: new Set(),
       dashCd: 0,
@@ -162,6 +191,7 @@ export class Game {
       trail: [],
       flash: 0,
       dead: false,
+      // recurso genérico (fúria/foco/mana) — UI lê como fury*
       fury: 0,
       furyActive: 0,
       swingCount: 0,
@@ -177,23 +207,32 @@ export class Game {
   }
 
   _calcMaxHp(p = this.player) {
-    return PLAYER_BASE.maxHp
+    const base = this.classDef?.stats?.maxHp || 130;
+    return base
       + (p.armor?.hpBonus || 0)
       + (p.level - 1) * 12
       + (p.mods?.hpFlat || 0);
   }
 
-  isFury() {
+  /** Recurso especial ativo (Fúria / Foco / etc.) */
+  isResourceActive() {
     return this.player && this.player.furyActive > 0;
   }
 
+  /** alias legado usado em vários pontos */
+  isFury() {
+    return this.isResourceActive();
+  }
+
   getPlayerDamage() {
-    const base = PLAYER_BASE.damage + (this.player.weapon?.damage || 0);
-    return Math.round(base * (this.isFury() ? PLAYER_BASE.furyDmgMult : 1));
+    const s = this.cs();
+    const res = this.res();
+    const base = s.damage + (this.player.weapon?.damage || 0);
+    return Math.round(base * (this.isResourceActive() ? res.dmgMult : 1));
   }
 
   getPlayerDefense() {
-    return PLAYER_BASE.defense
+    return this.cs().defense
       + (this.player.armor?.defense || 0)
       + (this.player.mods?.defenseFlat || 0);
   }
@@ -203,13 +242,15 @@ export class Game {
   }
 
   getAttackRange() {
-    const fury = this.isFury() ? 1.12 : 1;
-    return PLAYER_BASE.attackRange * (this.player.mods?.rangeMult || 1) * fury;
+    const s = this.cs();
+    const boost = this.isResourceActive() && this.classDef.style === "melee" ? 1.12 : 1;
+    return s.attackRange * (this.player.mods?.rangeMult || 1) * boost;
   }
 
   getAttackArc() {
-    const fury = this.isFury() ? 1.08 : 1;
-    return PLAYER_BASE.attackArc * (this.player.mods?.arcMult || 1) * fury;
+    const s = this.cs();
+    const boost = this.isResourceActive() && this.classDef.style === "melee" ? 1.08 : 1;
+    return (s.attackArc || 0) * (this.player.mods?.arcMult || 1) * boost;
   }
 
   getRunRecap() {
@@ -241,24 +282,28 @@ export class Game {
   }
 
   _addFury(amount) {
+    // nome legado — enche o recurso da classe
     const p = this.player;
+    const res = this.res();
     if (!p || p.furyActive > 0) return;
     const gain = amount * (p.mods?.furyGainMult || 1);
-    p.fury = clamp(p.fury + gain, 0, PLAYER_BASE.furyMax);
-    if (p.fury >= PLAYER_BASE.furyMax) this._activateFury();
+    p.fury = clamp(p.fury + gain, 0, res.max);
+    if (p.fury >= res.max) this._activateFury();
   }
 
   _activateFury() {
     const p = this.player;
-    p.fury = PLAYER_BASE.furyMax;
-    p.furyActive = PLAYER_BASE.furyDuration * (p.mods?.furyDurationMult || 1);
+    const res = this.res();
+    p.fury = res.max;
+    p.furyActive = res.duration * (p.mods?.furyDurationMult || 1);
     this.audio.furyActivate();
     this.particles.furyBurst(p.x, p.y);
     this.shake.add(7, 0.25);
     this.shake.punch(0.06);
     this._addFlash(0.45);
-    this.ui.toast("FÚRIA!");
-    this.ui.showBanner("FÚRIA");
+    const label = res.label || "PODER";
+    this.ui.toast(`${label}!`);
+    this.ui.showBanner(label);
   }
 
   _startStage(idx) {
@@ -342,21 +387,21 @@ export class Game {
     this.pickupCd = Math.max(0, this.pickupCd - dt);
 
     // fúria
+    const res = this.res();
     if (p.furyActive > 0) {
       p.furyActive -= dt;
-      const maxDur = PLAYER_BASE.furyDuration * (p.mods?.furyDurationMult || 1);
-      p.fury = (p.furyActive / maxDur) * PLAYER_BASE.furyMax;
+      const maxDur = res.duration * (p.mods?.furyDurationMult || 1);
+      p.fury = (p.furyActive / maxDur) * res.max;
       if (p.furyActive <= 0) {
         p.furyActive = 0;
         p.fury = 0;
-        this.ui.toast("Fúria esgotada");
+        this.ui.toast(`${res.label} esgotado`);
       }
-      // brasas na fúria
       if (Math.random() < 0.35) {
         this.particles.embers(p.x + (Math.random() - 0.5) * 20, p.y + (Math.random() - 0.5) * 20, 1);
       }
     } else if (p.fury > 0) {
-      p.fury = Math.max(0, p.fury - PLAYER_BASE.furyDecay * dt);
+      p.fury = Math.max(0, p.fury - res.decay * dt);
     }
 
     this._updatePlayerMove(dt);
@@ -405,9 +450,10 @@ export class Game {
       }
       const d = norm(dx, dy);
       p.dashDir = d;
-      p.dashing = PLAYER_BASE.dashDuration;
-      p.dashCd = PLAYER_BASE.dashCooldown * (p.mods?.dashCdMult || 1);
-      p.invuln = Math.max(p.invuln, PLAYER_BASE.dashDuration + 0.05);
+      const s = this.cs();
+      p.dashing = s.dashDuration;
+      p.dashCd = s.dashCooldown * (p.mods?.dashCdMult || 1);
+      p.invuln = Math.max(p.invuln, s.dashDuration + 0.05);
       this.audio.dash();
       this.particles.burst(p.x, p.y, {
         count: 10, color: "#ffb347", speed: 180, life: 0.25, size: 3,
@@ -418,8 +464,8 @@ export class Game {
 
     if (p.dashing > 0) {
       p.dashing -= dt;
-      p.x += p.dashDir.x * PLAYER_BASE.dashSpeed * dt;
-      p.y += p.dashDir.y * PLAYER_BASE.dashSpeed * dt;
+      p.x += p.dashDir.x * this.cs().dashSpeed * dt;
+      p.y += p.dashDir.y * this.cs().dashSpeed * dt;
       p.trail.push({ x: p.x, y: p.y, life: 0.22 });
       if (Math.random() < 0.5) {
         this.particles.burst(p.x, p.y, {
@@ -429,8 +475,8 @@ export class Game {
       }
     } else {
       const n = norm(ix, iy);
-      let speed = PLAYER_BASE.moveSpeed * (ix || iy ? 1 : 0);
-      if (this.isFury()) speed *= PLAYER_BASE.furyMoveMult;
+      let speed = this.cs().moveSpeed * (ix || iy ? 1 : 0);
+      if (this.isResourceActive()) speed *= this.res().moveMult;
       // slight slow while attacking; lunge overrides below
       const atkSlow = p.atkPhase === "active" || p.atkPhase === "windup" ? 0.5 : 1;
       p.x += n.x * speed * atkSlow * dt;
@@ -458,105 +504,15 @@ export class Game {
   }
 
   _updatePlayerAttack(dt) {
-    const p = this.player;
-    const wantAtk = this.mouse.down || this.keys["KeyJ"] || this.touchAttack;
-    const cdMult = (this.isFury() ? PLAYER_BASE.furyAtkSpeed : 1) * (p.mods?.atkCdMult || 1);
-
-    if (p.atkPhase === "idle") {
-      if (wantAtk && p.atkCd <= 0 && p.dashing <= 0) {
-        p.atkPhase = "windup";
-        p.atkTimer = PLAYER_BASE.attackWindup * (this.isFury() ? 0.7 : 1);
-        p.hitSet = new Set();
-        p.lastHitCount = 0;
-        p.swingCount++;
-        // lunge na direção do golpe
-        const lx = Math.cos(p.facing) * PLAYER_BASE.attackLunge * 0.45;
-        const ly = Math.sin(p.facing) * PLAYER_BASE.attackLunge * 0.45;
-        p.x += lx;
-        p.y += ly;
-        const ar = this.arena;
-        p.x = clamp(p.x, ar.x + p.radius, ar.x + ar.w - p.radius);
-        p.y = clamp(p.y, ar.y + p.radius, ar.y + ar.h - p.radius);
-        this.audio.swing();
-      }
-      return;
-    }
-
-    p.atkTimer -= dt;
-
-    if (p.atkPhase === "windup" && p.atkTimer <= 0) {
-      p.atkPhase = "active";
-      p.atkTimer = PLAYER_BASE.attackActive;
-      // lunge final no impacto
-      p.x += Math.cos(p.facing) * PLAYER_BASE.attackLunge * 0.35;
-      p.y += Math.sin(p.facing) * PLAYER_BASE.attackLunge * 0.35;
-      const a = this.arena;
-      p.x = clamp(p.x, a.x + p.radius, a.x + a.w - p.radius);
-      p.y = clamp(p.y, a.y + p.radius, a.y + a.h - p.radius);
-
-      const fury = this.isFury();
-      const range = this.getAttackRange();
-      const arc = this.getAttackArc();
-      this.effects.push({
-        type: "slash",
-        x: p.x,
-        y: p.y,
-        facing: p.facing,
-        life: fury ? 0.2 : 0.16,
-        maxLife: fury ? 0.2 : 0.16,
-        range,
-        arc,
-        fury,
-      });
-      this.particles.slashDebris(
-        p.x + Math.cos(p.facing) * 40,
-        p.y + Math.sin(p.facing) * 40,
-        p.facing,
-      );
-    } else if (p.atkPhase === "active") {
-      this._resolveMeleeHits();
-      if (p.atkTimer <= 0) {
-        p.atkPhase = "recover";
-        p.atkTimer = PLAYER_BASE.attackRecover;
-        // cleave feedback se acertou vários
-        if (p.lastHitCount >= 3) {
-          this.ui.toast(p.lastHitCount >= 5 ? "ANIquilaÇÃO" : "CLEAVE");
-          this.shake.punch(0.03);
-        }
-        p.atkCd = PLAYER_BASE.attackCooldown * cdMult;
-      }
-    } else if (p.atkPhase === "recover" && p.atkTimer <= 0) {
-      p.atkPhase = "idle";
-    }
-  }
-
-  _resolveMeleeHits() {
-    const p = this.player;
-    const dmg = this.getPlayerDamage();
-    const range = this.getAttackRange();
-    const halfArc = this.getAttackArc() / 2;
-
-    for (const e of this.enemies) {
-      if (e.dead || p.hitSet.has(e.id)) continue;
-      const dx = e.x - p.x;
-      const dy = e.y - p.y;
-      const d = Math.hypot(dx, dy);
-      if (d > range + e.radius) continue;
-      let da = Math.atan2(dy, dx) - p.facing;
-      while (da > Math.PI) da -= Math.PI * 2;
-      while (da < -Math.PI) da += Math.PI * 2;
-      if (Math.abs(da) > halfArc) continue;
-
-      p.hitSet.add(e.id);
-      p.lastHitCount++;
-      this._damageEnemy(e, dmg, p.facing);
-    }
+    updateClassAttack(this, dt);
   }
 
   _damageEnemy(e, rawDmg, knockDir) {
     const p = this.player;
-    const critChance = PLAYER_BASE.critChance + (p.mods?.critChance || 0) + (this.isFury() ? 0.08 : 0);
-    const critMult = PLAYER_BASE.critMult + (p.mods?.critMult || 0);
+    const s = this.cs();
+    const res = this.res();
+    const critChance = s.critChance + (p.mods?.critChance || 0) + (this.isResourceActive() ? 0.08 : 0);
+    const critMult = s.critMult + (p.mods?.critMult || 0);
     const isCrit = Math.random() < critChance;
     const dmg = Math.round(
       rawDmg * (isCrit ? critMult : 1) * (0.94 + Math.random() * 0.12),
@@ -588,23 +544,23 @@ export class Game {
       isCrit ? 1.4 : 1,
     );
 
-    this._addFury(PLAYER_BASE.furyPerHit + (isCrit ? PLAYER_BASE.furyPerCrit : 0));
+    this._addFury(res.perHit + (isCrit ? res.perCrit : 0));
 
     if (e.kind === "boss") {
       this.audio.bossHit();
       this.shake.add(5.5, 0.12);
-      this._addHitstop(PLAYER_BASE.hitstopBoss);
+      this._addHitstop(SHARED.hitstopBoss);
     } else if (isCrit) {
       this.audio.crit();
       this.shake.add(4, 0.1);
       this.shake.punch(0.035);
-      this._addHitstop(PLAYER_BASE.hitstopCrit);
+      this._addHitstop(SHARED.hitstopCrit);
       this._addFlash(0.2);
     } else {
       if (this.isFury()) this.audio.furyHit();
       else this.audio.hit();
       this.shake.add(2.2, 0.08);
-      this._addHitstop(PLAYER_BASE.hitstopHit);
+      this._addHitstop(SHARED.hitstopHit);
     }
 
     if (e.hp <= 0) this._killEnemy(e);
@@ -618,7 +574,7 @@ export class Game {
     // combo
     if (this.comboTimer > 0) this.combo++;
     else this.combo = 1;
-    this.comboTimer = PLAYER_BASE.comboWindow;
+    this.comboTimer = SHARED.comboWindow;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
 
     this.audio.kill();
@@ -627,10 +583,10 @@ export class Game {
     this.particles.death(e.x, e.y, e.accent || e.color);
     this.shake.add(e.kind === "boss" ? 12 : e.kind === "elite" ? 6 : 3.2, 0.2);
     this.shake.punch(e.kind === "boss" ? 0.08 : 0.03);
-    this._addHitstop(e.kind === "boss" ? 0.12 : PLAYER_BASE.hitstopKill);
+    this._addHitstop(e.kind === "boss" ? 0.12 : SHARED.hitstopKill);
     this._addFlash(e.kind === "boss" ? 0.55 : 0.15);
 
-    this._addFury(PLAYER_BASE.furyPerKill);
+    this._addFury(this.res().perKill);
     this._grantXp(e.xp);
 
     if (this.combo === 3) this.ui.toast("TRIPLO!");
@@ -661,7 +617,7 @@ export class Game {
       p.xp -= p.xpToLevel;
       p.level++;
       leveled++;
-      p.xpToLevel = Math.round(PLAYER_BASE.xpBase * Math.pow(PLAYER_BASE.xpGrowth, p.level - 1));
+      p.xpToLevel = Math.round(SHARED.xpBase * Math.pow(SHARED.xpGrowth, p.level - 1));
       const newMax = this.getPlayerMaxHp();
       const heal = newMax - p.maxHp + 20;
       p.maxHp = newMax;
@@ -1126,6 +1082,7 @@ export class Game {
         this.projectiles.splice(i, 1);
       }
     }
+    updatePlayerProjectiles(this, dt);
   }
 
   _hurtPlayer(rawDmg, knockAng) {
@@ -1136,7 +1093,7 @@ export class Game {
     const takenMult = p.mods?.dmgTakenMult || 1;
     const reduced = Math.max(1, Math.round(rawDmg * (100 / (100 + def * 8)) * takenMult));
     p.hp -= reduced;
-    p.invuln = PLAYER_BASE.invulnAfterHit;
+    p.invuln = this.cs().invulnAfterHit;
     p.flash = 0.15;
     p.x += Math.cos(knockAng) * 12;
     p.y += Math.sin(knockAng) * 12;
@@ -1974,152 +1931,11 @@ export class Game {
   }
 
   _drawPlayer(ctx) {
-    const p = this.player;
-    const fury = this.isFury();
-
-    // dash trail
-    for (const t of p.trail) {
-      ctx.globalAlpha = (t.life / 0.22) * 0.4;
-      ctx.fillStyle = fury ? "#ff5a1f" : "#ffb347";
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, p.radius * 0.85, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    ctx.save();
-    ctx.translate(p.x, p.y);
-
-    // fury aura
-    if (fury) {
-      const pulse = 1 + Math.sin(this.time * 12) * 0.08;
-      const g = ctx.createRadialGradient(0, 0, 4, 0, 0, p.radius * 2.4 * pulse);
-      g.addColorStop(0, "rgba(255,90,31,0.45)");
-      g.addColorStop(0.5, "rgba(255,90,31,0.15)");
-      g.addColorStop(1, "rgba(255,90,31,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(0, 0, p.radius * 2.4 * pulse, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // shadow
-    ctx.fillStyle = COLORS.shadow;
-    ctx.beginPath();
-    ctx.ellipse(0, 10, 14, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // invuln blink
-    if (p.invuln > 0 && Math.floor(this.time * 20) % 2 === 0 && p.dashing <= 0) {
-      ctx.globalAlpha = 0.45;
-    }
-
-    // body
-    const flash = p.flash > 0;
-    ctx.fillStyle = flash ? "#fff" : fury ? "#ffe0c8" : COLORS.player;
-    ctx.beginPath();
-    ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // armor vest
-    ctx.fillStyle = flash ? "#ccc" : fury ? "#8a2a18" : COLORS.playerArmor;
-    ctx.beginPath();
-    ctx.ellipse(0, 2, p.radius * 0.75, p.radius * 0.7, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // head / face
-    ctx.fillStyle = flash ? "#fff" : "#c4a88a";
-    ctx.beginPath();
-    ctx.arc(0, -4, p.radius * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
-    // beard
-    ctx.fillStyle = flash ? "#ddd" : "#5a3a28";
-    ctx.beginPath();
-    ctx.moveTo(-6, 0);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(6, 0);
-    ctx.fill();
-
-    // eyes
-    const ex = Math.cos(p.facing) * 4;
-    const ey = Math.sin(p.facing) * 4;
-    ctx.fillStyle = fury ? "#ff3b5c" : "#1a0a08";
-    if (fury) {
-      ctx.shadowColor = "#ff3b5c";
-      ctx.shadowBlur = 8;
-    }
-    ctx.beginPath();
-    ctx.arc(ex - 3, -5 + ey * 0.3, 2, 0, Math.PI * 2);
-    ctx.arc(ex + 3, -5 + ey * 0.3, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // weapon
-    ctx.rotate(p.facing);
-    const swing =
-      p.atkPhase === "windup" ? -0.75 :
-      p.atkPhase === "active" ? 1.05 :
-      p.atkPhase === "recover" ? 0.35 : 0;
-    ctx.rotate(swing);
-
-    // axe shaft
-    ctx.strokeStyle = "#3a2a20";
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(6, 0);
-    ctx.lineTo(30, 0);
-    ctx.stroke();
-
-    // blade glow when fury
-    if (fury) {
-      ctx.shadowColor = "#ff5a1f";
-      ctx.shadowBlur = 14;
-    }
-    ctx.fillStyle = p.weapon ? rarityColor(p.weapon.rarity) : COLORS.playerBlade;
-    ctx.beginPath();
-    ctx.moveTo(28, -12);
-    ctx.lineTo(42, 0);
-    ctx.lineTo(28, 12);
-    ctx.lineTo(24, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.restore();
-
-    // attack arc hint
-    if (p.atkPhase === "windup" || p.atkPhase === "active") {
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.facing);
-      ctx.globalAlpha = p.atkPhase === "active" ? (fury ? 0.32 : 0.24) : 0.12;
-      ctx.fillStyle = fury ? "#ff5a1f" : "#ffb347";
-      const range = this.getAttackRange();
-      const arc = this.getAttackArc();
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.arc(0, 0, range, -arc / 2, arc / 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
+    drawPlayer(this, ctx);
   }
 
   _drawPlayerBody(ctx) {
-    const p = this.player;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = "#5a3a38";
-    ctx.beginPath();
-    ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    drawPlayerBody(this, ctx);
   }
 
   _drawEffects(ctx) {

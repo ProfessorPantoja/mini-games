@@ -69,26 +69,30 @@ export function generateItem(slot, stageIndex = 0, luckBoost = 0, forceRarity = 
   };
 }
 
-export function starterWeapon() {
+/** @param {{ starterWeapon?: object, starterArmor?: object } | null} classDef */
+export function starterWeapon(classDef = null) {
+  const sw = classDef?.starterWeapon || {};
   return {
     id: nextId(),
     slot: "weapon",
     rarity: "common",
-    name: "Machado do Iniciante",
-    damage: 10,
+    name: sw.name || "Machado do Iniciante",
+    damage: sw.damage ?? 10,
     defense: 0,
   };
 }
 
-export function starterArmor() {
+/** @param {{ starterWeapon?: object, starterArmor?: object } | null} classDef */
+export function starterArmor(classDef = null) {
+  const sa = classDef?.starterArmor || {};
   return {
     id: nextId(),
     slot: "armor",
     rarity: "common",
-    name: "Couro Manchado",
+    name: sa.name || "Couro Manchado",
     damage: 0,
-    defense: 1,
-    hpBonus: 0,
+    defense: sa.defense ?? 1,
+    hpBonus: sa.hpBonus || 0,
   };
 }
 
