@@ -23,6 +23,17 @@ function showScreen(name) {
   $("hud").hidden = !hudOn;
 }
 
+function syncDevUi() {
+  const dev = game.getDevFlags?.() || {};
+  const on = !!dev.infiniteContinue;
+  const ids = ["btn-skip-dev", "btn-skip-pause", "btn-skip-inter", "btn-skip-over", "btn-skip-win"];
+  for (const id of ids) {
+    const el = $(id);
+    if (!el) continue;
+    el.hidden = !on;
+  }
+}
+
 function refreshHud() {
   $("hud-score").textContent = String(Math.floor(game.score));
   $("title-best").textContent = String(game.best);
@@ -31,6 +42,14 @@ function refreshHud() {
   $("hud-goal").textContent = game._goalLabel ? game._goalLabel() : "0";
   $("goal-fill").style.width = `${Math.floor((game._goalProgress?.() || 0) * 100)}%`;
   $("power-chip").textContent = game._powerLabel?.() || "";
+
+  const wall = $("wall-chip");
+  if (wall) {
+    const label = game.wallModeLabel?.() || "";
+    wall.textContent = label || "BORDA · —";
+    wall.classList.toggle("lethal", !!game.isWallLethal?.());
+  }
+  syncDevUi();
 }
 
 game.on("hud", refreshHud);
@@ -96,6 +115,13 @@ $("btn-next").onclick = () => { audio.unlock(); audio.click(); game._continueCam
 $("btn-menu-inter").onclick = () => { audio.click(); game.toMenu(); };
 $("btn-win-again").onclick = () => { audio.unlock(); audio.click(); game.start(0); };
 $("btn-menu-win").onclick = () => { audio.click(); game.toMenu(); };
+
+// Dev: pular fase (flag infiniteContinue)
+const skip = () => { audio.unlock(); audio.click(); game.skipLevelDev(); };
+for (const id of ["btn-skip-dev", "btn-skip-pause", "btn-skip-inter", "btn-skip-over", "btn-skip-win"]) {
+  const el = $(id);
+  if (el) el.onclick = skip;
+}
 
 refreshHud();
 showScreen("title");

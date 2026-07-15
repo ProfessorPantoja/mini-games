@@ -37,7 +37,11 @@
         </div>
         <button id="btn-pause" class="icon-btn" type="button" aria-label="Pausar">❚❚</button>
         <div class="goal-bar" aria-hidden="true"><div id="goal-fill" class="goal-fill"></div></div>
-        <div class="power-chip" id="power-chip"></div>
+        <div class="hud-meta-row">
+          <div class="power-chip" id="power-chip"></div>
+          <div class="wall-chip" id="wall-chip" title="Modo da borda do campo">BORDA · —</div>
+          <button id="btn-skip-dev" class="dev-skip" type="button" hidden title="Dev: pular fase (N)">PULAR</button>
+        </div>
       </header>
 
       <div id="banner" class="banner" aria-hidden="true"></div>
@@ -45,16 +49,34 @@
     </main>
 
     <section id="screen-title" class="screen active">
-      <div class="panel">
-        <div class="badge">SIMPLES · PODEROSO</div>
+      <div class="panel panel-title">
+        <div class="logo-mark" aria-hidden="true">
+          <span class="seg s1"></span><span class="seg s2"></span><span class="seg s3"></span>
+          <span class="seg s4"></span><span class="seg s5"></span>
+        </div>
+        <div class="badge">CAMPANHA · 10 FASES</div>
         <h1>NEON<br /><span>SERPENT</span></h1>
-        <p class="tagline">Snake com direção.<br />Fases, poderes e a Hidra no caminho.</p>
+        <p class="tagline">Snake arcade neon com poderes, terreno e a Hidra.</p>
+
+        <div class="modes-row" aria-label="Modos">
+          <div class="mode-chip on">Campanha</div>
+          <div class="mode-chip soon" title="Em breve">Duo local</div>
+          <div class="mode-chip soon" title="Em breve">Online</div>
+          <div class="mode-chip soon" title="Em breve">Speedrun</div>
+        </div>
+
         <ul class="howto">
           <li><strong>Setas / WASD</strong> ou deslize para virar</li>
           <li>Coma orbes cyan · complete a <strong>meta da fase</strong></li>
-          <li>Poderes: fantasma, ímã, turbo, encolhe</li>
-          <li>Boss: coma os <strong>núcleos dourados</strong> sem tocar nos braços</li>
+          <li><strong>Borda ⇄ portal</strong> = atravessa · <strong>⚡ elétrica</strong> = mata</li>
+          <li>Poderes: fantasma, ímã, turbo, encolhe · Boss: <strong>núcleos dourados</strong></li>
         </ul>
+
+        <div class="legend-row">
+          <div class="legend portal"><span class="lg-icon">⇄</span> Portal — passa</div>
+          <div class="legend lethal"><span class="lg-icon">⚡</span> Elétrica — mata</div>
+        </div>
+
         <div class="chips">
           <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="title-best">0</span></div>
           <div class="chip"><span class="chip-label">Fase máx</span><span class="chip-value mono" id="title-maxlvl">1</span></div>
@@ -70,6 +92,7 @@
         <h2>PAUSADO</h2>
         <button id="btn-resume" class="btn primary" type="button">Continuar</button>
         <button id="btn-restart-pause" class="btn ghost" type="button">Recomeçar fase</button>
+        <button id="btn-skip-pause" class="btn ghost dev-only" type="button" hidden>Pular fase (dev)</button>
         <button id="btn-menu-pause" class="btn ghost" type="button">Menu</button>
       </div>
     </section>
@@ -83,6 +106,7 @@
         </div>
         <p id="inter-next" class="tagline" style="margin-bottom:14px"></p>
         <button id="btn-next" class="btn primary" type="button">PRÓXIMA FASE</button>
+        <button id="btn-skip-inter" class="btn ghost dev-only" type="button" hidden>Pular de novo (dev)</button>
         <button id="btn-menu-inter" class="btn ghost" type="button">Menu</button>
       </div>
     </section>
@@ -97,6 +121,7 @@
           <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="over-best">0</span></div>
         </div>
         <button id="btn-retry" class="btn primary" type="button">De novo</button>
+        <button id="btn-skip-over" class="btn ghost dev-only" type="button" hidden>Pular fase (dev)</button>
         <button id="btn-menu-over" class="btn ghost" type="button">Menu</button>
       </div>
     </section>
@@ -111,6 +136,7 @@
           <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="win-best">0</span></div>
         </div>
         <button id="btn-win-again" class="btn primary" type="button">Jogar de novo</button>
+        <button id="btn-skip-win" class="btn ghost dev-only" type="button" hidden>Reiniciar teste (dev)</button>
         <button id="btn-menu-win" class="btn ghost" type="button">Menu</button>
       </div>
     </section>
