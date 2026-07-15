@@ -8,11 +8,9 @@ export function drawPlayer(game, ctx) {
   const cls = game.classDef;
   if (!p || !cls) return;
 
-  if (cls.style === "ranged" || cls.style === "caster") {
-    drawRangedHero(game, ctx);
-  } else {
-    drawMeleeHero(game, ctx);
-  }
+  if (cls.style === "caster") drawCasterHero(game, ctx);
+  else if (cls.style === "ranged") drawRangedHero(game, ctx);
+  else drawMeleeHero(game, ctx);
 }
 
 function drawMeleeHero(game, ctx) {
@@ -235,6 +233,127 @@ function drawRangedHero(game, ctx) {
     ctx.lineTo(22, 3);
     ctx.closePath();
     ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawCasterHero(game, ctx) {
+  const p = game.player;
+  const cls = game.classDef;
+  const colors = cls.colors || {};
+  const active = game.isResourceActive();
+  const accent = colors.accent || "#b44dff";
+  const flame = colors.flame || "#ff6bcb";
+
+  for (const t of p.trail) {
+    ctx.globalAlpha = (t.life / 0.22) * 0.4;
+    ctx.fillStyle = active ? flame : accent;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, p.radius * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  // aura de mana
+  if (active) {
+    const pulse = 1 + Math.sin(game.time * 11) * 0.1;
+    const g = ctx.createRadialGradient(0, 0, 3, 0, 0, p.radius * 2.5 * pulse);
+    g.addColorStop(0, "rgba(180,77,255,0.5)");
+    g.addColorStop(0.5, "rgba(255,107,203,0.2)");
+    g.addColorStop(1, "rgba(180,77,255,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 2.5 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = COLORS.shadow;
+  ctx.beginPath();
+  ctx.ellipse(0, 10, 13, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (p.invuln > 0 && Math.floor(game.time * 20) % 2 === 0 && p.dashing <= 0) {
+    ctx.globalAlpha = 0.45;
+  }
+
+  const flash = p.flash > 0;
+  ctx.fillStyle = flash ? "#fff" : (colors.body || "#c8b8d8");
+  ctx.beginPath();
+  ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // manto
+  ctx.fillStyle = flash ? "#ccc" : (colors.armor || "#3a2a58");
+  ctx.beginPath();
+  ctx.moveTo(-p.radius * 0.75, 2);
+  ctx.lineTo(p.radius * 0.75, 2);
+  ctx.lineTo(p.radius * 0.55, p.radius + 4);
+  ctx.lineTo(-p.radius * 0.55, p.radius + 4);
+  ctx.closePath();
+  ctx.fill();
+
+  // capuz pontudo
+  ctx.fillStyle = flash ? "#ddd" : "#2a1a40";
+  ctx.beginPath();
+  ctx.moveTo(-p.radius * 0.5, -2);
+  ctx.lineTo(0, -p.radius * 1.35);
+  ctx.lineTo(p.radius * 0.5, -2);
+  ctx.closePath();
+  ctx.fill();
+
+  const ex = Math.cos(p.facing) * 3.5;
+  const ey = Math.sin(p.facing) * 3.5;
+  ctx.fillStyle = active ? flame : accent;
+  if (active) {
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 10;
+  }
+  ctx.beginPath();
+  ctx.arc(ex - 2.5, -3 + ey * 0.3, 1.8, 0, Math.PI * 2);
+  ctx.arc(ex + 2.5, -3 + ey * 0.3, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // cajado
+  ctx.rotate(p.facing);
+  const castPull = p.atkPhase === "windup" ? 0.15 : 0;
+  ctx.strokeStyle = p.weapon ? rarityColor(p.weapon.rarity) : "#6a5080";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(4, 4);
+  ctx.lineTo(28, -2 - castPull * 8);
+  ctx.stroke();
+
+  // orbe no topo do cajado
+  const ox = 30;
+  const oy = -4 - castPull * 10;
+  const orbG = ctx.createRadialGradient(ox, oy, 1, ox, oy, 9);
+  orbG.addColorStop(0, "#fff");
+  orbG.addColorStop(0.35, active ? flame : accent);
+  orbG.addColorStop(1, "transparent");
+  ctx.fillStyle = orbG;
+  ctx.beginPath();
+  ctx.arc(ox, oy, 9 + (active ? Math.sin(game.time * 14) * 2 : 0), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = active ? flame : accent;
+  ctx.beginPath();
+  ctx.arc(ox, oy, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ring de cast
+  if (p.atkPhase === "windup") {
+    ctx.strokeStyle = accent;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ox, oy, 12 + (1 - (p.atkTimer || 0) / 0.12) * 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   ctx.restore();

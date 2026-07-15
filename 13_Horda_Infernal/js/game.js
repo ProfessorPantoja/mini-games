@@ -1915,18 +1915,26 @@ export class Game {
 
   _drawProjectiles(ctx) {
     for (const pr of this.projectiles) {
-      const g = ctx.createRadialGradient(pr.x, pr.y, 1, pr.x, pr.y, pr.radius * 2);
+      const glow = pr.mageOrb ? pr.radius * 2.8 : pr.radius * 2;
+      const g = ctx.createRadialGradient(pr.x, pr.y, 1, pr.x, pr.y, glow);
       g.addColorStop(0, "#fff");
-      g.addColorStop(0.4, pr.color);
+      g.addColorStop(0.35, pr.color);
       g.addColorStop(1, "transparent");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(pr.x, pr.y, pr.radius * 2, 0, Math.PI * 2);
+      ctx.arc(pr.x, pr.y, glow, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = pr.color;
       ctx.beginPath();
       ctx.arc(pr.x, pr.y, pr.radius, 0, Math.PI * 2);
       ctx.fill();
+      // núcleo branco do orbe mágico
+      if (pr.mageOrb) {
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.beginPath();
+        ctx.arc(pr.x - 1, pr.y - 1, pr.radius * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 

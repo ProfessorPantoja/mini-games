@@ -1,8 +1,8 @@
 /**
  * Estilos de ataque por classe — game.js só despacha.
- * melee  → bárbaro (e futuros brutos)
- * ranged → arqueiro (e futuros atiradores)
- * caster → mago (futuro; por ora espelha ranged)
+ * melee  → bárbaro
+ * ranged → arqueiro
+ * caster → mago (bola de fogo + splash)
  */
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -15,6 +15,7 @@ export function updateClassAttack(game, dt) {
   const cls = game.classDef;
   if (!cls) return;
   if (cls.style === "melee") updateMelee(game, dt);
+  else if (cls.style === "caster") updateCaster(game, dt);
   else updateRanged(game, dt);
 }
 
@@ -182,6 +183,106 @@ function updateRanged(game, dt) {
   );
 }
 
+/**
+ * Mago: cast com windup → bola de fogo (splash).
+ * Com MANA ativa: 3 orbes em leque + splash maior.
+ */
+function updateCaster(game, dt) {
+  const p = game.player;
+  const s = stats(game);
+  const wantAtk = game.mouse.down || game.keys["KeyJ"] || game.touchAttack;
+  const res = game.classDef.resource;
+  const active = game.isResourceActive();
+  const cdMult = (active ? res.atkSpeed : 1) * (p.mods?.atkCdMult || 1);
+
+  if (p.atkPhase === "idle") {
+    if (wantAtk && p.atkCd <= 0 && p.dashing <= 0) {
+      p.atkPhase = "windup";
+      p.atkTimer = s.attackWindup * (active ? 0.65 : 1);
+      p.swingCount = (p.swingCount || 0) + 1;
+      // partículas de cast
+      game.particles.burst(p.x, p.y, {
+        count: 6,
+        color: game.classDef.colors?.accent || "#b44dff",
+        speed: 50,
+        life: 0.25,
+        size: 2.5,
+        gravity: -30,
+      });
+      game.audio.swing();
+    }
+    return;
+  }
+
+  p.atkTimer -= dt;
+
+  if (p.atkPhase === "windup" && p.atkTimer <= 0) {
+    p.atkPhase = "active";
+    p.atkTimer = s.attackActive;
+    fireMageOrbs(game, active);
+    p.atkCd = s.attackCooldown * cdMult;
+  } else if (p.atkPhase === "active" && p.atkTimer <= 0) {
+    p.atkPhase = "recover";
+    p.atkTimer = s.attackRecover;
+  } else if (p.atkPhase === "recover" && p.atkTimer <= 0) {
+    p.atkPhase = "idle";
+  }
+}
+
+function fireMageOrbs(game, active) {
+  const p = game.player;
+  const s = stats(game);
+  const ang = p.facing;
+  const spd = s.projectileSpeed || 340;
+  const accent = game.classDef.colors?.accent || "#b44dff";
+  const flame = game.classDef.colors?.flame || "#ff6bcb";
+  const baseDmg = game.getPlayerDamage();
+  const splashR = (s.splashRadius || 48) * (active ? 1.35 : 1);
+  const splashM = (s.splashMult || 0.5) * (active ? 1.15 : 1);
+
+  const angles = active
+    ? [ang - 0.22, ang, ang + 0.22]
+    : [ang];
+
+  for (const aim of angles) {
+    game.projectiles.push({
+      x: p.x + Math.cos(aim) * 20,
+      y: p.y + Math.sin(aim) * 20,
+      vx: Math.cos(aim) * spd,
+      vy: Math.sin(aim) * spd,
+      damage: baseDmg,
+      radius: (s.projectileRadius || 9) * (active ? 1.15 : 1),
+      life: 1.6,
+      color: active ? flame : accent,
+      fromEnemy: false,
+      fromPlayer: true,
+      mageOrb: true,
+      splashRadius: splashR,
+      splashMult: splashM,
+      critBoost: active,
+      wobble: Math.random() * Math.PI * 2,
+    });
+  }
+
+  game.particles.burst(
+    p.x + Math.cos(ang) * 22,
+    p.y + Math.sin(ang) * 22,
+    {
+      count: active ? 12 : 7,
+      color: accent,
+      speed: 120,
+      life: 0.22,
+      size: 3,
+      angle: ang,
+      spread: 0.6,
+    },
+  );
+  if (active) {
+    game.shake.add(2.5, 0.08);
+    game.particles.ring(p.x, p.y, accent, 36, 0.25);
+  }
+}
+
 /** Resolve colisão de projéteis do player com inimigos */
 export function updatePlayerProjectiles(game, dt) {
   const list = game.projectiles;
@@ -189,20 +290,56 @@ export function updatePlayerProjectiles(game, dt) {
     const pr = list[i];
     if (!pr.fromPlayer) continue;
 
-    // movimento já é feito em _updateProjectiles genérico se compartilhado —
-    // aqui só hit-test (game chama após mover)
+    // leve wobble visual em orbes do mago
+    if (pr.mageOrb) {
+      pr.wobble = (pr.wobble || 0) + dt * 10;
+      const side = Math.sin(pr.wobble) * 18 * dt;
+      const nx = -pr.vy / (Math.hypot(pr.vx, pr.vy) || 1);
+      const ny = pr.vx / (Math.hypot(pr.vx, pr.vy) || 1);
+      pr.x += nx * side * 40;
+      pr.y += ny * side * 40;
+    }
+
     for (const e of game.enemies) {
       if (e.dead || e.spawnGrace > 0) continue;
       const d = Math.hypot(e.x - pr.x, e.y - pr.y);
       if (d < e.radius + pr.radius) {
         const dir = Math.atan2(pr.vy, pr.vx);
-        // crit chance já dentro de _damageEnemy; projéteis em foco dão +dano leve
         const dmg = pr.critBoost ? Math.round(pr.damage * 1.1) : pr.damage;
         game._damageEnemy(e, dmg, dir);
-        game.particles.sparks(pr.x, pr.y);
+
+        if (pr.mageOrb && pr.splashRadius > 0) {
+          applySplash(game, pr, e);
+        } else {
+          game.particles.sparks(pr.x, pr.y);
+        }
+
         list.splice(i, 1);
         break;
       }
+    }
+  }
+}
+
+function applySplash(game, pr, primary) {
+  const r = pr.splashRadius;
+  const splashDmg = Math.round(pr.damage * (pr.splashMult || 0.5));
+  game.particles.burst(pr.x, pr.y, {
+    count: 16,
+    color: pr.color || "#b44dff",
+    speed: 200,
+    life: 0.35,
+    size: 3.5,
+  });
+  game.particles.ring(pr.x, pr.y, pr.color || "#b44dff", r, 0.28);
+  game.shake.add(2, 0.06);
+
+  for (const e of game.enemies) {
+    if (e.dead || e === primary) continue;
+    const d = Math.hypot(e.x - pr.x, e.y - pr.y);
+    if (d < r + e.radius) {
+      const dir = Math.atan2(e.y - pr.y, e.x - pr.x);
+      game._damageEnemy(e, splashDmg, dir);
     }
   }
 }
