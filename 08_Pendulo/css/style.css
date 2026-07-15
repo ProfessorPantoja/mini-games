@@ -135,6 +135,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   font-family: var(--font); font-weight: 700; font-size: 1rem; cursor: pointer;
   margin-bottom: 10px; transition: transform .12s, box-shadow .12s, background .12s;
 }
+a.btn { text-decoration: none; text-align: center; box-sizing: border-box; }
 .btn:active { transform: scale(0.98); }
 .btn.primary {
   background: linear-gradient(120deg, var(--cyan), var(--violet));

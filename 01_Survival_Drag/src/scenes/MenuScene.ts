@@ -74,7 +74,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(10);
 
-    const btnY = height * 0.72;
+    const btnY = height * 0.7;
     const btn = this.add
       .rectangle(width / 2, btnY, 220, 56, 0x1a4030)
       .setStrokeStyle(2, 0x55ff99)
@@ -90,6 +90,22 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(11);
 
+    const homeY = height * 0.8;
+    const homeBtn = this.add
+      .rectangle(width / 2, homeY, 220, 48, 0x121a16)
+      .setStrokeStyle(2, 0x3a6a50)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(10);
+
+    const homeLabel = this.add
+      .text(width / 2, homeY, '← PORTAL', {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#6a9a80',
+      })
+      .setOrigin(0.5)
+      .setDepth(11);
+
     const start = () => {
       sfx.unlock();
       sfx.cardPick();
@@ -97,6 +113,11 @@ export class MenuScene extends Phaser.Scene {
       this.time.delayedCall(300, () => {
         this.scene.start('GameScene');
       });
+    };
+
+    const goHome = () => {
+      sfx.unlock();
+      window.location.href = '/';
     };
 
     btn.on('pointerover', () => {
@@ -109,11 +130,21 @@ export class MenuScene extends Phaser.Scene {
     });
     btn.on('pointerdown', start);
 
+    homeBtn.on('pointerover', () => {
+      homeBtn.setFillStyle(0x1a2e24);
+      homeLabel.setColor('#a8ffcc');
+    });
+    homeBtn.on('pointerout', () => {
+      homeBtn.setFillStyle(0x121a16);
+      homeLabel.setColor('#6a9a80');
+    });
+    homeBtn.on('pointerdown', goHome);
+
     this.input.keyboard?.once('keydown-ENTER', start);
     this.input.keyboard?.once('keydown-SPACE', start);
 
     this.add
-      .text(width / 2, height * 0.88, 'WASD / setas para mover  ·  poderes automáticos  ·  1–3 nas cartas', {
+      .text(width / 2, height * 0.9, 'WASD / setas para mover  ·  poderes automáticos  ·  1–3 nas cartas', {
         fontFamily: 'monospace',
         fontSize: '11px',
         color: '#5a7a6a',
@@ -122,7 +153,7 @@ export class MenuScene extends Phaser.Scene {
       .setDepth(10);
 
     this.add
-      .text(width / 2, height * 0.93, 'ENTER ou ESPAÇO também inicia', {
+      .text(width / 2, height * 0.95, 'ENTER ou ESPAÇO também inicia', {
         fontFamily: 'monospace',
         fontSize: '10px',
         color: '#3a5a4a',

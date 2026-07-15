@@ -370,6 +370,14 @@ kbd {
   transition: transform 0.15s var(--ease), background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
+a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .btn:active {
   transform: scale(0.97);
 }

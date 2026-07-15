@@ -217,6 +217,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   margin-bottom: 10px;
   transition: transform .12s, box-shadow .12s;
 }
+a.btn { text-decoration: none; text-align: center; box-sizing: border-box; }
 .btn:active { transform: scale(0.98); }
 .btn.primary {
   background: linear-gradient(120deg, var(--cyan), #4d7cff 50%, var(--magenta));

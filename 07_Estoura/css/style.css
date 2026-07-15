@@ -426,6 +426,12 @@ h2 {
   transform: scale(0.97);
 }
 
+a.btn {
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, #22d3ee 0%, #818cf8 55%, #a78bfa 100%);
   color: #0a0e1a;

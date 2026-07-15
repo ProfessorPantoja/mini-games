@@ -56,6 +56,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .chip-label { display: block; font-size: 0.62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .chip-value { font-size: 1.15rem; font-weight: 700; }
 .btn { display: block; width: 100%; border: none; border-radius: 12px; padding: 14px 18px; font-family: var(--font); font-weight: 700; font-size: 1rem; cursor: pointer; margin-bottom: 10px; }
+a.btn { text-decoration: none; text-align: center; box-sizing: border-box; }
 .btn.primary { background: linear-gradient(120deg, var(--amber), #ff8f5a); color: #1a1000; box-shadow: 0 8px 28px rgba(255,200,87,.25); }
 .btn.ghost { background: transparent; color: var(--white); border: 1px solid var(--border); }
 .hint { margin-top: 6px; font-size: 0.78rem; color: var(--muted); }

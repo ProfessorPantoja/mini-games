@@ -432,6 +432,17 @@ kbd {
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
 
+a.btn {
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.menu-home-row {
+  margin-top: 16px;
+  justify-content: center;
+}
+
 .btn:hover {
   border-color: var(--accent);
   background: #1a3828;

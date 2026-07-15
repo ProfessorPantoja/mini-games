@@ -999,6 +999,14 @@ body {
   box-shadow: 0 0 28px rgba(255, 90, 31, 0.18);
 }
 
+a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 0 36px rgba(255, 90, 31, 0.35);

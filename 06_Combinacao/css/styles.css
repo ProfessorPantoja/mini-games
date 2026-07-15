@@ -265,6 +265,14 @@ body {
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .btn:active {
   transform: scale(0.97);
 }
