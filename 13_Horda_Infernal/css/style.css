@@ -466,12 +466,19 @@ body {
 /* ─── Ranking / speedrun ─── */
 .rank-submit {
   width: min(400px, 92vw);
-  margin: 0 auto 18px;
-  padding: 14px 16px;
+  margin: 4px auto 12px;
+  padding: 12px 14px;
   text-align: left;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 90, 31, 0.28);
   border-radius: 8px;
+  flex-shrink: 0;
+}
+
+/* bandeiras em faixa mais baixa para não estourar a altura */
+.rank-submit .flag-picker {
+  max-height: 72px;
+  overflow-y: auto;
 }
 
 .rank-hint {
@@ -811,16 +818,52 @@ body {
   display: none;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  justify-content: flex-start;
+  padding: 20px 16px 28px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background:
     radial-gradient(ellipse 70% 55% at 50% 40%, rgba(80, 12, 18, 0.55), transparent 65%),
     rgba(6, 3, 4, 0.88);
   backdrop-filter: blur(4px);
   text-align: center;
+  pointer-events: auto;
 }
 
 .screen.active { display: flex; }
+
+/* telas curtas (título / pause) — centraliza quando cabe */
+.screen#screen-title,
+.screen#screen-pause {
+  justify-content: center;
+}
+
+/* ações principais sempre logo após o recap (não ficam sob o form de rank) */
+.btn-row.end-actions {
+  margin: 8px 0 16px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.screen.victory .recap,
+.screen.defeat .recap {
+  max-height: min(140px, 22vh);
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.screen.victory .meta-grid,
+.screen.defeat .meta-grid {
+  margin-bottom: 10px;
+}
+
+.screen.victory .tagline,
+.screen.defeat .tagline {
+  margin-bottom: 12px;
+}
 
 .screen .eyebrow {
   font-family: var(--font-display);
@@ -1278,10 +1321,12 @@ body {
   .back-link { top: max(10px, env(safe-area-inset-top)); }
   .hud { padding-top: max(12px, env(safe-area-inset-top)); }
   .screen {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-top: max(24px, env(safe-area-inset-top));
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
+  }
+  .screen#screen-title {
+    justify-content: flex-start;
+    padding-top: max(28px, env(safe-area-inset-top));
   }
   .hint { font-size: 0.78rem; }
 }
