@@ -28,38 +28,41 @@
 
 ## Status
 
-**Core jogável (rodada 1).**
+**Core reescrito (v2)** — feedback “péssimo” da v1 (tank control + corredor apertado + óleo fraco + câmera colada).
 
-### O que roda hoje
+### O que roda hoje (v2)
 
 | Peça | Status |
 |------|--------|
-| Labirinto top-down conectado | OK |
-| Carro com aceleração / freio / curva arcade | OK |
-| Óleo no chão + derrapagem (grip baixo + fumaça) | OK |
-| Flags coletáveis · limpar mapa = vitória | OK |
-| VS IA (perseguição + drop de óleo) | OK |
+| Mapa compacto **inteiro na tela** (leitura imediata) | OK |
+| Movimento **4 direções** (estilo Namco / Rally-X) | OK |
+| Fumaça contínua (segurar botão) → **spin real** no caçador | OK |
+| **3 caçadores** com BFS + você mais rápido | OK |
+| Flags + score + radar clássico | OK |
 | Duo local (P1 WASD+Espaço · P2 setas+Enter) | OK |
-| Visual neon, HUD, menu, pausa | OK |
-| Listado no portal (`games.js`) | OK |
+| Shake, float text, flash | OK |
+| Listado no portal | OK |
 
 ### Controles
 
-- **VS IA:** WASD ou setas · **Espaço** = óleo · **P** pausa · **R** menu  
-- **Duo:** P1 `WASD` + Espaço · P2 `↑←↓→` + Enter  
+- **VS IA:** WASD ou setas (4 dirs) · **segure Espaço** = fumaça · **P** pausa · **R** menu  
+- **Duo:** P1 `WASD`+Espaço · P2 setas+Enter  
+
+### Lição da v1
+
+Não misturar “física de carro” com labirinto estreito. Clássico ganha com **leitura, direção clara e arma de chão que castiga**.
 
 ### Stack
 
-HTML + CSS + Canvas 2D vanilla (`index.html`, `css/style.css`, `js/game.js`). Sem build.
+HTML + CSS + Canvas 2D vanilla. Sem build.
 
-### Backlog (próximas rodadas)
+### Backlog
 
-1. Juice extra: screen shake ao bater, combo de flags, radar mini-mapa (estilo Rally-X).
-2. Tanque de óleo / posto de reabastecimento como meta secundária.
-3. Mais oponentes IA ou “especial” curto (boost / fumaça densa).
-4. Touch / gamepad para mobile e controles de sofá.
-5. Online só depois do duo local viciar de verdade.
-6. Fases com labirintos diferentes + ranking de tempo.
+1. Posto / reabastecimento de fumaça (pressão de recurso).
+2. Fases com mapas diferentes + ranking de tempo.
+3. Touch / gamepad.
+4. Juice sonoro.
+5. Online só depois do duo viciar.
 
 ## Arquivos
 

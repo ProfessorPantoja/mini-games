@@ -1,61 +1,60 @@
 /**
- * NEON RALLY — remake espiritual de Rally-X
- * Labirinto top-down · coleta · óleo no chão · perseguição
- * PvP local (duo) + VS IA
+ * NEON RALLY — remake espiritual de Rally-X (v2)
+ *
+ * Feel arcade, não simulador:
+ *  - Mapa inteiro na tela + radar
+ *  - Movimento 4 direções (estilo Namco)
+ *  - Fumaça que manda o caçador girar de verdade
+ *  - 3 caçadores com pathfinding + flags pra limpar
  */
 (() => {
   "use strict";
 
-  // ─── Constantes ───────────────────────────────────────────
-  const TILE = 40;
-  const CAR_LEN = 22;
-  const CAR_WID = 14;
-  const MAX_SPEED = 210;
-  const ACCEL = 320;
-  const BRAKE = 420;
-  const FRICTION = 140;
-  const TURN_RATE = 3.4; // rad/s at speed
-  const OIL_COST = 14;
-  const OIL_REGEN = 6; // %/s when not dropping
-  const OIL_PATCH_R = 16;
-  const OIL_LIFE = 7.5;
-  const SLIP_DURATION = 0.85;
-  const FLAG_R = 10;
-  const HIT_RADIUS = 13;
-  const WALL_PAD = 8;
-  const AI_LOOK = 55;
+  const TILE = 32;
+  const CAR_R = 11;
+  const SPEED = 172;
+  const ENEMY_SPEED = 142;
+  const TURN_WIN = 0.48; // fração do tile pra encaixar curva
+  const SMOKE_COST = 20; // /s segurando
+  const SMOKE_MAX = 100;
+  const SMOKE_REGEN = 12;
+  const SMOKE_R = 17;
+  const SMOKE_LIFE = 4.0;
+  const SPIN_TIME = 1.65;
+  const HIT_R = 13;
+  const FLAG_R = 11;
 
-  // Mapa: # parede, . estrada, S spawn P1, A spawn IA/P2, F flag
-  // Labirinto legível com corredores, cantos e atalhos
-  // Todas as linhas = 32 chars. # parede · . estrada · S P1 · A IA/P2 · F flag
-  // Labirinto interligado (corredores + atalhos) — validado por BFS.
+  // # parede · . estrada · S humano · E caçador · F flag
+  // Compacto, aberto, 100% conectado — cabe na tela.
   const MAP_SRC = [
-    "################################",
-    "#S........#..........#.........#",
-    "#.#######.#.########.#.#######.#",
-    "#.#.....#.#.#......#.#.#.....#.#",
-    "#.#.###.#.#.#.####.#.#.#.###.#.#",
-    "#.#.#...#...#.#..#.#...#.#...#.#",
-    "#.#.#.#######.#..#.#####.#.###.#",
-    "#...#.........#..F.......#.....#",
-    "###.#########.############.###.#",
-    "#...#.......#............#...#.#",
-    "#.###.#####.#.##########.###.#.#",
-    "#.#...#...#.#.#........#.....#.#",
-    "#.#.###.#.#.#.#.######.#######.#",
-    "#.#.....#.#...#.#....#.........#",
-    "#.#######.#####.#.##.#########.#",
-    "#.......#.......#.##.....#...#.#",
-    "#######.#.#######.######.#.#.#.#",
-    "#.....#.#.#.....#......#.#.#...#",
-    "#.###.#.#.#.###.######.#.#.###.#",
-    "#.#...#...#.#.#......#.#.#...#.#",
-    "#.#.#######.#.######.#.#.###.#.#",
-    "#.#.........#...F....#.#.....#.#",
-    "#.#############.######.#######.#",
-    "#.............F..........#...A.#",
-    "################################",
+    "########################",
+    "#S....#......#........E#",
+    "#.##..#..##..#..####..##",
+    "#.....#......#.........#",
+    "#..####..##..####..##..#",
+    "#........##........##..#",
+    "##..###......###.......#",
+    "#...#...F....#...F..##.#",
+    "#...#..####..#..###....#",
+    "#......#........#......#",
+    "###....#..####..#....###",
+    "#......#..#F.#..#......#",
+    "#..##.....#..#.....##..#",
+    "#..##..####..####..##..#",
+    "#........F........E....#",
+    "##..####....####..####.#",
+    "#.......#..#...........#",
+    "#..###..#..#..###..##..#",
+    "#E......#..#......F...S#",
+    "########################",
   ];
+
+  const DIRS = {
+    up: { x: 0, y: -1, a: -Math.PI / 2 },
+    down: { x: 0, y: 1, a: Math.PI / 2 },
+    left: { x: -1, y: 0, a: Math.PI },
+    right: { x: 1, y: 0, a: 0 },
+  };
 
   // ─── DOM ──────────────────────────────────────────────────
   const canvas = document.getElementById("game");
@@ -67,15 +66,16 @@
   const hudP1 = document.getElementById("hud-p1");
   const hudP2 = document.getElementById("hud-p2");
   const statP2 = document.getElementById("stat-p2");
+  const statScore = document.getElementById("stat-score");
 
-  // ─── Input ────────────────────────────────────────────────
   const keys = Object.create(null);
+
   window.addEventListener("keydown", (e) => {
     keys[e.code] = true;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
       e.preventDefault();
     }
-    if (e.code === "KeyP" && state.phase === "play") togglePause();
+    if (e.code === "KeyP" && (state.phase === "play" || state.phase === "pause")) togglePause();
     if (e.code === "KeyR") goMenu();
   });
   window.addEventListener("keyup", (e) => {
@@ -86,125 +86,119 @@
     btn.addEventListener("click", () => startGame(btn.dataset.mode));
   });
 
-  // ─── Estado ───────────────────────────────────────────────
   const state = {
-    phase: "menu", // menu | play | pause | win | lose
-    mode: "ai", // ai | duo
+    phase: "menu",
+    mode: "ai",
     maze: null,
     cars: [],
-    oils: [],
+    smokes: [],
     flags: [],
     particles: [],
-    cam: { x: 0, y: 0 },
+    floats: [],
     time: 0,
     totalFlags: 0,
+    shake: 0,
     flash: 0,
+    ox: 0,
+    oy: 0,
+    ended: false,
   };
 
-  // ─── Maze parse ───────────────────────────────────────────
+  // ─── Maze ─────────────────────────────────────────────────
   function parseMaze() {
     const rows = MAP_SRC.length;
     const cols = MAP_SRC[0].length;
     const grid = [];
-    const spawns = { p1: null, p2: null };
+    const playerSpawns = [];
+    const enemySpawns = [];
     const flags = [];
 
     for (let r = 0; r < rows; r++) {
       const line = MAP_SRC[r];
+      if (line.length !== cols) throw new Error(`Map row ${r}: width ${line.length}`);
       const row = [];
       for (let c = 0; c < cols; c++) {
-        const ch = line[c] || "#";
-        const wall = ch === "#";
-        row.push(wall ? 1 : 0);
-        const wx = c * TILE + TILE / 2;
-        const wy = r * TILE + TILE / 2;
-        if (ch === "S") spawns.p1 = { x: wx, y: wy, a: 0 };
-        if (ch === "A") spawns.p2 = { x: wx, y: wy, a: Math.PI };
-        if (ch === "F") flags.push({ x: wx, y: wy, taken: false, pulse: Math.random() * Math.PI * 2 });
+        const ch = line[c];
+        row.push(ch === "#" ? 1 : 0);
+        const x = c * TILE + TILE / 2;
+        const y = r * TILE + TILE / 2;
+        if (ch === "S") playerSpawns.push({ x, y });
+        if (ch === "E") enemySpawns.push({ x, y });
+        if (ch === "F") flags.push(makeFlag(x, y));
       }
       grid.push(row);
     }
 
-    // flags extras em cruzamentos abertos (sem poluir)
-    placeExtraFlags(grid, flags, rows, cols);
-
+    scatterFlags(grid, flags, rows, cols, 7);
     return {
       grid,
       rows,
       cols,
       w: cols * TILE,
       h: rows * TILE,
-      spawns,
+      playerSpawns,
+      enemySpawns,
       flags,
     };
   }
 
-  function placeExtraFlags(grid, flags, rows, cols) {
-    const candidates = [];
-    for (let r = 2; r < rows - 2; r++) {
-      for (let c = 2; c < cols - 2; c++) {
-        if (grid[r][c] !== 0) continue;
-        // prefer open cells (degree >= 2)
+  function makeFlag(x, y) {
+    return { x, y, taken: false, pulse: Math.random() * 6.28 };
+  }
+
+  function scatterFlags(grid, flags, rows, cols, n) {
+    const cand = [];
+    for (let r = 1; r < rows - 1; r++) {
+      for (let c = 1; c < cols - 1; c++) {
+        if (grid[r][c]) continue;
         let open = 0;
-        if (grid[r - 1][c] === 0) open++;
-        if (grid[r + 1][c] === 0) open++;
-        if (grid[r][c - 1] === 0) open++;
-        if (grid[r][c + 1] === 0) open++;
-        if (open >= 3) {
-          candidates.push({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
-        }
+        if (!grid[r - 1][c]) open++;
+        if (!grid[r + 1][c]) open++;
+        if (!grid[r][c - 1]) open++;
+        if (!grid[r][c + 1]) open++;
+        if (open >= 2) cand.push({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
       }
     }
-    // espalhar ~8 flags extras sem empilhar
-    shuffle(candidates);
-    let added = 0;
-    for (const p of candidates) {
-      if (added >= 8) break;
-      const tooClose = flags.some((f) => dist(f, p) < TILE * 3.2);
-      if (tooClose) continue;
-      flags.push({ x: p.x, y: p.y, taken: false, pulse: Math.random() * Math.PI * 2 });
-      added++;
-    }
-  }
-
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
+    for (let i = cand.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [cand[i], cand[j]] = [cand[j], cand[i]];
     }
-    return arr;
+    let add = 0;
+    for (const p of cand) {
+      if (add >= n) break;
+      if (flags.some((f) => Math.hypot(f.x - p.x, f.y - p.y) < TILE * 2.6)) continue;
+      flags.push(makeFlag(p.x, p.y));
+      add++;
+    }
   }
 
-  // ─── Car factory ──────────────────────────────────────────
   function makeCar(opts) {
     return {
       id: opts.id,
       x: opts.x,
       y: opts.y,
-      a: opts.a || 0,
-      speed: 0,
-      color: opts.color,
-      glow: opts.glow,
-      oil: 100,
-      slip: 0,
-      stun: 0,
+      dir: opts.dir || "right",
+      want: opts.dir || "right",
+      baseSpeed: opts.speed || SPEED,
+      smoke: SMOKE_MAX,
+      spin: 0,
       score: 0,
       isAI: !!opts.isAI,
       isP1: !!opts.isP1,
       isP2: !!opts.isP2,
-      alive: true,
-      dropCd: 0,
+      color: opts.color,
+      path: [],
+      pathTimer: 0,
+      smokeCd: 0,
       trail: [],
-      // AI memory
-      aiTarget: null,
-      aiTurnBias: 0,
-      aiDropTimer: 0,
+      alive: true,
     };
   }
 
-  // ─── Game flow ────────────────────────────────────────────
+  // ─── Flow ─────────────────────────────────────────────────
   function goMenu() {
     state.phase = "menu";
+    state.ended = false;
     overlay.classList.remove("hidden");
     bannerEl.classList.add("hidden");
     bannerEl.textContent = "";
@@ -213,61 +207,85 @@
   function startGame(mode) {
     state.mode = mode === "duo" ? "duo" : "ai";
     state.maze = parseMaze();
-    state.oils = [];
-    state.particles = [];
-    state.time = 0;
-    state.flash = 0;
     state.flags = state.maze.flags.map((f) => ({ ...f, taken: false }));
     state.totalFlags = state.flags.length;
+    state.smokes = [];
+    state.particles = [];
+    state.floats = [];
+    state.time = 0;
+    state.shake = 0;
+    state.flash = 0;
+    state.ended = false;
 
-    const s = state.maze.spawns;
+    const ps = state.maze.playerSpawns;
+    const es = state.maze.enemySpawns;
     const cars = [];
+
     cars.push(
       makeCar({
         id: "p1",
-        x: s.p1.x,
-        y: s.p1.y,
-        a: s.p1.a,
+        x: ps[0].x,
+        y: ps[0].y,
+        dir: "right",
         color: "#00f0ff",
-        glow: "rgba(0,240,255,0.55)",
         isP1: true,
+        speed: SPEED,
       })
     );
 
     if (state.mode === "duo") {
+      const p2s = ps[1] || es[0];
       cars.push(
         makeCar({
           id: "p2",
-          x: s.p2.x,
-          y: s.p2.y,
-          a: s.p2.a,
+          x: p2s.x,
+          y: p2s.y,
+          dir: "left",
           color: "#ff2bd6",
-          glow: "rgba(255,43,214,0.55)",
           isP2: true,
+          speed: SPEED,
         })
       );
+      if (es[1]) {
+        cars.push(
+          makeCar({
+            id: "ai0",
+            x: es[1].x,
+            y: es[1].y,
+            dir: "up",
+            color: "#ff5d7a",
+            isAI: true,
+            speed: ENEMY_SPEED,
+          })
+        );
+      }
       statP2.classList.remove("hidden");
+      if (statScore) statScore.querySelector(".lbl").textContent = "P1";
     } else {
-      cars.push(
-        makeCar({
-          id: "ai",
-          x: s.p2.x,
-          y: s.p2.y,
-          a: s.p2.a,
-          color: "#ff5d7a",
-          glow: "rgba(255,93,122,0.55)",
-          isAI: true,
-        })
-      );
+      const n = Math.min(3, es.length);
+      const colors = ["#ff5d7a", "#ff8a5c", "#ff3d9a"];
+      for (let i = 0; i < n; i++) {
+        cars.push(
+          makeCar({
+            id: "ai" + i,
+            x: es[i].x,
+            y: es[i].y,
+            dir: i % 2 ? "left" : "up",
+            color: colors[i],
+            isAI: true,
+            speed: ENEMY_SPEED * (0.94 + i * 0.04),
+          })
+        );
+      }
       statP2.classList.add("hidden");
+      if (statScore) statScore.querySelector(".lbl").textContent = "SCORE";
     }
 
     state.cars = cars;
-    state.cam.x = s.p1.x;
-    state.cam.y = s.p1.y;
     state.phase = "play";
     overlay.classList.add("hidden");
     bannerEl.classList.add("hidden");
+    fitCamera();
     updateHud();
   }
 
@@ -287,614 +305,532 @@
   }
 
   function endGame(win, msg) {
+    if (state.ended) return;
+    state.ended = true;
     state.phase = win ? "win" : "lose";
     showBanner(msg, win ? "win" : "lose");
+    state.shake = 12;
     setTimeout(() => {
-      if (state.phase === "win" || state.phase === "lose") {
-        goMenu();
-      }
-    }, 3200);
+      if (state.phase === "win" || state.phase === "lose") goMenu();
+    }, 2800);
   }
 
-  // ─── Collision helpers ────────────────────────────────────
-  function cellAt(x, y) {
-    const c = (x / TILE) | 0;
-    const r = (y / TILE) | 0;
-    if (r < 0 || c < 0 || r >= state.maze.rows || c >= state.maze.cols) return 1;
-    return state.maze.grid[r][c];
+  // ─── Grid ─────────────────────────────────────────────────
+  function tileOf(x, y) {
+    return { c: Math.floor(x / TILE), r: Math.floor(y / TILE) };
   }
 
-  function solidNear(x, y, pad) {
-    // sample box corners + mid edges
-    const pts = [
-      [x - pad, y - pad],
-      [x + pad, y - pad],
-      [x - pad, y + pad],
-      [x + pad, y + pad],
-      [x, y - pad],
-      [x, y + pad],
-      [x - pad, y],
-      [x + pad, y],
-    ];
-    for (const [px, py] of pts) {
-      if (cellAt(px, py) === 1) return true;
-    }
-    return false;
+  function isWall(c, r) {
+    const m = state.maze;
+    if (!m || r < 0 || c < 0 || r >= m.rows || c >= m.cols) return true;
+    return m.grid[r][c] === 1;
   }
 
-  function tryMove(car, nx, ny) {
-    // slide along walls
-    if (!solidNear(nx, ny, WALL_PAD)) {
-      car.x = nx;
-      car.y = ny;
-      return true;
-    }
-    if (!solidNear(nx, car.y, WALL_PAD)) {
-      car.x = nx;
-      car.speed *= 0.55;
-      return true;
-    }
-    if (!solidNear(car.x, ny, WALL_PAD)) {
-      car.y = ny;
-      car.speed *= 0.55;
-      return true;
-    }
-    // full stop + bounce feel
-    car.speed *= -0.25;
-    spawnSparks(car.x, car.y, car.color, 6);
-    return false;
+  function isWallAt(x, y) {
+    const t = tileOf(x, y);
+    return isWall(t.c, t.r);
   }
 
-  function dist(a, b) {
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-    return Math.hypot(dx, dy);
+  function centerOf(c, r) {
+    return { x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 };
   }
 
-  // ─── Controls ─────────────────────────────────────────────
-  function readInput(car) {
-    let throttle = 0;
-    let steer = 0;
-    let drop = false;
+  function nearCenter(car) {
+    const t = tileOf(car.x, car.y);
+    const mid = centerOf(t.c, t.r);
+    const lim = TILE * TURN_WIN;
+    return Math.abs(car.x - mid.x) < lim && Math.abs(car.y - mid.y) < lim;
+  }
 
+  function canGo(car, dirName) {
+    const d = DIRS[dirName];
+    const t = tileOf(car.x, car.y);
+    return !isWall(t.c + d.x, t.r + d.y);
+  }
+
+  function snapLane(car) {
+    const t = tileOf(car.x, car.y);
+    const mid = centerOf(t.c, t.r);
+    const d = DIRS[car.dir];
+    if (d.x !== 0) car.y += (mid.y - car.y) * 0.5;
+    if (d.y !== 0) car.x += (mid.x - car.x) * 0.5;
+  }
+
+  // ─── Input ────────────────────────────────────────────────
+  function readWant(car) {
     if (car.isP1) {
-      if (keys.KeyW || keys.ArrowUp) throttle += 1;
-      if (keys.KeyS || keys.ArrowDown) throttle -= 1;
-      // em solo, setas também viram (WASD preferido; setas ok)
-      if (state.mode === "ai") {
-        if (keys.KeyA || keys.ArrowLeft) steer -= 1;
-        if (keys.KeyD || keys.ArrowRight) steer += 1;
-        drop = keys.Space;
-      } else {
-        if (keys.KeyA) steer -= 1;
-        if (keys.KeyD) steer += 1;
-        drop = keys.Space;
-      }
+      const arrows = state.mode === "ai";
+      if (keys.KeyW || (arrows && keys.ArrowUp)) return "up";
+      if (keys.KeyS || (arrows && keys.ArrowDown)) return "down";
+      if (keys.KeyA || (arrows && keys.ArrowLeft)) return "left";
+      if (keys.KeyD || (arrows && keys.ArrowRight)) return "right";
     } else if (car.isP2) {
-      if (keys.ArrowUp) throttle += 1;
-      if (keys.ArrowDown) throttle -= 1;
-      if (keys.ArrowLeft) steer -= 1;
-      if (keys.ArrowRight) steer += 1;
-      drop = keys.Enter || keys.NumpadEnter;
+      if (keys.ArrowUp) return "up";
+      if (keys.ArrowDown) return "down";
+      if (keys.ArrowLeft) return "left";
+      if (keys.ArrowRight) return "right";
     }
-
-    return { throttle, steer, drop };
+    return null;
   }
 
-  // ─── AI ───────────────────────────────────────────────────
-  function aiControl(car, dt) {
-    const player = state.cars.find((c) => c.isP1 && c.alive);
-    if (!player) return { throttle: 0, steer: 0, drop: false };
+  function smokeHeld(car) {
+    if (car.isP1) return !!keys.Space;
+    if (car.isP2) return !!(keys.Enter || keys.NumpadEnter);
+    return false;
+  }
 
-    // alvo: jogador, ou flag se estiver longe e tiver flag perto
-    let target = { x: player.x, y: player.y };
-    const dPlayer = dist(car, player);
+  // ─── AI BFS ───────────────────────────────────────────────
+  function bfsPath(fc, fr, tc, tr) {
+    const m = state.maze;
+    if (isWall(tc, tr)) return [];
+    const key = (c, r) => r * m.cols + c;
+    const q = [[fc, fr]];
+    const prev = new Map([[key(fc, fr), null]]);
+    const order = [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ];
+    if (Math.random() < 0.5) order.reverse();
 
-    // ocasionalmente perseguir flag se estiver no caminho
-    let nearestFlag = null;
-    let bestFd = Infinity;
-    for (const f of state.flags) {
-      if (f.taken) continue;
-      const d = dist(car, f);
-      if (d < bestFd) {
-        bestFd = d;
-        nearestFlag = f;
+    let found = false;
+    while (q.length) {
+      const [c, r] = q.shift();
+      if (c === tc && r === tr) {
+        found = true;
+        break;
+      }
+      for (const [dc, dr] of order) {
+        const nc = c + dc;
+        const nr = r + dr;
+        const k = key(nc, nr);
+        if (prev.has(k) || isWall(nc, nr)) continue;
+        prev.set(k, [c, r]);
+        q.push([nc, nr]);
       }
     }
-    // se o player está longe e há flag próxima, pega a flag (pressão de score)
-    if (nearestFlag && bestFd < 180 && dPlayer > 220) {
-      target = nearestFlag;
+    if (!found) return [];
+    const path = [];
+    let cur = [tc, tr];
+    while (cur) {
+      path.push(cur);
+      cur = prev.get(key(cur[0], cur[1]));
     }
-
-    // ângulo desejado
-    const desired = Math.atan2(target.y - car.y, target.x - car.x);
-    let diff = wrapAngle(desired - car.a);
-
-    // look-ahead wall avoid
-    const lx = car.x + Math.cos(car.a) * AI_LOOK;
-    const ly = car.y + Math.sin(car.a) * AI_LOOK;
-    const leftA = car.a - 0.7;
-    const rightA = car.a + 0.7;
-    const wallAhead = solidNear(lx, ly, 6);
-    const wallL = solidNear(car.x + Math.cos(leftA) * 40, car.y + Math.sin(leftA) * 40, 6);
-    const wallR = solidNear(car.x + Math.cos(rightA) * 40, car.y + Math.sin(rightA) * 40, 6);
-
-    let steer = 0;
-    if (wallAhead) {
-      if (wallL && !wallR) steer = 1;
-      else if (wallR && !wallL) steer = -1;
-      else steer = car.aiTurnBias || (Math.random() < 0.5 ? -1 : 1);
-      car.aiTurnBias = steer;
-    } else {
-      car.aiTurnBias = 0;
-      if (diff > 0.12) steer = 1;
-      else if (diff < -0.12) steer = -1;
-      if (wallL && steer < 0) steer = 0.3;
-      if (wallR && steer > 0) steer = -0.3;
-    }
-
-    // throttle: freia um pouco se parede na frente em alta
-    let throttle = 1;
-    if (wallAhead && car.speed > 80) throttle = -0.4;
-    else if (Math.abs(diff) > 1.2) throttle = 0.45;
-
-    // drop oil quando player está atrás e perto
-    car.aiDropTimer -= dt;
-    let drop = false;
-    const behind =
-      Math.cos(car.a) * (player.x - car.x) + Math.sin(car.a) * (player.y - car.y) < -10;
-    if (dPlayer < 120 && behind && car.oil > 25 && car.aiDropTimer <= 0 && car.slip <= 0) {
-      drop = true;
-      car.aiDropTimer = 1.4 + Math.random() * 0.8;
-    }
-
-    return { throttle, steer, drop };
+    path.reverse();
+    return path;
   }
 
-  function wrapAngle(a) {
-    while (a > Math.PI) a -= Math.PI * 2;
-    while (a < -Math.PI) a += Math.PI * 2;
-    return a;
+  function chaseTarget(car) {
+    const humans = state.cars.filter((c) => (c.isP1 || c.isP2) && c.alive);
+    if (!humans.length) return null;
+    if (humans.length === 1) return humans[0];
+    const idx = parseInt(String(car.id).replace(/\D/g, ""), 10) || 0;
+    return humans[idx % humans.length];
   }
 
-  // ─── Oil ──────────────────────────────────────────────────
-  function dropOil(car) {
-    if (car.oil < OIL_COST || car.dropCd > 0 || car.slip > 0.3) return;
-    car.oil = Math.max(0, car.oil - OIL_COST);
-    car.dropCd = 0.18;
-    const back = car.a + Math.PI;
-    const ox = car.x + Math.cos(back) * (CAR_LEN * 0.7);
-    const oy = car.y + Math.sin(back) * (CAR_LEN * 0.7);
-    state.oils.push({
-      x: ox,
-      y: oy,
-      r: OIL_PATCH_R,
-      life: OIL_LIFE,
-      maxLife: OIL_LIFE,
+  // ─── Smoke ────────────────────────────────────────────────
+  function emitSmoke(car, dt, burst) {
+    if (car.smoke < (burst ? 12 : 3)) return;
+    const cost = burst ? 16 : SMOKE_COST * dt;
+    car.smoke = Math.max(0, car.smoke - cost);
+
+    const back = DIRS[car.dir];
+    const bx = car.x - back.x * (CAR_R + 8);
+    const by = car.y - back.y * (CAR_R + 8);
+
+    // reforça nuvem recente
+    for (let i = state.smokes.length - 1; i >= Math.max(0, state.smokes.length - 6); i--) {
+      const s = state.smokes[i];
+      if (s.owner === car.id && Math.hypot(s.x - bx, s.y - by) < 12) {
+        s.life = Math.min(SMOKE_LIFE, s.life + dt * 2.5);
+        s.r = Math.min(SMOKE_R * 1.35, s.r + dt * 10);
+        return;
+      }
+    }
+
+    state.smokes.push({
+      x: bx + (Math.random() - 0.5) * 5,
+      y: by + (Math.random() - 0.5) * 5,
+      r: SMOKE_R * (0.9 + Math.random() * 0.25),
+      life: SMOKE_LIFE,
+      max: SMOKE_LIFE,
       owner: car.id,
-      wobble: Math.random() * Math.PI * 2,
+      phase: Math.random() * 6.28,
     });
-    // fumaça
-    for (let i = 0; i < 4; i++) {
-      state.particles.push({
-        x: ox,
-        y: oy,
-        vx: (Math.random() - 0.5) * 30,
-        vy: (Math.random() - 0.5) * 30,
-        life: 0.4 + Math.random() * 0.3,
-        max: 0.7,
-        color: "rgba(40,40,50,0.5)",
-        size: 4 + Math.random() * 6,
-      });
-    }
   }
 
-  function applyOil(car) {
-    for (const o of state.oils) {
-      if (o.life <= 0) continue;
-      // não escorrega no próprio óleo por 0.4s após soltar (evita auto-trap imediato total)
-      // mas pode escorregar se voltar — simplificado: afeta todos, dono um pouco menos
-      const d = dist(car, o);
-      if (d < o.r + 4) {
-        const mult = o.owner === car.id ? 0.55 : 1;
-        car.slip = Math.max(car.slip, SLIP_DURATION * mult);
-        // empurrão lateral aleatório
-        car.a += (Math.random() - 0.5) * 0.08 * mult;
-        car.speed *= 1 - 0.02 * mult;
-      }
-    }
-  }
+  function tryTurn(car) {
+    if (car.want === car.dir) return;
+    const want = car.want;
+    const cur = DIRS[car.dir];
+    const nxt = DIRS[want];
+    if (!nxt) return;
 
-  // ─── Particles ────────────────────────────────────────────
-  function spawnSparks(x, y, color, n) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = 40 + Math.random() * 120;
-      state.particles.push({
-        x,
-        y,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp,
-        life: 0.25 + Math.random() * 0.35,
-        max: 0.6,
-        color,
-        size: 2 + Math.random() * 2,
-      });
+    // 180° imediato
+    if (cur.x + nxt.x === 0 && cur.y + nxt.y === 0) {
+      car.dir = want;
+      return;
     }
-  }
-
-  function spawnPickup(x, y) {
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      state.particles.push({
-        x,
-        y,
-        vx: Math.cos(a) * 80,
-        vy: Math.sin(a) * 80,
-        life: 0.45,
-        max: 0.45,
-        color: "#ffc857",
-        size: 3,
-      });
-    }
+    if (!canGo(car, want) || !nearCenter(car)) return;
+    const t = tileOf(car.x, car.y);
+    const mid = centerOf(t.c, t.r);
+    car.x = mid.x;
+    car.y = mid.y;
+    car.dir = want;
   }
 
   // ─── Update ───────────────────────────────────────────────
-  function updateCar(car, dt) {
-    if (!car.alive) return;
+  function update(dt) {
+    if (state.phase !== "play") return;
+    state.time += dt;
 
-    if (car.stun > 0) {
-      car.stun -= dt;
-      car.speed *= 1 - 2.5 * dt;
-      return;
-    }
+    for (const car of state.cars) {
+      if (!car.alive) continue;
 
-    const input = car.isAI ? aiControl(car, dt) : readInput(car);
+      // spin out
+      if (car.spin > 0) {
+        car.spin -= dt;
+        car.x += (Math.random() - 0.5) * 30 * dt;
+        car.y += (Math.random() - 0.5) * 30 * dt;
+        if (Math.random() < 0.55) {
+          burst(car.x, car.y, "rgba(255,200,87,0.5)", 1, 40);
+        }
+        continue;
+      }
 
-    // oil regen / drop
-    car.dropCd = Math.max(0, car.dropCd - dt);
-    if (input.drop) dropOil(car);
-    else car.oil = Math.min(100, car.oil + OIL_REGEN * dt);
+      // direção desejada
+      if (car.isAI) {
+        car.pathTimer -= dt;
+        const target = chaseTarget(car);
+        if (target) {
+          const me = tileOf(car.x, car.y);
+          const tg = tileOf(target.x, target.y);
+          if (car.pathTimer <= 0 || car.path.length < 2) {
+            car.path = bfsPath(me.c, me.r, tg.c, tg.r);
+            car.pathTimer = 0.22 + Math.random() * 0.18;
+          }
+          while (car.path.length && car.path[0][0] === me.c && car.path[0][1] === me.r) {
+            car.path.shift();
+          }
+          if (car.path.length) {
+            const [nc, nr] = car.path[0];
+            if (nc > me.c) car.want = "right";
+            else if (nc < me.c) car.want = "left";
+            else if (nr > me.r) car.want = "down";
+            else if (nr < me.r) car.want = "up";
+          }
+          // fumaça se humano atrás
+          car.smokeCd -= dt;
+          const d = Math.hypot(target.x - car.x, target.y - car.y);
+          const back = DIRS[car.dir];
+          const behind =
+            (target.x - car.x) * -back.x + (target.y - car.y) * -back.y > 6 && d < 95;
+          if (behind && car.smoke > 20 && car.smokeCd <= 0) {
+            emitSmoke(car, 0.05, true);
+            car.smokeCd = 1.0;
+          } else {
+            car.smoke = Math.min(SMOKE_MAX, car.smoke + SMOKE_REGEN * 0.5 * dt);
+          }
+        }
+      } else {
+        const w = readWant(car);
+        if (w) car.want = w;
+        if (smokeHeld(car)) emitSmoke(car, dt, false);
+        else car.smoke = Math.min(SMOKE_MAX, car.smoke + SMOKE_REGEN * dt);
+      }
 
-    applyOil(car);
+      tryTurn(car);
 
-    // slip physics
-    let grip = 1;
-    if (car.slip > 0) {
-      car.slip -= dt;
-      grip = 0.25;
-      car.a += (Math.random() - 0.5) * 4.5 * dt;
-      car.speed *= 1 - 0.35 * dt;
-      // skid marks feel via trail
+      const d = DIRS[car.dir];
+      const sp = car.baseSpeed;
+      const nx = car.x + d.x * sp * dt;
+      const ny = car.y + d.y * sp * dt;
+      const look = CAR_R + 1;
+      if (isWallAt(nx + d.x * look, ny + d.y * look)) {
+        const t = tileOf(car.x, car.y);
+        const mid = centerOf(t.c, t.r);
+        car.x = mid.x;
+        car.y = mid.y;
+      } else {
+        car.x = nx;
+        car.y = ny;
+        snapLane(car);
+      }
+
       if (Math.random() < 0.4) {
-        state.particles.push({
-          x: car.x + (Math.random() - 0.5) * 8,
-          y: car.y + (Math.random() - 0.5) * 8,
-          vx: 0,
-          vy: 0,
-          life: 0.5,
-          max: 0.5,
-          color: "rgba(255,200,87,0.35)",
-          size: 3,
+        car.trail.push({
+          x: car.x - d.x * 9,
+          y: car.y - d.y * 9,
+          life: 0.16,
+          color: car.color,
         });
       }
+      for (const t of car.trail) t.life -= dt;
+      car.trail = car.trail.filter((t) => t.life > 0);
     }
 
-    // accelerate
-    if (input.throttle > 0) car.speed += ACCEL * input.throttle * dt * (0.5 + 0.5 * grip);
-    else if (input.throttle < 0) car.speed += BRAKE * input.throttle * dt;
-    else {
-      // coast friction
-      if (car.speed > 0) car.speed = Math.max(0, car.speed - FRICTION * dt);
-      else if (car.speed < 0) car.speed = Math.min(0, car.speed + FRICTION * dt);
-    }
-
-    car.speed = Math.max(-MAX_SPEED * 0.45, Math.min(MAX_SPEED, car.speed));
-
-    // turn — more turn at mid speed (arcade feel)
-    const spdFactor = Math.min(1, Math.abs(car.speed) / 60);
-    const turnMul = grip * spdFactor * (car.speed < 0 ? -1 : 1);
-    car.a += input.steer * TURN_RATE * turnMul * dt;
-
-    // integrate
-    const nx = car.x + Math.cos(car.a) * car.speed * dt;
-    const ny = car.y + Math.sin(car.a) * car.speed * dt;
-    tryMove(car, nx, ny);
-
-    // trail
-    if (Math.abs(car.speed) > 40) {
-      car.trail.push({ x: car.x, y: car.y, a: car.a, life: 0.25 });
-      if (car.trail.length > 12) car.trail.shift();
-    }
-    for (const t of car.trail) t.life -= dt;
-    car.trail = car.trail.filter((t) => t.life > 0);
-  }
-
-  function updateFlags() {
-    for (const f of state.flags) {
-      if (f.taken) continue;
-      f.pulse += 0.08;
-      for (const car of state.cars) {
-        if (!car.alive) continue;
-        if (dist(car, f) < FLAG_R + 10) {
-          f.taken = true;
-          car.score += 100;
-          spawnPickup(f.x, f.y);
+    // fumaça → spin
+    for (const car of state.cars) {
+      if (!car.alive || car.spin > 0) continue;
+      for (const s of state.smokes) {
+        if (s.owner === car.id) continue;
+        if (Math.hypot(car.x - s.x, car.y - s.y) < s.r + CAR_R * 0.35) {
+          car.spin = SPIN_TIME;
+          car.path = [];
+          state.shake = Math.max(state.shake, 6);
           state.flash = 0.12;
+          burst(car.x, car.y, "#ffc857", 14, 120);
+          floatTxt(car.x, car.y - 18, "DERRAPA!", "#ffc857");
+          const owner = state.cars.find((c) => c.id === s.owner);
+          if (owner && !owner.isAI && car.isAI) {
+            owner.score += 50;
+            floatTxt(owner.x, owner.y - 22, "+50", "#7dffb3");
+          }
           break;
         }
       }
     }
-  }
 
-  function updateCarHits() {
-    const alive = state.cars.filter((c) => c.alive);
-    for (let i = 0; i < alive.length; i++) {
-      for (let j = i + 1; j < alive.length; j++) {
-        const a = alive[i];
-        const b = alive[j];
-        const d = dist(a, b);
-        if (d < HIT_RADIUS * 2) {
-          // bounce + stun curto
-          const ang = Math.atan2(b.y - a.y, b.x - a.x);
-          const push = 40;
-          tryMove(a, a.x - Math.cos(ang) * push * 0.15, a.y - Math.sin(ang) * push * 0.15);
-          tryMove(b, b.x + Math.cos(ang) * push * 0.15, b.y + Math.sin(ang) * push * 0.15);
-          const rel = Math.abs(a.speed) + Math.abs(b.speed);
-          a.speed *= -0.35;
-          b.speed *= -0.35;
-          a.stun = Math.max(a.stun, 0.25);
-          b.stun = Math.max(b.stun, 0.25);
-          spawnSparks((a.x + b.x) / 2, (a.y + b.y) / 2, "#ffffff", 8);
-
-          // VS IA: se AI colide com player em alta, player "pego"
-          if (state.mode === "ai" && rel > 90) {
-            const p = a.isP1 ? a : b.isP1 ? b : null;
-            const ai = a.isAI ? a : b.isAI ? b : null;
-            if (p && ai && d < HIT_RADIUS * 1.6) {
-              // caught!
-              endGame(false, "PEGARAM VOCÊ!");
-              spawnSparks(p.x, p.y, p.color, 20);
-              return;
-            }
-          }
+    // flags
+    for (const f of state.flags) {
+      if (f.taken) continue;
+      f.pulse += 0.1;
+      for (const car of state.cars) {
+        if (!car.alive || car.isAI || car.spin > 0) continue;
+        if (Math.hypot(car.x - f.x, car.y - f.y) < FLAG_R + CAR_R) {
+          f.taken = true;
+          car.score += 100;
+          state.flash = 0.14;
+          state.shake = Math.max(state.shake, 3);
+          burst(f.x, f.y, "#ffc857", 14, 100);
+          floatTxt(f.x, f.y - 16, "+100", "#ffc857");
+          break;
         }
       }
     }
-  }
 
-  function checkWin() {
-    const remaining = state.flags.filter((f) => !f.taken).length;
-    if (remaining > 0) return;
+    // pega
+    const humans = state.cars.filter((c) => (c.isP1 || c.isP2) && c.alive);
+    const enemies = state.cars.filter((c) => c.isAI && c.alive && c.spin <= 0);
+    for (const h of humans) {
+      if (h.spin > 0) continue;
+      for (const e of enemies) {
+        if (Math.hypot(h.x - e.x, h.y - e.y) < HIT_R * 1.45) {
+          if (state.mode === "ai") {
+            burst(h.x, h.y, h.color, 22, 140);
+            endGame(false, "PEGARAM VOCÊ!");
+            updateHud();
+            return;
+          }
+          h.spin = 0.9;
+          state.shake = 8;
+          burst(h.x, h.y, e.color, 10, 100);
+          floatTxt(h.x, h.y - 16, "AI!", "#ff5d7a");
+        }
+      }
+    }
 
-    if (state.mode === "ai") {
-      endGame(true, "TODAS AS FLAGS! ★");
-    } else {
+    // duo bounce
+    if (state.mode === "duo") {
       const p1 = state.cars.find((c) => c.isP1);
       const p2 = state.cars.find((c) => c.isP2);
-      if (!p1 || !p2) return;
-      if (p1.score > p2.score) endGame(true, "P1 VENCEU!");
-      else if (p2.score > p1.score) endGame(true, "P2 VENCEU!");
-      else endGame(true, "EMPATE!");
+      if (p1 && p2 && Math.hypot(p1.x - p2.x, p1.y - p2.y) < HIT_R * 1.5) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        p1.x -= (dx / d) * 6;
+        p1.y -= (dy / d) * 6;
+        p2.x += (dx / d) * 6;
+        p2.y += (dy / d) * 6;
+      }
     }
-  }
 
-  function updateParticles(dt) {
+    // win
+    if (!state.flags.some((f) => !f.taken)) {
+      if (state.mode === "ai") {
+        const p1 = state.cars.find((c) => c.isP1);
+        endGame(true, `MAPA LIMPO!  ${p1 ? p1.score : 0} pts`);
+      } else {
+        const p1 = state.cars.find((c) => c.isP1);
+        const p2 = state.cars.find((c) => c.isP2);
+        if (p1 && p2) {
+          if (p1.score > p2.score) endGame(true, `P1 VENCE!  ${p1.score}–${p2.score}`);
+          else if (p2.score > p1.score) endGame(true, `P2 VENCE!  ${p2.score}–${p1.score}`);
+          else endGame(true, `EMPATE!  ${p1.score}`);
+        }
+      }
+    }
+
+    // FX decay
+    for (const s of state.smokes) {
+      s.life -= dt;
+      s.phase += dt * 4;
+      s.r += dt * 1.2;
+    }
+    state.smokes = state.smokes.filter((s) => s.life > 0);
+
     for (const p of state.particles) {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= 0.92;
-      p.vy *= 0.92;
+      p.vx *= 0.9;
+      p.vy *= 0.9;
     }
     state.particles = state.particles.filter((p) => p.life > 0);
+
+    for (const f of state.floats) {
+      f.life -= dt;
+      f.y -= 30 * dt;
+    }
+    state.floats = state.floats.filter((f) => f.life > 0);
+
+    if (state.shake > 0) state.shake = Math.max(0, state.shake - 7 * dt);
+    if (state.flash > 0) state.flash -= dt;
+
+    updateHud();
   }
 
-  function updateOils(dt) {
-    for (const o of state.oils) {
-      o.life -= dt;
-      o.wobble += dt * 3;
+  function burst(x, y, color, n, spd) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = (0.4 + Math.random() * 0.7) * spd;
+      state.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s,
+        life: 0.3 + Math.random() * 0.3,
+        max: 0.6,
+        color,
+        size: 2 + Math.random() * 2.5,
+      });
     }
-    state.oils = state.oils.filter((o) => o.life > 0);
   }
 
-  function updateCamera(dt) {
-    const focus = state.cars.filter((c) => c.alive);
-    if (!focus.length) return;
-    let tx = 0;
-    let ty = 0;
-    for (const c of focus) {
-      tx += c.x;
-      ty += c.y;
-    }
-    tx /= focus.length;
-    ty /= focus.length;
-    // em solo segue o player
-    if (state.mode === "ai") {
-      const p = state.cars.find((c) => c.isP1);
-      if (p) {
-        tx = p.x;
-        ty = p.y;
-      }
-    }
-    const k = 1 - Math.pow(0.001, dt);
-    state.cam.x += (tx - state.cam.x) * k;
-    state.cam.y += (ty - state.cam.y) * k;
+  function floatTxt(x, y, text, color) {
+    state.floats.push({ x, y, text, color, life: 0.85, max: 0.85 });
   }
 
   function updateHud() {
-    const remaining = state.flags.filter((f) => !f.taken).length;
-    const taken = state.totalFlags - remaining;
-    hudFlags.textContent = `${taken}/${state.totalFlags}`;
+    if (!state.flags.length) return;
+    const left = state.flags.filter((f) => !f.taken).length;
+    hudFlags.textContent = `${state.totalFlags - left}/${state.totalFlags}`;
     const p1 = state.cars.find((c) => c.isP1);
     if (p1) {
-      hudOil.textContent = `${Math.round(p1.oil)}%`;
+      hudOil.textContent = `${Math.round(p1.smoke)}%`;
       hudP1.textContent = String(p1.score);
     }
-    const p2 = state.cars.find((c) => c.isP2 || c.isAI);
-    if (p2 && state.mode === "duo") {
-      hudP2.textContent = String(p2.score);
-    }
+    const p2 = state.cars.find((c) => c.isP2);
+    if (p2 && state.mode === "duo") hudP2.textContent = String(p2.score);
   }
 
-  function update(dt) {
-    if (state.phase !== "play") return;
-    state.time += dt;
-    if (state.flash > 0) state.flash -= dt;
-
-    for (const car of state.cars) updateCar(car, dt);
-    updateOils(dt);
-    updateFlags();
-    updateCarHits();
-    updateParticles(dt);
-    updateCamera(dt);
-    updateHud();
-    checkWin();
-  }
-
-  // ─── Render ───────────────────────────────────────────────
-  function resizeCanvas() {
+  // ─── Camera ───────────────────────────────────────────────
+  function fitCamera() {
+    if (!state.maze) return;
     const stage = document.getElementById("stage");
-    const maxW = stage.clientWidth;
-    const maxH = stage.clientHeight;
-    // internal resolution
-    const iw = 960;
-    const ih = 640;
+    const pad = 10;
+    const iw = state.maze.w + pad * 2;
+    const ih = state.maze.h + pad * 2;
     canvas.width = iw;
     canvas.height = ih;
-    // CSS size
-    const scale = Math.min(maxW / iw, maxH / ih, 1.25);
+    const scale = Math.min(stage.clientWidth / iw, stage.clientHeight / ih) * 0.98;
     canvas.style.width = `${iw * scale}px`;
     canvas.style.height = `${ih * scale}px`;
+    state.ox = pad;
+    state.oy = pad;
   }
 
+  // ─── Draw ─────────────────────────────────────────────────
   function draw() {
     const w = canvas.width;
     const h = canvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#05060f";
     ctx.fillRect(0, 0, w, h);
 
     if (!state.maze) {
-      drawIdle(w, h);
+      drawMenuBG(w, h);
       return;
     }
 
-    // camera transform
-    const cx = state.cam.x;
-    const cy = state.cam.y;
+    const sx = state.shake > 0 ? (Math.random() - 0.5) * state.shake : 0;
+    const sy = state.shake > 0 ? (Math.random() - 0.5) * state.shake : 0;
+
     ctx.save();
-    ctx.translate(w / 2 - cx, h / 2 - cy);
-
+    ctx.translate(state.ox + sx, state.oy + sy);
     drawMaze();
-    drawOils();
+    drawSmokes();
     drawFlags();
-    for (const car of state.cars) drawCarTrail(car);
-    for (const car of state.cars) drawCar(car);
+    for (const c of state.cars) drawTrail(c);
+    for (const c of state.cars) drawCar(c);
     drawParticles();
-
+    drawFloats();
     ctx.restore();
 
-    // vignette + flash
-    const grd = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.75);
-    grd.addColorStop(0, "rgba(0,0,0,0)");
-    grd.addColorStop(1, "rgba(0,0,0,0.45)");
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, w, h);
+    drawRadar();
 
     if (state.flash > 0) {
-      ctx.fillStyle = `rgba(255,200,87,${state.flash * 0.35})`;
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    if (state.phase === "pause") {
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillStyle = `rgba(255,200,87,${state.flash * 0.4})`;
       ctx.fillRect(0, 0, w, h);
     }
   }
 
-  function drawIdle(w, h) {
-    // grid hint no menu
-    ctx.strokeStyle = "rgba(0,240,255,0.06)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x < w; x += 40) {
+  function drawMenuBG(w, h) {
+    ctx.strokeStyle = "rgba(0,240,255,0.05)";
+    for (let x = 0; x < w; x += 32) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    for (let y = 0; y < h; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-    // mini car decorativo
     ctx.save();
-    ctx.translate(w / 2, h / 2 + 40);
-    ctx.rotate(state.time * 0.4);
-    drawCarBody(0, 0, 0, "#00f0ff", "rgba(0,240,255,0.5)");
+    ctx.translate(w / 2 + Math.cos(state.time) * 30, h * 0.55);
+    drawCarBody(0, 0, "right", "#00f0ff", 0);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(w / 2 - 70, h * 0.55 + 8);
+    drawCarBody(0, 0, "left", "#ff5d7a", 0);
     ctx.restore();
   }
 
   function drawMaze() {
     const { grid, rows, cols } = state.maze;
-    // only draw visible tiles roughly
-    const viewPad = 3;
-    const minC = Math.max(0, (((state.cam.x - canvas.width / 2) / TILE) | 0) - viewPad);
-    const maxC = Math.min(cols - 1, (((state.cam.x + canvas.width / 2) / TILE) | 0) + viewPad);
-    const minR = Math.max(0, (((state.cam.y - canvas.height / 2) / TILE) | 0) - viewPad);
-    const maxR = Math.min(rows - 1, (((state.cam.y + canvas.height / 2) / TILE) | 0) + viewPad);
-
-    for (let r = minR; r <= maxR; r++) {
-      for (let c = minC; c <= maxC; c++) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
         const x = c * TILE;
         const y = r * TILE;
-        if (grid[r][c] === 1) {
-          // wall
-          ctx.fillStyle = "#120c28";
-          ctx.fillRect(x, y, TILE, TILE);
-          // neon edge
-          ctx.strokeStyle = "rgba(140, 90, 255, 0.55)";
+        if (grid[r][c]) {
+          ctx.fillStyle = "#100828";
+          ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
+          ctx.strokeStyle = "rgba(140, 95, 255, 0.75)";
           ctx.lineWidth = 1.5;
-          ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
-          // inner glow line
-          ctx.strokeStyle = "rgba(0, 240, 255, 0.12)";
-          ctx.strokeRect(x + 5, y + 5, TILE - 10, TILE - 10);
+          ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
         } else {
-          // road
-          ctx.fillStyle = "#0a0c18";
+          ctx.fillStyle = "#0a0d18";
           ctx.fillRect(x, y, TILE, TILE);
-          // subtle dashed center if corridor
-          const openH = c > 0 && c < cols - 1 && grid[r][c - 1] === 0 && grid[r][c + 1] === 0;
-          const openV = r > 0 && r < rows - 1 && grid[r - 1][c] === 0 && grid[r + 1][c] === 0;
-          ctx.fillStyle = "rgba(0,240,255,0.04)";
-          if (openH && !openV) {
-            ctx.fillRect(x, y + TILE / 2 - 1, TILE, 2);
-          } else if (openV && !openH) {
-            ctx.fillRect(x + TILE / 2 - 1, y, 2, TILE);
-          }
+          ctx.strokeStyle = "rgba(0,240,255,0.04)";
+          ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         }
       }
     }
   }
 
-  function drawOils() {
-    for (const o of state.oils) {
-      const t = o.life / o.maxLife;
-      const r = o.r * (0.85 + 0.15 * Math.sin(o.wobble));
-      const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r);
-      g.addColorStop(0, `rgba(255, 200, 87, ${0.35 * t})`);
-      g.addColorStop(0.45, `rgba(40, 30, 10, ${0.55 * t})`);
-      g.addColorStop(1, `rgba(0,0,0,0)`);
+  function drawSmokes() {
+    for (const s of state.smokes) {
+      const t = s.life / s.max;
+      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+      g.addColorStop(0, `rgba(255, 90, 210, ${0.5 * t})`);
+      g.addColorStop(0.45, `rgba(30, 15, 40, ${0.7 * t})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(o.x, o.y, r * 1.2, r * 0.75, o.wobble * 0.2, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
-      // shine
-      ctx.strokeStyle = `rgba(255, 43, 214, ${0.35 * t})`;
+      ctx.strokeStyle = `rgba(255, 200, 87, ${0.4 * t})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.ellipse(o.x, o.y, r * 1.05, r * 0.65, o.wobble * 0.2, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, s.r * 0.65 + Math.sin(s.phase) * 2, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -902,143 +838,170 @@
   function drawFlags() {
     for (const f of state.flags) {
       if (f.taken) continue;
-      const bob = Math.sin(f.pulse) * 3;
-      const glow = 0.45 + 0.25 * Math.sin(f.pulse * 1.5);
-
+      const bob = Math.sin(f.pulse) * 2.5;
       ctx.save();
       ctx.translate(f.x, f.y + bob);
-
-      // glow
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, FLAG_R * 2.2);
-      g.addColorStop(0, `rgba(255, 200, 87, ${glow})`);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 15);
+      g.addColorStop(0, "rgba(255,200,87,0.55)");
       g.addColorStop(1, "rgba(255,200,87,0)");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(0, 0, FLAG_R * 2.2, 0, Math.PI * 2);
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
       ctx.fill();
-
-      // flag pole
-      ctx.strokeStyle = "#c0d0e8";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 8);
-      ctx.lineTo(0, -10);
-      ctx.stroke();
-
-      // pennant
       ctx.fillStyle = "#ffc857";
       ctx.shadowColor = "#ffc857";
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.moveTo(0, -10);
-      ctx.lineTo(12, -6);
-      ctx.lineTo(0, -2);
+      ctx.moveTo(0, -8);
+      ctx.lineTo(7, 0);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-7, 0);
       ctx.closePath();
       ctx.fill();
       ctx.shadowBlur = 0;
-
       ctx.restore();
     }
   }
 
-  function drawCarTrail(car) {
-    for (let i = 0; i < car.trail.length; i++) {
-      const t = car.trail[i];
-      const a = t.life / 0.25;
-      ctx.save();
-      ctx.translate(t.x, t.y);
-      ctx.rotate(t.a);
-      ctx.globalAlpha = a * 0.35;
-      ctx.fillStyle = car.color;
-      ctx.fillRect(-CAR_LEN / 2, -CAR_WID / 2, CAR_LEN * 0.6, CAR_WID);
-      ctx.restore();
+  function drawTrail(car) {
+    for (const t of car.trail) {
+      ctx.globalAlpha = (t.life / 0.16) * 0.4;
+      ctx.fillStyle = t.color;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
 
   function drawCar(car) {
     if (!car.alive) return;
-    drawCarBody(car.x, car.y, car.a, car.color, car.glow, car.slip > 0);
+    drawCarBody(car.x, car.y, car.dir, car.color, car.spin);
   }
 
-  function drawCarBody(x, y, a, color, glow, slipping) {
+  function drawCarBody(x, y, dir, color, spin) {
+    const spinning = spin > 0;
+    const a = spinning ? spin * 16 + state.time * 12 : DIRS[dir].a;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a);
-
-    // glow under
-    ctx.shadowColor = glow || color;
-    ctx.shadowBlur = slipping ? 22 : 14;
-
-    // body
+    ctx.shadowColor = color;
+    ctx.shadowBlur = spinning ? 18 : 11;
     ctx.fillStyle = color;
-    roundRect(ctx, -CAR_LEN / 2, -CAR_WID / 2, CAR_LEN, CAR_WID, 4);
+    rr(-13, -8, 26, 16, 4);
     ctx.fill();
-
-    // cabin
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(8,12,24,0.85)";
-    roundRect(ctx, -2, -CAR_WID / 2 + 2, 10, CAR_WID - 4, 2);
+    ctx.fillStyle = "rgba(6,10,20,0.9)";
+    rr(-2, -5, 10, 10, 2);
     ctx.fill();
-
-    // nose light
     ctx.fillStyle = "#eef6ff";
     ctx.beginPath();
-    ctx.arc(CAR_LEN / 2 - 3, -4, 2, 0, Math.PI * 2);
-    ctx.arc(CAR_LEN / 2 - 3, 4, 2, 0, Math.PI * 2);
+    ctx.arc(11, -4, 2.2, 0, Math.PI * 2);
+    ctx.arc(11, 4, 2.2, 0, Math.PI * 2);
     ctx.fill();
-
-    // slip indicator
-    if (slipping) {
-      ctx.strokeStyle = "rgba(255,200,87,0.8)";
+    if (spinning) {
+      ctx.strokeStyle = "rgba(255,200,87,0.9)";
       ctx.lineWidth = 2;
-      ctx.setLineDash([3, 3]);
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(0, 0, CAR_LEN * 0.7, 0, Math.PI * 2);
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
-
     ctx.restore();
   }
 
-  function roundRect(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
   }
 
   function drawParticles() {
     for (const p of state.particles) {
-      const a = Math.max(0, p.life / p.max);
-      ctx.globalAlpha = a;
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
 
+  function drawFloats() {
+    ctx.font = "bold 12px Orbitron, sans-serif";
+    ctx.textAlign = "center";
+    for (const f of state.floats) {
+      ctx.globalAlpha = Math.max(0, f.life / f.max);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawRadar() {
+    if (!state.maze || state.phase === "menu") return;
+    const rw = 108;
+    const rh = (rw * state.maze.h) / state.maze.w;
+    const x = canvas.width - rw - 12;
+    const y = 12;
+
+    ctx.fillStyle = "rgba(4,6,14,0.85)";
+    ctx.strokeStyle = "rgba(0,240,255,0.45)";
+    ctx.lineWidth = 1.5;
+    rr(x - 4, y - 4, rw + 8, rh + 18, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    const sx = rw / state.maze.w;
+    const sy = rh / state.maze.h;
+    ctx.fillStyle = "rgba(130,90,255,0.4)";
+    for (let r = 0; r < state.maze.rows; r++) {
+      for (let c = 0; c < state.maze.cols; c++) {
+        if (!state.maze.grid[r][c]) continue;
+        ctx.fillRect(x + c * TILE * sx, y + r * TILE * sy, TILE * sx + 0.4, TILE * sy + 0.4);
+      }
+    }
+    ctx.fillStyle = "#ffc857";
+    for (const f of state.flags) {
+      if (f.taken) continue;
+      ctx.fillRect(x + f.x * sx - 1.5, y + f.y * sy - 1.5, 3, 3);
+    }
+    for (const car of state.cars) {
+      ctx.fillStyle = car.color;
+      ctx.beginPath();
+      ctx.arc(x + car.x * sx, y + car.y * sy, car.isAI ? 2.2 : 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(0,240,255,0.75)";
+    ctx.font = "10px Rajdhani, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("RADAR", x, y + rh + 11);
+  }
+
   // ─── Loop ─────────────────────────────────────────────────
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(0.033, (now - last) / 1000);
+    let dt = (now - last) / 1000;
     last = now;
+    if (dt > 0.05) dt = 0.05;
     if (state.phase === "menu") state.time += dt;
     update(dt);
     draw();
     requestAnimationFrame(frame);
   }
 
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
+  window.addEventListener("resize", () => {
+    if (state.maze) fitCamera();
+  });
+
+  canvas.width = 800;
+  canvas.height = 500;
   requestAnimationFrame(frame);
 
-  // expose for debug
   window.NeonRally = { state, startGame, goMenu };
 })();
