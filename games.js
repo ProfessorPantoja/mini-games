@@ -12,6 +12,16 @@
  */
 window.GAMES_CATALOG = [
   {
+    id: "neon-serpent",
+    active: true,
+    status: "live",
+    title: "NEON SERPENT",
+    path: "/14_Neon_Serpent/",
+    theme: "serpent",
+    desc: "Snake com direção — fases, poderes e a Hidra no caminho. Simples e viciante.",
+    icon: "serpent",
+  },
+  {
     id: "horda-infernal",
     active: true,
     status: "live",
@@ -134,6 +144,14 @@ window.GAMES_CATALOG = [
 ];
 
 window.GAME_ICONS = {
+  serpent: `<svg viewBox="0 0 64 64" fill="none">
+    <circle cx="14" cy="34" r="7" fill="#00f0ff"/>
+    <circle cx="28" cy="34" r="7" fill="#4d9fff"/>
+    <circle cx="42" cy="34" r="7" fill="#8b5cff"/>
+    <circle cx="50" cy="22" r="7" fill="#ff2bd6"/>
+    <circle cx="52" cy="20" r="2" fill="#eef6ff"/>
+    <circle cx="18" cy="18" r="5" fill="#00f0ff" opacity="0.9"/>
+  </svg>`,
   horda: `<svg viewBox="0 0 64 64" fill="none">
     <circle cx="32" cy="34" r="18" fill="#1a080c"/>
     <path d="M22 40 L32 14 L42 40 Z" fill="#ff5a1f"/>

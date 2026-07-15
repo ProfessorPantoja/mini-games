@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#06080f" />
+  <meta name="description" content="NEON SERPENT — Snake arcade com fases, poderes e boss." />
+  <title>NEON SERPENT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='16' cy='32' r='8' fill='%2300f0ff'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%234d9fff'/%3E%3Ccircle cx='48' cy='32' r='8' fill='%23ff2bd6'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <div class="aurora" aria-hidden="true">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+    </div>
+
+    <main class="stage">
+      <canvas id="game" width="480" height="720" aria-label="NEON SERPENT"></canvas>
+
+      <header id="hud" class="hud" hidden>
+        <div class="hud-block">
+          <span class="label">SCORE</span>
+          <span class="value mono" id="hud-score">0</span>
+        </div>
+        <div class="hud-block center">
+          <span class="label">FASE</span>
+          <span class="value mono" id="hud-level">1</span>
+        </div>
+        <div class="hud-block right">
+          <span class="label">META</span>
+          <span class="value mono" id="hud-goal">0/5</span>
+        </div>
+        <button id="btn-pause" class="icon-btn" type="button" aria-label="Pausar">❚❚</button>
+        <div class="goal-bar" aria-hidden="true"><div id="goal-fill" class="goal-fill"></div></div>
+        <div class="power-chip" id="power-chip"></div>
+      </header>
+
+      <div id="banner" class="banner" aria-hidden="true"></div>
+      <div id="toast" class="toast" aria-live="polite"></div>
+    </main>
+
+    <section id="screen-title" class="screen active">
+      <div class="panel">
+        <div class="badge">SIMPLES · PODEROSO</div>
+        <h1>NEON<br /><span>SERPENT</span></h1>
+        <p class="tagline">Snake com direção.<br />Fases, poderes e a Hidra no caminho.</p>
+        <ul class="howto">
+          <li><strong>Setas / WASD</strong> ou deslize para virar</li>
+          <li>Coma orbes cyan · complete a <strong>meta da fase</strong></li>
+          <li>Poderes: fantasma, ímã, turbo, encolhe</li>
+          <li>Boss: coma os <strong>núcleos dourados</strong> sem tocar nos braços</li>
+        </ul>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="title-best">0</span></div>
+          <div class="chip"><span class="chip-label">Fase máx</span><span class="chip-value mono" id="title-maxlvl">1</span></div>
+        </div>
+        <button id="btn-start" class="btn primary" type="button">DESPERTAR</button>
+        <a href="/" class="btn ghost btn-home" id="btn-home">← Portal</a>
+        <p class="hint">Esc pausa · R reinicia fase · 10 fases</p>
+      </div>
+    </section>
+
+    <section id="screen-pause" class="screen" hidden>
+      <div class="panel">
+        <h2>PAUSADO</h2>
+        <button id="btn-resume" class="btn primary" type="button">Continuar</button>
+        <button id="btn-restart-pause" class="btn ghost" type="button">Recomeçar fase</button>
+        <button id="btn-menu-pause" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <section id="screen-inter" class="screen" hidden>
+      <div class="panel">
+        <h2 id="inter-title">FASE LIMPA</h2>
+        <p id="inter-msg" class="msg"></p>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Score</span><span class="chip-value mono" id="inter-score">0</span></div>
+        </div>
+        <p id="inter-next" class="tagline" style="margin-bottom:14px"></p>
+        <button id="btn-next" class="btn primary" type="button">PRÓXIMA FASE</button>
+        <button id="btn-menu-inter" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <section id="screen-over" class="screen" hidden>
+      <div class="panel">
+        <h2 id="over-title">FIM DE LINHA</h2>
+        <p id="over-msg" class="msg"></p>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Score</span><span class="chip-value mono" id="over-score">0</span></div>
+          <div class="chip"><span class="chip-label">Fase</span><span class="chip-value mono" id="over-level">1</span></div>
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="over-best">0</span></div>
+        </div>
+        <button id="btn-retry" class="btn primary" type="button">De novo</button>
+        <button id="btn-menu-over" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+
+    <section id="screen-win" class="screen" hidden>
+      <div class="panel">
+        <div class="badge">CAMPANHA</div>
+        <h2>SERPENTE COMPLETA</h2>
+        <p class="msg">Você devorou o circuito inteiro.</p>
+        <div class="chips">
+          <div class="chip"><span class="chip-label">Score</span><span class="chip-value mono" id="win-score">0</span></div>
+          <div class="chip"><span class="chip-label">Recorde</span><span class="chip-value mono" id="win-best">0</span></div>
+        </div>
+        <button id="btn-win-again" class="btn primary" type="button">Jogar de novo</button>
+        <button id="btn-menu-win" class="btn ghost" type="button">Menu</button>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
