@@ -23,6 +23,9 @@
   const SPIN_TIME = 1.65;
   const HIT_R = 13;
   const FLAG_R = 11;
+  const START_LIVES = 3;
+  const INVULN_TIME = 2.1; // s de imunidade pós-respawn
+  const MIN_SPAWN_DIST = TILE * 4.5; // distância mínima entre spawns
 
   // # parede · . estrada · S humano · E caçador · F flag
   // Compacto, aberto, 100% conectado — cabe na tela.
@@ -65,6 +68,7 @@
   const hudOil = document.getElementById("hud-oil");
   const hudP1 = document.getElementById("hud-p1");
   const hudP2 = document.getElementById("hud-p2");
+  const hudLives = document.getElementById("hud-lives");
   const statP2 = document.getElementById("stat-p2");
   const statScore = document.getElementById("stat-score");
 
@@ -102,6 +106,9 @@
     ox: 0,
     oy: 0,
     ended: false,
+    lives: START_LIVES, // VS IA: vidas compartilhadas do P1
+    livesP2: START_LIVES,
+    respawning: false,
   };
 
   // ─── Maze ─────────────────────────────────────────────────
@@ -109,8 +116,7 @@
     const rows = MAP_SRC.length;
     const cols = MAP_SRC[0].length;
     const grid = [];
-    const playerSpawns = [];
-    const enemySpawns = [];
+    const roads = []; // todos os tiles transitáveis (pool de spawn)
     const flags = [];
 
     for (let r = 0; r < rows; r++) {
@@ -122,8 +128,9 @@
         row.push(ch === "#" ? 1 : 0);
         const x = c * TILE + TILE / 2;
         const y = r * TILE + TILE / 2;
-        if (ch === "S") playerSpawns.push({ x, y });
-        if (ch === "E") enemySpawns.push({ x, y });
+        if (ch !== "#") {
+          roads.push({ x, y, c, r });
+        }
         if (ch === "F") flags.push(makeFlag(x, y));
       }
       grid.push(row);
@@ -136,10 +143,81 @@
       cols,
       w: cols * TILE,
       h: rows * TILE,
-      playerSpawns,
-      enemySpawns,
+      roads,
       flags,
     };
+  }
+
+  /** Sorteia N posições abertas com distância mínima entre elas. */
+  function pickScatteredSpawns(count, minDist) {
+    const pool = state.maze.roads.slice();
+    shuffleArr(pool);
+    const picked = [];
+    const minD = minDist || MIN_SPAWN_DIST;
+
+    // 1ª passada: respeita distância
+    for (const p of pool) {
+      if (picked.length >= count) break;
+      if (picked.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= minD)) {
+        picked.push({ x: p.x, y: p.y });
+      }
+    }
+    // fallback se o mapa apertar: relaxa distância
+    if (picked.length < count) {
+      for (const p of pool) {
+        if (picked.length >= count) break;
+        if (picked.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= minD * 0.55)) {
+          picked.push({ x: p.x, y: p.y });
+        }
+      }
+    }
+    // último recurso
+    while (picked.length < count && pool.length) {
+      const p = pool[(Math.random() * pool.length) | 0];
+      picked.push({ x: p.x, y: p.y });
+    }
+    return picked;
+  }
+
+  function shuffleArr(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  const DIR_NAMES = ["up", "down", "left", "right"];
+
+  function randomDir() {
+    return DIR_NAMES[(Math.random() * 4) | 0];
+  }
+
+  function placeCar(car, pos, withInvuln) {
+    car.x = pos.x;
+    car.y = pos.y;
+    car.dir = randomDir();
+    car.want = car.dir;
+    car.spin = 0;
+    car.path = [];
+    car.pathTimer = 0;
+    car.trail = [];
+    car.invuln = withInvuln ? INVULN_TIME : 0;
+  }
+
+  /** Redistribui humanos + IAs em cantos diferentes do mapa. */
+  function scatterAllCars(invulnHumans) {
+    const cars = state.cars.filter((c) => c.alive);
+    const spots = pickScatteredSpawns(cars.length, MIN_SPAWN_DIST);
+    // embaralha quem recebe qual spot
+    shuffleArr(spots);
+    cars.forEach((car, i) => {
+      const pos = spots[i] || spots[0];
+      const hum = car.isP1 || car.isP2;
+      placeCar(car, pos, invulnHumans && hum);
+      if (!car.isAI) car.smoke = Math.min(SMOKE_MAX, car.smoke + 25);
+    });
+    state.smokes = [];
   }
 
   function makeFlag(x, y) {
@@ -182,6 +260,7 @@
       baseSpeed: opts.speed || SPEED,
       smoke: SMOKE_MAX,
       spin: 0,
+      invuln: 0,
       score: 0,
       isAI: !!opts.isAI,
       isP1: !!opts.isP1,
@@ -216,61 +295,70 @@
     state.shake = 0;
     state.flash = 0;
     state.ended = false;
+    state.respawning = false;
+    state.lives = START_LIVES;
+    state.livesP2 = START_LIVES;
 
-    const ps = state.maze.playerSpawns;
-    const es = state.maze.enemySpawns;
+    // posições iniciais sempre sorteadas e espalhadas
+    const enemyCount = state.mode === "duo" ? 1 : 3;
+    const humanCount = state.mode === "duo" ? 2 : 1;
+    const spots = pickScatteredSpawns(humanCount + enemyCount, MIN_SPAWN_DIST);
+    let si = 0;
+
     const cars = [];
-
+    const p1pos = spots[si++] || state.maze.roads[0];
     cars.push(
       makeCar({
         id: "p1",
-        x: ps[0].x,
-        y: ps[0].y,
-        dir: "right",
+        x: p1pos.x,
+        y: p1pos.y,
+        dir: randomDir(),
         color: "#00f0ff",
         isP1: true,
         speed: SPEED,
       })
     );
+    cars[0].invuln = INVULN_TIME * 0.6; // fôlego no começo
 
     if (state.mode === "duo") {
-      const p2s = ps[1] || es[0];
+      const p2pos = spots[si++] || state.maze.roads[1];
       cars.push(
         makeCar({
           id: "p2",
-          x: p2s.x,
-          y: p2s.y,
-          dir: "left",
+          x: p2pos.x,
+          y: p2pos.y,
+          dir: randomDir(),
           color: "#ff2bd6",
           isP2: true,
           speed: SPEED,
         })
       );
-      if (es[1]) {
-        cars.push(
-          makeCar({
-            id: "ai0",
-            x: es[1].x,
-            y: es[1].y,
-            dir: "up",
-            color: "#ff5d7a",
-            isAI: true,
-            speed: ENEMY_SPEED,
-          })
-        );
-      }
+      cars[1].invuln = INVULN_TIME * 0.6;
+
+      const epos = spots[si++] || state.maze.roads[2];
+      cars.push(
+        makeCar({
+          id: "ai0",
+          x: epos.x,
+          y: epos.y,
+          dir: randomDir(),
+          color: "#ff5d7a",
+          isAI: true,
+          speed: ENEMY_SPEED,
+        })
+      );
       statP2.classList.remove("hidden");
       if (statScore) statScore.querySelector(".lbl").textContent = "P1";
     } else {
-      const n = Math.min(3, es.length);
       const colors = ["#ff5d7a", "#ff8a5c", "#ff3d9a"];
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < enemyCount; i++) {
+        const epos = spots[si++] || state.maze.roads[(i * 17) % state.maze.roads.length];
         cars.push(
           makeCar({
             id: "ai" + i,
-            x: es[i].x,
-            y: es[i].y,
-            dir: i % 2 ? "left" : "up",
+            x: epos.x,
+            y: epos.y,
+            dir: randomDir(),
             color: colors[i],
             isAI: true,
             speed: ENEMY_SPEED * (0.94 + i * 0.04),
@@ -286,6 +374,72 @@
     overlay.classList.add("hidden");
     bannerEl.classList.add("hidden");
     fitCamera();
+    updateHud();
+  }
+
+  function onPlayerCaught(human) {
+    if (state.respawning || state.ended) return;
+    if (human.invuln > 0) return;
+
+    burst(human.x, human.y, human.color, 22, 140);
+    state.shake = 10;
+    state.flash = 0.2;
+
+    if (state.mode === "ai") {
+      state.lives -= 1;
+      if (state.lives <= 0) {
+        endGame(false, "SEM VIDAS!  " + (state.cars.find((c) => c.isP1)?.score || 0) + " pts");
+        return;
+      }
+      // redistribui todo mundo em lugares novos
+      state.respawning = true;
+      showBanner(`RESPAWN · ${state.lives} vida${state.lives > 1 ? "s" : ""}`, "");
+      scatterAllCars(true);
+      floatTxt(human.x, human.y - 20, `−1 VIDA`, "#ff5d7a");
+      setTimeout(() => {
+        if (state.phase === "play") {
+          bannerEl.classList.add("hidden");
+          state.respawning = false;
+        }
+      }, 900);
+      updateHud();
+      return;
+    }
+
+    // duo: vidas por jogador
+    if (human.isP1) state.lives -= 1;
+    if (human.isP2) state.livesP2 -= 1;
+
+    const left = human.isP1 ? state.lives : state.livesP2;
+    if (left <= 0) {
+      human.alive = false;
+      floatTxt(human.x, human.y - 20, "FORA!", "#ff5d7a");
+      const other = state.cars.find((c) => (human.isP1 ? c.isP2 : c.isP1) && c.alive);
+      if (!other) {
+        endGame(false, "OS DOIS CAÍRAM!");
+        return;
+      }
+      // um fora: o outro continua; flags restantes valem
+      updateHud();
+      return;
+    }
+
+    // respawn só o pego + caçadores em posições novas
+    state.respawning = true;
+    const label = human.isP1 ? "P1" : "P2";
+    showBanner(`${label} RESPAWN · ${left} vida${left > 1 ? "s" : ""}`, "");
+    const enemies = state.cars.filter((c) => c.isAI && c.alive);
+    const need = 1 + enemies.length;
+    const spots = pickScatteredSpawns(need, MIN_SPAWN_DIST);
+    placeCar(human, spots[0], true);
+    enemies.forEach((e, i) => placeCar(e, spots[i + 1] || spots[0], false));
+    state.smokes = [];
+    setTimeout(() => {
+      if (state.phase === "play") {
+        bannerEl.classList.add("hidden");
+        state.respawning = false;
+      }
+    }, 900);
     updateHud();
   }
 
@@ -487,6 +641,7 @@
 
     for (const car of state.cars) {
       if (!car.alive) continue;
+      if (car.invuln > 0) car.invuln -= dt;
 
       // spin out
       if (car.spin > 0) {
@@ -610,23 +765,18 @@
       }
     }
 
-    // pega
-    const humans = state.cars.filter((c) => (c.isP1 || c.isP2) && c.alive);
-    const enemies = state.cars.filter((c) => c.isAI && c.alive && c.spin <= 0);
-    for (const h of humans) {
-      if (h.spin > 0) continue;
-      for (const e of enemies) {
-        if (Math.hypot(h.x - e.x, h.y - e.y) < HIT_R * 1.45) {
-          if (state.mode === "ai") {
-            burst(h.x, h.y, h.color, 22, 140);
-            endGame(false, "PEGARAM VOCÊ!");
+    // pega (com vidas + respawn em lugar diferente)
+    if (!state.respawning) {
+      const humans = state.cars.filter((c) => (c.isP1 || c.isP2) && c.alive);
+      const enemies = state.cars.filter((c) => c.isAI && c.alive && c.spin <= 0);
+      for (const h of humans) {
+        if (h.spin > 0 || h.invuln > 0) continue;
+        for (const e of enemies) {
+          if (Math.hypot(h.x - e.x, h.y - e.y) < HIT_R * 1.45) {
+            onPlayerCaught(h);
             updateHud();
             return;
           }
-          h.spin = 0.9;
-          state.shake = 8;
-          burst(h.x, h.y, e.color, 10, 100);
-          floatTxt(h.x, h.y - 16, "AI!", "#ff5d7a");
         }
       }
     }
@@ -723,6 +873,13 @@
     }
     const p2 = state.cars.find((c) => c.isP2);
     if (p2 && state.mode === "duo") hudP2.textContent = String(p2.score);
+    if (hudLives) {
+      if (state.mode === "duo") {
+        hudLives.textContent = `${Math.max(0, state.lives)}/${Math.max(0, state.livesP2)}`;
+      } else {
+        hudLives.textContent = "♥".repeat(Math.max(0, state.lives)) || "0";
+      }
+    }
   }
 
   // ─── Camera ───────────────────────────────────────────────
@@ -876,12 +1033,16 @@
 
   function drawCar(car) {
     if (!car.alive) return;
-    drawCarBody(car.x, car.y, car.dir, car.color, car.spin);
+    drawCarBody(car.x, car.y, car.dir, car.color, car.spin, car.invuln);
   }
 
-  function drawCarBody(x, y, dir, color, spin) {
+  function drawCarBody(x, y, dir, color, spin, invuln) {
     const spinning = spin > 0;
     const a = spinning ? spin * 16 + state.time * 12 : DIRS[dir].a;
+    // pisca quando invulnerável
+    if (invuln > 0 && Math.floor(state.time * 12) % 2 === 0) {
+      ctx.globalAlpha = 0.35;
+    }
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a);
@@ -908,7 +1069,15 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (invuln > 0) {
+      ctx.strokeStyle = "rgba(125,255,179,0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   function rr(x, y, w, h, r) {

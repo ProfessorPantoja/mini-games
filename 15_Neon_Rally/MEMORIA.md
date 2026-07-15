@@ -56,13 +56,20 @@ Não misturar “física de carro” com labirinto estreito. Clássico ganha com
 
 HTML + CSS + Canvas 2D vanilla. Sem build.
 
-### Backlog
+### Spawns (v2.1)
 
-1. Posto / reabastecimento de fumaça (pressão de recurso).
-2. Fases com mapas diferentes + ranking de tempo.
-3. Touch / gamepad.
-4. Juice sonoro.
-5. Online só depois do duo viciar.
+- Início da partida: posições **sorteadas** com distância mínima entre todos.
+- Ao ser pego: perde vida, **todo mundo redistribui** em lugares novos + invulnerabilidade piscando ~2s.
+- 3 vidas (VS IA). Duo: vidas por jogador.
+
+### Backlog (priorizado)
+
+1. **Som arcade** (pickup, fumaça, derrapagem, morte, vitória) — enorme ganho de juice.
+2. **Posto / reabastecimento** de fumaça (meta secundária + pressão).
+3. **2º mapa** (layout diferente) ou flags que reaparecem em wave.
+4. **Combo** de flags seguidas (score multiplier).
+5. Touch / gamepad.
+6. Online só depois do duo local viciar.
 
 ## Arquivos
 

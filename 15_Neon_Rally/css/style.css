@@ -120,6 +120,11 @@ body {
   color: var(--magenta);
   text-shadow: 0 0 8px rgba(255, 43, 214, 0.45);
 }
+#hud-lives {
+  color: var(--danger);
+  text-shadow: 0 0 8px rgba(255, 93, 122, 0.45);
+  letter-spacing: 0.08em;
+}
 
 /* ── Stage ── */
 #stage {
