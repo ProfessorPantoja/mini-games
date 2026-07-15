@@ -101,16 +101,19 @@ export class UI {
   _fillRecap(elId, r) {
     const el = document.getElementById(elId);
     if (!el) return;
-    el.innerHTML = `
-      <div class="recap-row"><span>Classe</span><span>${r.className || "—"}</span></div>
-      <div class="recap-row"><span>Tempo</span><span>${formatTime(r.time)}</span></div>
-      <div class="recap-row"><span>Combo máx</span><span>×${r.maxCombo || 1}</span></div>
-      <div class="recap-row"><span>Dano</span><span>${r.damage || 0}</span></div>
-      <div class="recap-row"><span>Cura total</span><span>${r.heal}</span></div>
-      <div class="recap-row"><span>Arma</span><span>${r.weapon}</span></div>
-      <div class="recap-row"><span>Armadura</span><span>${r.armor}</span></div>
-      <div class="recap-powers">${r.powers}</div>
-    `;
+    const cell = (k, v, wide = false) =>
+      `<div class="recap-row${wide ? " wide" : ""}"><span class="rk">${k}</span><span class="rv">${v}</span></div>`;
+    el.innerHTML = [
+      cell("Classe", r.className || "—"),
+      cell("Tempo", formatTime(r.time)),
+      cell("Combo", `×${r.maxCombo || 1}`),
+      cell("Dano", String(r.damage || 0)),
+      cell("Cura", String(r.heal || 0)),
+      cell("Kills", String(r.kills ?? "—")),
+      cell("Arma", r.weapon || "—", true),
+      cell("Armadura", r.armor || "—", true),
+      `<div class="recap-powers">${r.powers || "Sem poderes"}</div>`,
+    ].join("");
   }
 
   showPowerSelect(choices, level) {
