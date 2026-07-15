@@ -12,6 +12,16 @@
  */
 window.GAMES_CATALOG = [
   {
+    id: "neon-rally",
+    active: true,
+    status: "live",
+    title: "NEON RALLY",
+    path: "/15_Neon_Rally/",
+    theme: "rally",
+    desc: "Labirinto top-down estilo Rally-X — colete flags, solte óleo e faça o rival derrapar.",
+    icon: "rally",
+  },
+  {
     id: "neon-serpent",
     active: true,
     status: "live",
@@ -144,6 +154,15 @@ window.GAMES_CATALOG = [
 ];
 
 window.GAME_ICONS = {
+  rally: `<svg viewBox="0 0 64 64" fill="none">
+    <rect x="10" y="10" width="44" height="44" rx="4" stroke="#8b5cff" stroke-width="2.5" fill="none" opacity="0.7"/>
+    <path d="M18 22 H30 V42 H18 Z" fill="none" stroke="#8b5cff" stroke-width="2"/>
+    <path d="M34 22 H46 V30 H34 Z" fill="none" stroke="#8b5cff" stroke-width="2"/>
+    <path d="M34 34 H46 V42 H34 Z" fill="none" stroke="#8b5cff" stroke-width="2"/>
+    <rect x="26" y="28" width="14" height="10" rx="3" fill="#00f0ff" transform="rotate(-20 33 33)"/>
+    <circle cx="48" cy="48" r="5" fill="#ffc857" opacity="0.9"/>
+    <path d="M14 48 Q20 44 28 50" stroke="#ff2bd6" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.85"/>
+  </svg>`,
   serpent: `<svg viewBox="0 0 64 64" fill="none">
     <circle cx="14" cy="34" r="7" fill="#00f0ff"/>
     <circle cx="28" cy="34" r="7" fill="#4d9fff"/>
