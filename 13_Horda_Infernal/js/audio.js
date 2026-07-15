@@ -109,12 +109,15 @@ export class AudioBus {
     if (powered) this._tone({ type: "square", freq: 90, dur: 0.06, peak: 0.06, delay: 0.02 });
   }
 
-  /** Arqueiro — corda + flecha */
+  /** Arqueiro — corda estalando + whoosh de flecha (não bolinha plástica) */
   swingBow(powered = false) {
-    this._noise(0.04, 0.06, 3200, "highpass");
-    this._tone({ type: "triangle", freq: powered ? 520 : 420, dur: 0.05, peak: 0.07, slide: 80 });
-    this._tone({ type: "sine", freq: powered ? 880 : 720, dur: 0.08, peak: 0.06, slide: -200 });
-    if (powered) this._tone({ type: "sine", freq: 1100, dur: 0.05, peak: 0.04, delay: 0.03 });
+    // estalo da corda (curto, seco)
+    this._noise(0.035, powered ? 0.11 : 0.08, 2800, "highpass");
+    this._tone({ type: "triangle", freq: 190, dur: 0.04, peak: 0.09, slide: -60 });
+    // whoosh agudo da flecha no ar
+    this._noise(0.07, powered ? 0.09 : 0.065, 4200, "highpass");
+    this._tone({ type: "sine", freq: powered ? 980 : 820, dur: 0.07, peak: 0.05, slide: -420 });
+    this._tone({ type: "sine", freq: powered ? 640 : 520, dur: 0.05, peak: 0.035, delay: 0.015, slide: -200 });
   }
 
   /** Mago — carga */
@@ -139,8 +142,10 @@ export class AudioBus {
   }
 
   arrowHit() {
-    this._noise(0.04, 0.08, 1400, "highpass");
-    this._tone({ type: "triangle", freq: 380, dur: 0.05, peak: 0.06, slide: -100 });
+    // impacto de ponta de flecha em carne/madeira
+    this._noise(0.05, 0.12, 1100);
+    this._tone({ type: "triangle", freq: 220, dur: 0.06, peak: 0.08, slide: -140 });
+    this._tone({ type: "sine", freq: 140, dur: 0.05, peak: 0.05, delay: 0.01 });
   }
 
   cleaveHit(n = 3) {
