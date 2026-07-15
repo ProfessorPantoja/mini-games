@@ -4,6 +4,7 @@ import { W, H } from "./config.js";
 import { AudioBus } from "./audio.js";
 import { UI } from "./ui.js";
 import { Game } from "./game.js";
+import { getClass } from "./classes/registry.js";
 
 const canvas = document.getElementById("game");
 canvas.width = W;
@@ -13,14 +14,30 @@ const audio = new AudioBus();
 const ui = new UI();
 const game = new Game(canvas, audio, ui);
 
+let selectedClass = "barbarian";
+
+// seletor de classe no título
+document.getElementById("class-row")?.addEventListener("click", (e) => {
+  const card = e.target.closest(".class-card");
+  if (!card || card.classList.contains("locked") || card.disabled) return;
+  const id = card.dataset.class;
+  if (!getClass(id).unlocked) return;
+  selectedClass = id;
+  game.setClass(id);
+  document.querySelectorAll(".class-card").forEach((c) => {
+    c.classList.toggle("selected", c.dataset.class === id);
+  });
+  audio.uiClick();
+});
+
 // ─── Buttons ───
 document.getElementById("btn-start").addEventListener("click", () => {
-  game.startRun();
+  game.startRun(selectedClass);
 });
 
 document.getElementById("btn-resume")?.addEventListener("click", () => game.resume());
-document.getElementById("btn-retry")?.addEventListener("click", () => game.startRun());
-document.getElementById("btn-retry-win")?.addEventListener("click", () => game.startRun());
+document.getElementById("btn-retry")?.addEventListener("click", () => game.startRun(selectedClass));
+document.getElementById("btn-retry-win")?.addEventListener("click", () => game.startRun(selectedClass));
 document.getElementById("btn-menu")?.addEventListener("click", () => {
   audio.stopAmbience();
   game.state = "title";
@@ -60,10 +77,10 @@ window.addEventListener("keydown", (e) => {
     }
   }
   if (game.state === "title" && (e.code === "Enter" || e.code === "Space")) {
-    game.startRun();
+    game.startRun(selectedClass);
   }
   if ((game.state === "defeat" || game.state === "victory") && e.code === "Enter") {
-    game.startRun();
+    game.startRun(selectedClass);
   }
 });
 

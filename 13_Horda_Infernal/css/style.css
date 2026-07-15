@@ -597,8 +597,15 @@ body {
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(14, 8, 10, 0.85);
-  cursor: default;
+  cursor: pointer;
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  font: inherit;
+  color: inherit;
+}
+
+.class-card:not(.locked):hover {
+  border-color: rgba(255, 90, 31, 0.45);
+  transform: translateY(-2px);
 }
 
 .class-card .icon {

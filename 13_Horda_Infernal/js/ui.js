@@ -128,7 +128,8 @@ export class UI {
     const p = game.player;
     const hpPct = Math.max(0, p.hp / p.maxHp);
     const xpPct = Math.max(0, p.xp / p.xpToLevel);
-    const furyPct = Math.max(0, (p.fury || 0) / 100);
+    const resMax = game.classDef?.resource?.max || 100;
+    const furyPct = Math.max(0, (p.fury || 0) / resMax);
 
     this.hpFill.style.transform = `scaleX(${hpPct})`;
     this.xpFill.style.transform = `scaleX(${xpPct})`;
@@ -148,6 +149,12 @@ export class UI {
     this.statDef.textContent = game.getPlayerDefense();
     this.statLvl.textContent = p.level;
     this.killCount.textContent = game.kills;
+
+    // label do recurso da classe (FÚRIA / FOCO / …)
+    const resLabel = document.getElementById("res-label");
+    if (resLabel && game.classDef?.resource) {
+      resLabel.textContent = game.classDef.resource.label;
+    }
 
     if (this.dashInd) {
       this.dashInd.classList.toggle("cd", p.dashCd > 0 && p.dashing <= 0);

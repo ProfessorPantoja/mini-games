@@ -58,7 +58,7 @@
               <span class="num" id="xp-num">0/40</span>
             </div>
             <div class="bar-row fury-row">
-              <span class="tag">FÚRIA</span>
+              <span class="tag" id="res-label">FÚRIA</span>
               <div class="bar-track fury-track"><div id="fury-fill" class="bar-fill fury"></div></div>
               <span class="num" id="fury-num">0</span>
             </div>
@@ -86,30 +86,29 @@
           Você no centro. A horda vem. Mate, equipe o que cai e fique mais forte até o chefão.
         </p>
 
-        <div class="class-row">
-          <div class="class-card selected">
+        <div class="class-row" id="class-row">
+          <button type="button" class="class-card selected" data-class="barbarian">
             <div class="icon">🪓</div>
             <div class="cname">BÁRBARO</div>
-            <div class="cmeta">Corpo a corpo<br />corte em arco</div>
-          </div>
-          <div class="class-card locked">
+            <div class="cmeta">Corpo a corpo<br />corte em arco · Fúria</div>
+          </button>
+          <button type="button" class="class-card" data-class="archer">
             <div class="icon">🏹</div>
             <div class="cname">ARQUEIRO</div>
-            <div class="cmeta">Em breve</div>
-            <span class="lock">BLOQUEADO</span>
-          </div>
-          <div class="class-card locked">
+            <div class="cmeta">À distância<br />tiro preciso · Foco</div>
+          </button>
+          <button type="button" class="class-card locked" data-class="mage" disabled>
             <div class="icon">🔥</div>
             <div class="cname">MAGO</div>
             <div class="cmeta">Em breve</div>
             <span class="lock">BLOQUEADO</span>
-          </div>
+          </button>
         </div>
 
         <button id="btn-start" class="btn" type="button">ENTRAR NO PORTAL</button>
-        <p class="hint">
+        <p class="hint" id="title-hint">
           <kbd>WASD</kbd> mover · mouse mirar · clique atacar ·
-          <kbd>Espaço</kbd> dash · <kbd>E</kbd> loot · encha a <b style="color:#ff5a1f">FÚRIA</b>
+          <kbd>Espaço</kbd> dash · <kbd>E</kbd> loot · encha o recurso da classe
         </p>
       </section>
 
