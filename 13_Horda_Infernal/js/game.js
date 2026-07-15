@@ -1985,6 +1985,46 @@ export class Game {
 
   _drawProjectiles(ctx) {
     for (const pr of this.projectiles) {
+      // flecha alongada (arqueiro)
+      if (pr.arrow) {
+        const a = Math.atan2(pr.vy, pr.vx);
+        ctx.save();
+        ctx.translate(pr.x, pr.y);
+        ctx.rotate(a);
+        // haste de madeira
+        ctx.strokeStyle = "#8a6a40";
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-11, 0);
+        ctx.lineTo(7, 0);
+        ctx.stroke();
+        // ponta de aço
+        ctx.fillStyle = "#d8dee8";
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(5, -3.2);
+        ctx.lineTo(5, 3.2);
+        ctx.closePath();
+        ctx.fill();
+        // penas
+        ctx.fillStyle = pr.color || "#7dffb3";
+        ctx.beginPath();
+        ctx.moveTo(-11, 0);
+        ctx.lineTo(-15, -4);
+        ctx.lineTo(-8, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-11, 0);
+        ctx.lineTo(-15, 4);
+        ctx.lineTo(-8, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
       const glow = pr.mageOrb ? pr.radius * 2.8 : pr.radius * 2;
       const g = ctx.createRadialGradient(pr.x, pr.y, 1, pr.x, pr.y, glow);
       g.addColorStop(0, "#fff");
@@ -1998,7 +2038,6 @@ export class Game {
       ctx.beginPath();
       ctx.arc(pr.x, pr.y, pr.radius, 0, Math.PI * 2);
       ctx.fill();
-      // núcleo branco do orbe mágico
       if (pr.mageOrb) {
         ctx.fillStyle = "rgba(255,255,255,0.85)";
         ctx.beginPath();

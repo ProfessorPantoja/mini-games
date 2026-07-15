@@ -168,12 +168,13 @@ function updateRanged(game, dt) {
       vx: Math.cos(aim) * spd,
       vy: Math.sin(aim) * spd,
       damage: game.getPlayerDamage(),
-      radius: s.projectileRadius || 5,
+      radius: 4, // hitbox; visual é flecha alongada
       life: 1.4,
       color: game.classDef.colors?.accent || "#7dffb3",
       fromEnemy: false,
       fromPlayer: true,
       critBoost: active,
+      arrow: true,
     });
   }
 
