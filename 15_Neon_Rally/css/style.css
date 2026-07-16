@@ -250,6 +250,26 @@ body {
 .btn.primary:hover {
   box-shadow: 0 0 22px rgba(0, 240, 255, 0.35);
 }
+a.btn {
+  text-decoration: none;
+}
+.btn.ghost,
+.btn-portal {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  border-style: dashed;
+  border-color: rgba(138, 150, 184, 0.45);
+  background: transparent;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  padding: 0.65rem 1rem;
+}
+.btn.ghost:hover,
+.btn-portal:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  border-style: solid;
+}
 
 .tips {
   list-style: none;
