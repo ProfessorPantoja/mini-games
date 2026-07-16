@@ -870,8 +870,8 @@ export class Game {
       type,
       life: 0.55,
       maxLife: 0.55,
-      radius: def.radius,
-      color: def.accent || "#ff3b5c",
+      radius: base.radius,
+      color: base.accent || "#ff3b5c",
     });
   }
 
