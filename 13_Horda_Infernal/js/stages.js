@@ -37,8 +37,9 @@ export const STAGES = [
       {
         delay: 1.2,
         groups: [
-          { type: "imp", count: 8, interval: 0.3 },
-          { type: "brute", count: 3, interval: 0.7 },
+          { type: "imp", count: 6, interval: 0.3 },
+          { type: "brute", count: 2, interval: 0.7 },
+          { type: "reaver", count: 2, interval: 0.85 },
         ],
       },
     ],
@@ -54,24 +55,27 @@ export const STAGES = [
       {
         delay: 0.5,
         groups: [
-          { type: "imp", count: 8, interval: 0.28 },
+          { type: "imp", count: 6, interval: 0.28 },
           { type: "spitter", count: 2, interval: 1.1 },
+          { type: "reaver", count: 2, interval: 0.9 },
         ],
       },
       {
         delay: 0.9,
         groups: [
-          { type: "brute", count: 4, interval: 0.55 },
-          { type: "imp", count: 6, interval: 0.25 },
+          { type: "brute", count: 3, interval: 0.55 },
+          { type: "imp", count: 5, interval: 0.25 },
+          { type: "wraith", count: 3, interval: 0.5 },
           { type: "elite", count: 1, interval: 0 },
         ],
       },
       {
         delay: 1.1,
         groups: [
-          { type: "imp", count: 10, interval: 0.22 },
-          { type: "spitter", count: 3, interval: 0.8 },
-          { type: "brute", count: 3, interval: 0.6 },
+          { type: "imp", count: 8, interval: 0.22 },
+          { type: "spitter", count: 2, interval: 0.8 },
+          { type: "reaver", count: 3, interval: 0.65 },
+          { type: "brute", count: 2, interval: 0.6 },
         ],
       },
     ],
@@ -87,24 +91,27 @@ export const STAGES = [
       {
         delay: 0.4,
         groups: [
-          { type: "imp", count: 12, interval: 0.2 },
-          { type: "spitter", count: 3, interval: 0.7 },
+          { type: "imp", count: 8, interval: 0.2 },
+          { type: "wraith", count: 4, interval: 0.35 },
+          { type: "spitter", count: 2, interval: 0.7 },
         ],
       },
       {
         delay: 0.8,
         groups: [
-          { type: "brute", count: 5, interval: 0.45 },
+          { type: "brute", count: 4, interval: 0.45 },
+          { type: "reaver", count: 3, interval: 0.55 },
           { type: "elite", count: 2, interval: 1.2 },
-          { type: "imp", count: 8, interval: 0.2 },
+          { type: "imp", count: 6, interval: 0.2 },
         ],
       },
       {
         delay: 1.0,
         groups: [
-          { type: "imp", count: 14, interval: 0.18 },
-          { type: "spitter", count: 4, interval: 0.55 },
-          { type: "brute", count: 4, interval: 0.5 },
+          { type: "imp", count: 10, interval: 0.18 },
+          { type: "spitter", count: 3, interval: 0.55 },
+          { type: "wraith", count: 4, interval: 0.3 },
+          { type: "reaver", count: 3, interval: 0.5 },
           { type: "elite", count: 2, interval: 0.9 },
         ],
       },
@@ -121,8 +128,10 @@ export const STAGES = [
       {
         delay: 0.8,
         groups: [
-          { type: "imp", count: 8, interval: 0.25 },
-          { type: "brute", count: 3, interval: 0.5 },
+          { type: "imp", count: 6, interval: 0.25 },
+          { type: "reaver", count: 2, interval: 0.55 },
+          { type: "wraith", count: 2, interval: 0.4 },
+          { type: "brute", count: 2, interval: 0.5 },
         ],
       },
       {
@@ -183,6 +192,38 @@ export const ENEMY_DEFS = {
     projectileSpeed: 220,
     projectileDamage: 9,
   },
+  /** Corredor — telegrapha e investe no jogador */
+  reaver: {
+    kind: "charger",
+    name: "Assaltante",
+    radius: 13,
+    maxHp: 38,
+    damage: 16,
+    moveSpeed: 88,
+    xp: 16,
+    color: "#6a2230",
+    accent: "#ff7a3a",
+    contactInterval: 0.65,
+    chargeCooldown: 2.8,
+    chargeSpeed: 380,
+    chargeDuration: 0.32,
+    chargeWindup: 0.45,
+  },
+  /** Espectro rápido — desliza e some por instantes */
+  wraith: {
+    kind: "wraith",
+    name: "Espectro",
+    radius: 12,
+    maxHp: 26,
+    damage: 11,
+    moveSpeed: 145,
+    xp: 15,
+    color: "#2a2848",
+    accent: "#9b8cff",
+    contactInterval: 0.5,
+    phaseCooldown: 2.4,
+    phaseDuration: 0.55,
+  },
   elite: {
     kind: "elite",
     name: "Elite Infernal",
@@ -194,6 +235,8 @@ export const ENEMY_DEFS = {
     color: "#5a1a40",
     accent: "#f0c14b",
     contactInterval: 0.55,
+    skillCooldown: 3.4,
+    skillWindup: 0.55,
   },
   boss: {
     kind: "boss",

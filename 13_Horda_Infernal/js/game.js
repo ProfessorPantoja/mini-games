@@ -572,6 +572,14 @@ export class Game {
   }
 
   _damageEnemy(e, rawDmg, knockDir) {
+    // espectro em fase: sem dano (flash visual)
+    if (e.phasing) {
+      e.flash = 0.1;
+      this.particles.burst(e.x, e.y, {
+        count: 3, color: e.accent || "#9b8cff", speed: 50, life: 0.15, size: 2,
+      });
+      return;
+    }
     const p = this.player;
     const s = this.cs();
     const res = this.res();
@@ -889,6 +897,24 @@ export class Game {
       bossWindup: 0,
       bossTelegraph: null,
       pulse: Math.random() * Math.PI * 2,
+      // reaver / elite skills
+      skillCd: 1.2 + Math.random() * 1.5,
+      skillWindup: 0,
+      skillTelegraph: null,
+      chargeT: 0,
+      chargeDir: { x: 1, y: 0 },
+      // wraith phase
+      phaseT: 0,
+      phaseCd: 1 + Math.random() * 1.2,
+      phasing: false,
+      chargeCooldown: def.chargeCooldown || 0,
+      chargeSpeed: def.chargeSpeed || 0,
+      chargeDuration: def.chargeDuration || 0,
+      chargeWindup: def.chargeWindup || 0,
+      phaseCooldown: def.phaseCooldown || 0,
+      phaseDuration: def.phaseDuration || 0,
+      skillCooldown: def.skillCooldown || 0,
+      speedBuffT: 0,
     };
 
     if (def.isBoss || isBossSpawn) {
@@ -951,31 +977,40 @@ export class Game {
         this._updateBoss(e, dt);
       } else if (e.kind === "ranged") {
         this._updateRanged(e, dt);
+      } else if (e.kind === "charger") {
+        this._updateCharger(e, dt);
+      } else if (e.kind === "wraith") {
+        this._updateWraith(e, dt);
+      } else if (e.kind === "elite") {
+        this._updateElite(e, dt);
       } else {
         // chase com leve sidestep pra não empilhar
+        if (e.speedBuffT > 0) e.speedBuffT -= dt;
         const d = norm(p.x - e.x, p.y - e.y);
-        const spd = e.moveSpeed * (e.kind === "elite" ? 1.08 : 1);
+        const spd = e.moveSpeed * (e.speedBuffT > 0 ? 1.2 : 1);
         const side = Math.sin(e.pulse * 0.7 + e.id.charCodeAt(0)) * 0.25;
         e.x += (d.x + -d.y * side) * spd * dt;
         e.y += (d.y + d.x * side) * spd * dt;
       }
 
-      // soft separation
-      for (let j = i + 1; j < this.enemies.length; j++) {
-        const o = this.enemies[j];
-        if (o.dead) continue;
-        const dx = e.x - o.x;
-        const dy = e.y - o.y;
-        const d = Math.hypot(dx, dy);
-        const min = e.radius + o.radius - 2;
-        if (d > 0 && d < min) {
-          const push = (min - d) * 0.35;
-          const nx = dx / d;
-          const ny = dy / d;
-          e.x += nx * push;
-          e.y += ny * push;
-          o.x -= nx * push;
-          o.y -= ny * push;
+      // soft separation (skip while charging / phasing)
+      if (e.chargeT <= 0 && !e.phasing) {
+        for (let j = i + 1; j < this.enemies.length; j++) {
+          const o = this.enemies[j];
+          if (o.dead || o.phasing) continue;
+          const dx = e.x - o.x;
+          const dy = e.y - o.y;
+          const d = Math.hypot(dx, dy);
+          const min = e.radius + o.radius - 2;
+          if (d > 0 && d < min) {
+            const push = (min - d) * 0.35;
+            const nx = dx / d;
+            const ny = dy / d;
+            e.x += nx * push;
+            e.y += ny * push;
+            o.x -= nx * push;
+            o.y -= ny * push;
+          }
         }
       }
 
@@ -983,15 +1018,169 @@ export class Game {
       e.x = clamp(e.x, a.x - 30, a.x + a.w + 30);
       e.y = clamp(e.y, a.y - 30, a.y + a.h + 30);
 
-      // contact damage (sem graça de spawn)
+      // contact damage (sem graça de spawn; espectro em phase não acerta)
       if (
         e.spawnGrace <= 0 &&
+        !e.phasing &&
         e.contactCd <= 0 &&
         dist(e, p) < e.radius + p.radius + 2
       ) {
-        this._hurtPlayer(e.damage, ang(p.x - e.x, p.y - e.y));
+        const dmg = e.chargeT > 0 ? e.damage * 1.25 : e.damage;
+        this._hurtPlayer(dmg, ang(p.x - e.x, p.y - e.y));
         e.contactCd = e.contactInterval;
       }
+    }
+  }
+
+  /** Assaltante: aproxima → telegrapha → investe */
+  _updateCharger(e, dt) {
+    const p = this.player;
+    e.skillCd = Math.max(0, e.skillCd - dt);
+
+    if (e.chargeT > 0) {
+      e.chargeT -= dt;
+      e.x += e.chargeDir.x * e.chargeSpeed * dt;
+      e.y += e.chargeDir.y * e.chargeSpeed * dt;
+      if (Math.random() < 0.4) {
+        this.particles.burst(e.x, e.y, {
+          count: 1, color: e.accent, speed: 40, life: 0.15, size: 2,
+        });
+      }
+      return;
+    }
+
+    if (e.skillWindup > 0) {
+      e.skillWindup -= dt;
+      // freia e "mira"
+      if (e.skillWindup <= 0) {
+        const d = norm(p.x - e.x, p.y - e.y);
+        e.chargeDir = d;
+        e.chargeT = e.chargeDuration || 0.32;
+        e.skillCd = e.chargeCooldown || 2.8;
+        this.audio.dash();
+        this.particles.burst(e.x, e.y, {
+          count: 8, color: e.accent, speed: 160, life: 0.25, size: 2.5,
+        });
+      }
+      return;
+    }
+
+    const d = norm(p.x - e.x, p.y - e.y);
+    const distToP = dist(e, p);
+    e.x += d.x * e.moveSpeed * dt;
+    e.y += d.y * e.moveSpeed * dt;
+
+    if (e.skillCd <= 0 && distToP < 220 && distToP > 40) {
+      e.skillWindup = e.chargeWindup || 0.45;
+      e.skillTelegraph = "charge";
+      this.particles.ring(e.x, e.y, e.accent, 36, e.skillWindup);
+    }
+  }
+
+  /** Espectro: persegue rápido e "fasa" (semi-invulnerável, sem contato) */
+  _updateWraith(e, dt) {
+    const p = this.player;
+    e.phaseCd = Math.max(0, e.phaseCd - dt);
+
+    if (e.phaseT > 0) {
+      e.phaseT -= dt;
+      e.phasing = true;
+      // desliza em diagonal em direção ao player
+      const d = norm(p.x - e.x, p.y - e.y);
+      const side = Math.sin(e.pulse * 2) * 0.6;
+      e.x += (d.x * 1.4 + -d.y * side) * e.moveSpeed * 1.35 * dt;
+      e.y += (d.y * 1.4 + d.x * side) * e.moveSpeed * 1.35 * dt;
+      if (e.phaseT <= 0) {
+        e.phasing = false;
+        e.phaseCd = e.phaseCooldown || 2.4;
+        this.particles.ring(e.x, e.y, e.accent, 28, 0.2);
+      }
+      return;
+    }
+
+    e.phasing = false;
+    const d = norm(p.x - e.x, p.y - e.y);
+    const side = Math.sin(e.pulse * 0.9) * 0.4;
+    e.x += (d.x + -d.y * side) * e.moveSpeed * dt;
+    e.y += (d.y + d.x * side) * e.moveSpeed * dt;
+
+    if (e.phaseCd <= 0 && dist(e, p) < 200) {
+      e.phaseT = e.phaseDuration || 0.55;
+      e.phasing = true;
+      this.particles.burst(e.x, e.y, {
+        count: 10, color: e.accent, speed: 90, life: 0.28, size: 2,
+      });
+    }
+  }
+
+  /** Elite: chase + uivo (AOE) ou investida curta */
+  _updateElite(e, dt) {
+    const p = this.player;
+    e.skillCd = Math.max(0, e.skillCd - dt);
+    if (e.speedBuffT > 0) e.speedBuffT -= dt;
+
+    if (e.chargeT > 0) {
+      e.chargeT -= dt;
+      e.x += e.chargeDir.x * 320 * dt;
+      e.y += e.chargeDir.y * 320 * dt;
+      return;
+    }
+
+    if (e.skillWindup > 0) {
+      e.skillWindup -= dt;
+      if (e.skillWindup <= 0 && e.skillTelegraph) {
+        this._eliteExecute(e, e.skillTelegraph);
+        e.skillTelegraph = null;
+      }
+      return;
+    }
+
+    const d = norm(p.x - e.x, p.y - e.y);
+    const side = Math.sin(e.pulse * 0.7 + e.id.charCodeAt(0)) * 0.2;
+    const spd = e.moveSpeed * 1.08 * (e.speedBuffT > 0 ? 1.15 : 1);
+    e.x += (d.x + -d.y * side) * spd * dt;
+    e.y += (d.y + d.x * side) * spd * dt;
+
+    if (e.skillCd <= 0) {
+      const atk = Math.random() < 0.55 ? "howl" : "lunge";
+      e.skillTelegraph = atk;
+      e.skillWindup = atk === "howl" ? 0.55 : 0.4;
+      e.skillCd = e.skillCooldown || 3.4;
+      const col = atk === "howl" ? "#f0c14b" : "#ff5a1f";
+      this.particles.ring(e.x, e.y, col, atk === "howl" ? 90 : 48, e.skillWindup);
+      this.audio.bossTelegraph();
+    }
+  }
+
+  _eliteExecute(e, atk) {
+    const p = this.player;
+    if (atk === "howl") {
+      this.shake.add(4, 0.18);
+      this.particles.ring(e.x, e.y, "#f0c14b", 100, 0.35);
+      this.particles.burst(e.x, e.y, {
+        count: 16, color: "#f0c14b", speed: 180, life: 0.35, size: 3,
+      });
+      this.audio.cleaveHit(2);
+      if (dist(e, p) < 95) {
+        this._hurtPlayer(Math.round(e.damage * 0.75), ang(p.x - e.x, p.y - e.y));
+      }
+      // buff temporário de velocidade nos aliados próximos
+      for (const o of this.enemies) {
+        if (o.dead || o === e) continue;
+        if (dist(e, o) < 140) {
+          o.speedBuffT = 2.5;
+          this.particles.burst(o.x, o.y, {
+            count: 4, color: "#f0c14b", speed: 50, life: 0.25, size: 2,
+          });
+        }
+      }
+    } else if (atk === "lunge") {
+      e.chargeDir = norm(p.x - e.x, p.y - e.y);
+      e.chargeT = 0.28;
+      this.audio.dash();
+      this.particles.burst(e.x, e.y, {
+        count: 12, color: e.accent, speed: 200, life: 0.28, size: 3,
+      });
     }
   }
 
@@ -1783,10 +1972,17 @@ export class Game {
       this._drawBossBody(ctx, e, flash);
     } else {
       const r = e.radius;
+      if (e.kind === "wraith") {
+        ctx.globalAlpha = e.phasing ? 0.32 : 0.78;
+      }
       // body
       ctx.fillStyle = flash ? "#fff5ec" : e.color;
       ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      if (e.kind === "wraith") {
+        ctx.ellipse(0, -r * 0.1, r * 0.75, r * 1.05, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+      }
       ctx.fill();
 
       // accent horns / eyes
@@ -1805,6 +2001,26 @@ export class Game {
         ctx.beginPath();
         ctx.arc(0, r * 0.2, r * 0.45, 0, Math.PI * 2);
         ctx.fill();
+      } else if (e.kind === "charger") {
+        // ombros em cunha (investida)
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.95, -r * 0.15);
+        ctx.lineTo(-r * 0.35, -r * 0.95);
+        ctx.lineTo(0, -r * 0.35);
+        ctx.lineTo(r * 0.35, -r * 0.95);
+        ctx.lineTo(r * 0.95, -r * 0.15);
+        ctx.lineTo(r * 0.5, r * 0.2);
+        ctx.lineTo(-r * 0.5, r * 0.2);
+        ctx.closePath();
+        ctx.fill();
+      } else if (e.kind === "wraith") {
+        // aura fantasma
+        if (e.phasing) ctx.globalAlpha = 0.35;
+        else ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.ellipse(0, -r * 0.15, r * 0.7, r * 1.05, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = e.phasing ? 0.5 : 1;
       } else {
         // horns
         ctx.beginPath();
@@ -1820,7 +2036,7 @@ export class Game {
       }
 
       // eyes
-      ctx.fillStyle = flash ? "#c41e3a" : "#ffb347";
+      ctx.fillStyle = flash ? "#c41e3a" : e.kind === "wraith" ? "#c8b8ff" : "#ffb347";
       ctx.beginPath();
       ctx.arc(-r * 0.3, -r * 0.15, r * 0.15, 0, Math.PI * 2);
       ctx.arc(r * 0.3, -r * 0.15, r * 0.15, 0, Math.PI * 2);
@@ -1834,7 +2050,7 @@ export class Game {
       const pct = clamp(e.hp / e.maxHp, 0, 1);
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(-bw / 2, -e.radius - 12, bw, bh);
-      ctx.fillStyle = e.kind === "elite" ? "#f0c14b" : "#e63946";
+      ctx.fillStyle = e.kind === "elite" ? "#f0c14b" : e.kind === "wraith" ? "#9b8cff" : "#e63946";
       ctx.fillRect(-bw / 2, -e.radius - 12, bw * pct, bh);
     }
 
@@ -1843,9 +2059,24 @@ export class Game {
       ctx.strokeStyle = "rgba(255,59,92,0.55)";
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
-      const r = e.bossTelegraph === "ring" ? 140 : e.bossTelegraph === "slam" ? 95 : 50;
+      const tr = e.bossTelegraph === "ring" ? 140 : e.bossTelegraph === "slam" ? 95 : 50;
       ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.arc(0, 0, tr, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // telegraphs de elite / assaltante
+    if (e.skillWindup > 0 && e.skillTelegraph) {
+      const col = e.skillTelegraph === "howl"
+        ? "rgba(240,193,75,0.55)"
+        : "rgba(255,90,31,0.55)";
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      const tr = e.skillTelegraph === "howl" ? 90 : 42;
+      ctx.beginPath();
+      ctx.arc(0, 0, tr, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
