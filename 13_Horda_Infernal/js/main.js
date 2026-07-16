@@ -342,9 +342,15 @@ function stopFrame() {
   rafId = 0;
 }
 
-/** Acorda o loop (input, botão, aba voltando). */
+/**
+ * Acorda o loop (input, botão, aba voltando).
+ * IMPORTANTE: se o rAF já está rodando, NÃO mexe em `last`.
+ * Resetar `last` a cada keydown (WASD com repeat) zerava o dt e
+ * gerava micro-stutter na gameplay — a “lagada” introduzida por engano.
+ */
 function wakeLoop() {
   forceDraw = true;
+  if (rafId) return; // já em movimento — não toca no relógio do frame
   last = performance.now();
   scheduleFrame();
 }
