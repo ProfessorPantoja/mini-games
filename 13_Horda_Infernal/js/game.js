@@ -706,7 +706,11 @@ export class Game {
     if (this.state === "loot" || this.state === "levelup") return;
     if (this.state !== "playing") return;
 
-    const choices = rollPowerChoices(this.player, 3);
+    const choices = rollPowerChoices(
+      this.player,
+      3,
+      this.player?.classId || this.selectedClassId || this.classDef?.id,
+    );
     if (choices.length === 0) {
       this.levelUpQueue = 0;
       return;

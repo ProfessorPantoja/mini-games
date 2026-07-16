@@ -153,15 +153,19 @@ function updateRanged(game, dt) {
   p.atkCd = s.attackCooldown * cdMult;
   p.swingCount = (p.swingCount || 0) + 1;
 
-  const spd = s.projectileSpeed || 500;
+  const spd = (s.projectileSpeed || 500) * (p.mods?.projSpeedMult || 1);
   const ang = p.facing;
-  const spread = active ? 0.04 : 0.01;
-  const shots = active ? 2 : 1;
+  const rangeMult = p.mods?.rangeMult || 1;
+  // vida do projétil ≈ alcance relativo (base 1.4s a speed base)
+  const life = 1.4 * rangeMult;
+  const bonusShots = p.mods?.extraShots || 0;
+  const shots = (active ? 2 : 1) + bonusShots;
+  const pierce = p.mods?.pierce || 0;
+  const spreadStep = shots <= 1 ? 0 : (active ? 0.05 : 0.04) + (shots - 2) * 0.02;
 
   for (let i = 0; i < shots; i++) {
-    const a = ang + (i === 0 ? -spread : spread) * (shots > 1 ? 1 : 0);
-    // se 1 tiro, sem spread
-    const aim = shots === 1 ? ang : a;
+    const offset = shots === 1 ? 0 : (i - (shots - 1) / 2) * spreadStep;
+    const aim = ang + offset;
     game.projectiles.push({
       x: p.x + Math.cos(aim) * 18,
       y: p.y + Math.sin(aim) * 18,
@@ -169,12 +173,14 @@ function updateRanged(game, dt) {
       vy: Math.sin(aim) * spd,
       damage: game.getPlayerDamage(),
       radius: 4, // hitbox; visual é flecha alongada
-      life: 1.4,
+      life,
       color: game.classDef.colors?.accent || "#7dffb3",
       fromEnemy: false,
       fromPlayer: true,
       critBoost: active,
       arrow: true,
+      pierceLeft: pierce,
+      hitIds: pierce > 0 ? new Set() : null,
     });
   }
 
@@ -270,12 +276,17 @@ function fireMageOrbs(game, active) {
   const p = game.player;
   const s = stats(game);
   const ang = p.facing;
-  const spd = s.projectileSpeed || 440;
+  const spd = (s.projectileSpeed || 440) * (p.mods?.projSpeedMult || 1);
   const accent = game.classDef.colors?.accent || "#b44dff";
   const flame = game.classDef.colors?.flame || "#ff6bcb";
   const baseDmg = game.getPlayerDamage();
-  const splashR = (s.splashRadius || 58) * (active ? 1.4 : 1);
-  const splashM = (s.splashMult || 0.62) * (active ? 1.2 : 1);
+  const splashR = (s.splashRadius || 58)
+    * (active ? 1.4 : 1)
+    * (p.mods?.splashRadiusMult || 1);
+  const splashM = (s.splashMult || 0.62)
+    * (active ? 1.2 : 1)
+    * (p.mods?.splashDmgMult || 1);
+  const life = 1.5 * (p.mods?.rangeMult || 1);
 
   const angles = active
     ? [ang - 0.18, ang, ang + 0.18]
@@ -289,7 +300,7 @@ function fireMageOrbs(game, active) {
       vy: Math.sin(aim) * spd,
       damage: baseDmg,
       radius: (s.projectileRadius || 8) * (active ? 1.2 : 1),
-      life: 1.5,
+      life,
       color: active ? flame : accent,
       fromEnemy: false,
       fromPlayer: true,
@@ -341,6 +352,7 @@ export function updatePlayerProjectiles(game, dt) {
 
     for (const e of game.enemies) {
       if (e.dead || e.spawnGrace > 0) continue;
+      if (pr.hitIds?.has(e.id)) continue;
       const d = Math.hypot(e.x - pr.x, e.y - pr.y);
       if (d < e.radius + pr.radius) {
         const dir = Math.atan2(pr.vy, pr.vx);
@@ -349,9 +361,22 @@ export function updatePlayerProjectiles(game, dt) {
 
         if (pr.mageOrb && pr.splashRadius > 0) {
           applySplash(game, pr, e);
-        } else {
-          game.particles.sparks(pr.x, pr.y);
-          if (pr.fromPlayer && !pr.mageOrb) game.audio.arrowHit();
+          list.splice(i, 1);
+          break;
+        }
+
+        game.particles.sparks(pr.x, pr.y);
+        if (pr.fromPlayer && !pr.mageOrb) game.audio.arrowHit();
+
+        // flechas com perfuração atravessam N inimigos
+        if (pr.pierceLeft > 0) {
+          if (!pr.hitIds) pr.hitIds = new Set();
+          pr.hitIds.add(e.id);
+          pr.pierceLeft -= 1;
+          // leve perda de velocidade após atravessar
+          pr.vx *= 0.92;
+          pr.vy *= 0.92;
+          continue;
         }
 
         list.splice(i, 1);
