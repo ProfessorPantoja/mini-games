@@ -746,8 +746,15 @@ export class Game {
       this.slowMo = 1.1;
       this.loot.push(createLootDrop(e.x + 20, e.y, generateItem("weapon", this.stageIndex, 1, "legendary")));
       this.loot.push(createLootDrop(e.x - 20, e.y, generateItem("armor", this.stageIndex, 1, "epic")));
+      // Loot extra um pouco espalhado (fácil de achar na graça de 5s)
+      this.loot.push(createLootDrop(e.x, e.y - 28, generateItem(
+        Math.random() < 0.5 ? "weapon" : "armor",
+        this.stageIndex,
+        0.85,
+        Math.random() < 0.5 ? "epic" : "rare",
+      )));
       this.ui.toast(`${(e.name || "CHEFE").toUpperCase()} DERROTADO`);
-      this.ui.showBanner("CAIU");
+      this.ui.showBanner("CAIU — PEGUE O LOOT");
     }
   }
 
@@ -1526,7 +1533,11 @@ export class Game {
     }
 
     if (this.stage.boss) {
-      // victory after boss stage clear
+      // não corta no meio de comparar loot / escolher poder
+      if (this.state === "loot" || this.state === "levelup") {
+        this.waveTimer = 0.35;
+        return;
+      }
       this.throneCleared = true;
       this._onVictory();
       return;
