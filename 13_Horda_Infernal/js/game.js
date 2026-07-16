@@ -1,12 +1,12 @@
 /** Horda Infernal — loop principal de combate (orquestrador) */
 
-import { W, H, SHARED, COLORS, STORAGE_KEY } from "./config.js";
+import { W, H, SHARED, COLORS, STORAGE_KEY, DIFF_KEY } from "./config.js";
 import { ParticleSystem, CameraShake } from "./particles.js";
 import {
   starterWeapon, starterArmor, rollDropForKill, createLootDrop,
   rarityColor, generateItem,
 } from "./loot.js";
-import { STAGES, ENEMY_DEFS, scaleEnemyStats } from "./stages.js";
+import { STAGES, ENEMY_DEFS, scaleEnemyStats, DIFFICULTY, makeAbyssWave } from "./stages.js";
 import {
   createEmptyMods, recomputeMods, rollPowerChoices, applyPower, listOwnedPowers,
 } from "./powers.js";
@@ -57,6 +57,11 @@ export class Game {
     this.spawnMarks = [];
     this.selectedClassId = "barbarian";
     this.classDef = getClass("barbarian");
+    this.difficultyId = this._loadDifficulty();
+    this.diff = DIFFICULTY[this.difficultyId] || DIFFICULTY.normal;
+    this.endless = false;
+    this.abyssDepth = 0;
+    this.throneCleared = false;
 
     this._bindInput();
     this._loadBest();
@@ -78,6 +83,22 @@ export class Game {
     this.selectedClassId = c.id;
     this.classDef = c;
     return true;
+  }
+
+  setDifficulty(id) {
+    if (!DIFFICULTY[id]) return false;
+    this.difficultyId = id;
+    this.diff = DIFFICULTY[id];
+    try { localStorage.setItem(DIFF_KEY, id); } catch { /* ignore */ }
+    return true;
+  }
+
+  _loadDifficulty() {
+    try {
+      const v = localStorage.getItem(DIFF_KEY);
+      if (v && DIFFICULTY[v]) return v;
+    } catch { /* ignore */ }
+    return "normal";
   }
 
   _loadBest() {
@@ -204,6 +225,10 @@ export class Game {
     this.levelUpQueue = 0;
     this.runStartedAt = performance.now();
     this.healDone = 0;
+    this.endless = false;
+    this.abyssDepth = 0;
+    this.throneCleared = false;
+    this.diff = DIFFICULTY[this.difficultyId] || DIFFICULTY.normal;
 
     this.particles.clear();
     this.enemies = [];
@@ -324,10 +349,18 @@ export class Game {
     const p = this.player;
     const secs = Math.max(1, Math.round((performance.now() - (this.runStartedAt || performance.now())) / 1000));
     const powers = listOwnedPowers(p);
+    const stageLabel = this.endless
+      ? `Abismo ${this.abyssDepth + 1}`
+      : `${(this.stageIndex || 0) + 1}/${STAGES.length}`;
     return {
       kills: this.kills,
       level: p?.level || 1,
-      stage: `${(this.stageIndex || 0) + 1}/${STAGES.length}`,
+      difficulty: this.diff?.label || "Normal",
+      difficultyId: this.difficultyId || "normal",
+      endless: !!this.endless,
+      abyssDepth: this.abyssDepth | 0,
+      throneCleared: !!this.throneCleared,
+      stage: stageLabel,
       damage: this.damageDealt,
       maxCombo: this.maxCombo,
       heal: Math.round(this.healDone || 0),
@@ -666,7 +699,11 @@ export class Game {
     else if (this.combo === 8) this.ui.toast("LENDA DA HORDA");
     else if (this.combo > 8 && this.combo % 3 === 0) this.ui.toast(`COMBO ×${this.combo}`);
 
-    const drop = rollDropForKill(e, this.stageIndex);
+    const drop = rollDropForKill(
+      e,
+      this.endless ? STAGES.length - 1 + this.abyssDepth : this.stageIndex,
+      this.diff?.luck || 0,
+    );
     if (drop) {
       this.loot.push(createLootDrop(e.x, e.y, drop));
     }
@@ -818,10 +855,9 @@ export class Game {
   _spawnEnemy(type) {
     const base = ENEMY_DEFS[type];
     if (!base) return;
-    const def = scaleEnemyStats(base, this.stageIndex);
 
     // boss spawna direto no centro
-    if (def.isBoss) {
+    if (base.isBoss) {
       this._spawnEnemyAt(type, W / 2, this.arena.y + 100, true);
       return;
     }
@@ -863,7 +899,12 @@ export class Game {
   _spawnEnemyAt(type, x, y, isBossSpawn) {
     const base = ENEMY_DEFS[type];
     if (!base) return;
-    const def = scaleEnemyStats(base, this.stageIndex);
+    const def = scaleEnemyStats(
+      base,
+      this.endless ? STAGES.length - 1 : this.stageIndex,
+      this.diff,
+      this.endless ? this.abyssDepth : 0,
+    );
 
     const e = {
       id: Math.random().toString(36).slice(2),
@@ -1477,8 +1518,21 @@ export class Game {
     this.waveTimer -= dt;
     if (this.waveTimer > 0) return;
 
+    if (this.endless) {
+      // próxima onda do abismo após breve respiro
+      this.abyssDepth += 1;
+      this.ui.showBanner(`ABISMO · ONDA ${this.abyssDepth + 1}`);
+      this.particles.ring(this.player.x, this.player.y, "#ff5a1f", 60, 0.4);
+      // cura mínima entre ondas infinitas
+      const p = this.player;
+      p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.08));
+      this._startAbyssWave();
+      return;
+    }
+
     if (this.stage.boss) {
       // victory after boss stage clear
+      this.throneCleared = true;
       this._onVictory();
       return;
     }
@@ -1492,6 +1546,7 @@ export class Game {
   _enterPortal() {
     const next = this.stageIndex + 1;
     if (next >= STAGES.length) {
+      this.throneCleared = true;
       this._onVictory();
       return;
     }
@@ -1503,6 +1558,57 @@ export class Game {
     const p = this.player;
     p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.25));
     this._startStage(next);
+  }
+
+  /**
+   * Continua a run no Abismo Eterno (pós-vitória do Trono).
+   * Mantém build, vida e poderes.
+   */
+  enterEndless() {
+    if (this.state !== "victory" && this.state !== "playing") return;
+    this.throneCleared = true;
+    this.endless = true;
+    this.abyssDepth = 0;
+    this.state = "playing";
+    this.audio.unlock();
+    this.audio.startAmbience();
+    this.audio.uiClick();
+    this.ui.hideAllScreens();
+    this.ui.showHud(true);
+    // respiro e cura parcial
+    const p = this.player;
+    if (p) {
+      p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.4));
+      p.dead = false;
+    }
+    this.enemies = [];
+    this.projectiles = [];
+    this.spawnQueue = [];
+    this.spawnMarks = [];
+    this.portalOpen = false;
+    this.stageClear = false;
+    this.ui.showBanner("O ABISMO NÃO SE CALA");
+    this.ui.toast("ABISMO ETERNO — sobreviva");
+    this._startAbyssWave();
+    this.ui.updateHud(this);
+  }
+
+  _startAbyssWave() {
+    this.stage = makeAbyssWave(this.abyssDepth);
+    this.stageIndex = STAGES.length; // além da campanha
+    this.waveIndex = -1; // _updateSpawns avança e dispara
+    this.stageClear = false;
+    this.portalOpen = false;
+    this.bossRef = null;
+    this.bossSpawned = false;
+    this.supportTimer = 0;
+    this.enemies = [];
+    this.projectiles = [];
+    this.spawnQueue = [];
+    this.spawnMarks = [];
+    this.waveTimer = 0.35;
+    this.audio.waveStart();
+    this.ui.updateHud(this);
   }
 
   _updateEffects(dt) {

@@ -1022,9 +1022,52 @@ body {
 .class-row {
   display: flex;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.diff-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+.diff-btn {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(14, 8, 10, 0.85);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.diff-btn:hover {
+  border-color: rgba(255, 90, 31, 0.4);
+  color: #f5ebe4;
+}
+.diff-btn.selected {
+  border-color: var(--ember);
+  color: var(--ember-hot);
+  box-shadow: 0 0 18px rgba(255, 90, 31, 0.22);
+}
+.diff-btn[data-diff="infernal"].selected {
+  border-color: #ff3b5c;
+  color: #ff8a6a;
+  box-shadow: 0 0 20px rgba(255, 59, 92, 0.28);
+}
+.stage-pill.endless {
+  border-color: rgba(180, 77, 255, 0.5);
+  color: #d0a8ff;
+  box-shadow: 0 0 20px rgba(180, 77, 255, 0.18);
+}
+.endless-hint {
+  margin-top: 8px;
+  opacity: 0.75;
+  font-size: 0.78rem;
 }
 
 .class-card {
@@ -1447,7 +1490,9 @@ a.btn {
     height: 100dvh;
     border-radius: 0;
   }
-  .class-card { width: 100px; }
+  .class-card { width: 92px; padding: 10px 6px 8px; }
+  .class-card .cmeta { font-size: 0.64rem; }
+  .class-row { gap: 8px; }
   .equip-chips { display: none; }
   .back-link { top: max(10px, env(safe-area-inset-top)); }
   .hud { padding-top: max(12px, env(safe-area-inset-top)); }

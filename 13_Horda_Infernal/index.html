@@ -131,6 +131,11 @@
           </button>
         </div>
 
+        <div class="diff-row" id="diff-row" role="group" aria-label="Dificuldade">
+          <button type="button" class="diff-btn selected" data-diff="normal">NORMAL</button>
+          <button type="button" class="diff-btn" data-diff="infernal">🔥 INFERNAL</button>
+        </div>
+
         <div class="btn-row">
           <button id="btn-start" class="btn" type="button">ENTRAR NO PORTAL</button>
           <button id="btn-ranking" class="btn ghost" type="button">RANKING</button>
@@ -208,10 +213,12 @@
         </div>
         <div class="recap" id="victory-recap"></div>
         <div class="btn-row end-actions">
-          <button id="btn-retry-win" class="btn" type="button">OUTRA RUN</button>
+          <button id="btn-endless" class="btn" type="button">ABISMO ETERNO</button>
+          <button id="btn-retry-win" class="btn ghost" type="button">OUTRA RUN</button>
           <button id="btn-ranking-win" class="btn ghost" type="button">RANKING</button>
           <button id="btn-menu-win" class="btn ghost" type="button">MENU</button>
         </div>
+        <p class="hint endless-hint">Abismo: continue com a mesma build · horda sem fim · escala pra sempre</p>
         <div class="rank-submit" id="victory-rank-box">
           <p class="rank-hint">Opcional — speedrun: salve tempo, classe e país</p>
           <label class="rank-label" for="victory-name">SEU NOME</label>

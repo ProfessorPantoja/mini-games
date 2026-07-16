@@ -30,6 +30,21 @@ document.getElementById("class-row")?.addEventListener("click", (e) => {
   audio.uiClick();
 });
 
+// dificuldade
+const syncDiffUi = () => {
+  document.querySelectorAll(".diff-btn").forEach((b) => {
+    b.classList.toggle("selected", b.dataset.diff === game.difficultyId);
+  });
+};
+syncDiffUi();
+document.getElementById("diff-row")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".diff-btn");
+  if (!btn?.dataset.diff) return;
+  game.setDifficulty(btn.dataset.diff);
+  syncDiffUi();
+  audio.uiClick();
+});
+
 // ─── Buttons ───
 document.getElementById("btn-start").addEventListener("click", () => {
   game.startRun(selectedClass);
@@ -43,6 +58,10 @@ document.getElementById("btn-retry")?.addEventListener("click", () => {
 });
 document.getElementById("btn-retry-win")?.addEventListener("click", () => {
   game.startRun(selectedClass);
+  syncTouchUi();
+});
+document.getElementById("btn-endless")?.addEventListener("click", () => {
+  game.enterEndless();
   syncTouchUi();
 });
 document.getElementById("btn-menu")?.addEventListener("click", () => {

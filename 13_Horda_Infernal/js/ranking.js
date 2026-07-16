@@ -89,6 +89,10 @@ export function buildEntry(recap, victory, name, flag) {
     damage: recap.damage | 0,
     completed: !!victory,
     stage: recap.stage || "—",
+    difficulty: recap.difficulty || "Normal",
+    difficultyId: recap.difficultyId || "normal",
+    endless: !!recap.endless,
+    abyssDepth: recap.abyssDepth | 0,
     date: new Date().toISOString(),
   };
 }

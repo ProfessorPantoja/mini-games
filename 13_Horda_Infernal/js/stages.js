@@ -253,13 +253,86 @@ export const ENEMY_DEFS = {
   },
 };
 
-export function scaleEnemyStats(def, stageIndex) {
-  const s = 1 + stageIndex * 0.22;
+/** Multiplicadores por dificuldade */
+export const DIFFICULTY = {
+  normal: {
+    id: "normal",
+    label: "Normal",
+    hp: 1,
+    damage: 1,
+    speed: 1,
+    xp: 1,
+    luck: 0,
+  },
+  infernal: {
+    id: "infernal",
+    label: "Infernal",
+    hp: 1.48,
+    damage: 1.28,
+    speed: 1.1,
+    xp: 1.08,
+    luck: -0.05,
+  },
+};
+
+/**
+ * @param {object} def
+ * @param {number} stageIndex
+ * @param {{ hp?: number, damage?: number, speed?: number, xp?: number }} [diff]
+ * @param {number} [endlessDepth] profundidade no abismo (0 = campanha)
+ */
+export function scaleEnemyStats(def, stageIndex, diff = null, endlessDepth = 0) {
+  const d = diff || DIFFICULTY.normal;
+  const s = 1 + stageIndex * 0.22 + endlessDepth * 0.12;
+  const hpM = d.hp || 1;
+  const dmgM = d.damage || 1;
+  const spdM = d.speed || 1;
+  const xpM = d.xp || 1;
   return {
     ...def,
-    maxHp: Math.round(def.maxHp * s),
-    damage: Math.round(def.damage * (1 + stageIndex * 0.15)),
-    moveSpeed: def.moveSpeed * (1 + stageIndex * 0.04),
-    xp: Math.round(def.xp * (1 + stageIndex * 0.12)),
+    maxHp: Math.round(def.maxHp * s * hpM),
+    damage: Math.round(def.damage * (1 + stageIndex * 0.15 + endlessDepth * 0.08) * dmgM),
+    moveSpeed: def.moveSpeed * (1 + stageIndex * 0.04 + endlessDepth * 0.025) * spdM,
+    xp: Math.round(def.xp * (1 + stageIndex * 0.12 + endlessDepth * 0.06) * xpM),
+  };
+}
+
+/** Gera uma wave do modo Abismo (endless) */
+export function makeAbyssWave(depth) {
+  const groups = [];
+  const base = 6 + Math.min(14, depth * 2);
+  groups.push({ type: "imp", count: base, interval: Math.max(0.12, 0.28 - depth * 0.01) });
+  if (depth >= 1) {
+    groups.push({ type: "reaver", count: 2 + (depth >> 1), interval: 0.55 });
+  }
+  if (depth >= 2) {
+    groups.push({ type: "spitter", count: 1 + (depth >> 1), interval: 0.7 });
+    groups.push({ type: "wraith", count: 2 + depth, interval: 0.4 });
+  }
+  if (depth >= 3) {
+    groups.push({ type: "brute", count: 2 + (depth >> 1), interval: 0.5 });
+  }
+  if (depth >= 1 && depth % 2 === 1) {
+    groups.push({ type: "elite", count: 1 + Math.floor(depth / 4), interval: 1.0 });
+  }
+  // mini-boss a cada 5 ondas
+  if (depth > 0 && depth % 5 === 0) {
+    groups.push({ type: "elite", count: 2, interval: 0.6 });
+    groups.push({ type: "brute", count: 4, interval: 0.4 });
+  }
+  return {
+    id: 100 + depth,
+    name: "Abismo Eterno",
+    subtitle: `Onda ${depth + 1}`,
+    hard: depth >= 3,
+    boss: false,
+    floorTint: Math.min(3, 1 + (depth % 4)),
+    endless: true,
+    waves: [
+      {
+        delay: 0.5,
+        groups,
+      },
+    ],
   };
 }

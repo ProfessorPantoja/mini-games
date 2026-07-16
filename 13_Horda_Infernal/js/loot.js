@@ -148,20 +148,25 @@ export function createLootDrop(x, y, item) {
  * Escolhe loot para um kill.
  * Chance base + boss sempre dropa algo bom.
  */
-export function rollDropForKill(enemy, stageIndex) {
+/**
+ * @param {object} enemy
+ * @param {number} stageIndex
+ * @param {number} [luckBias] ajuste de dificuldade (ex.: Infernal negativo)
+ */
+export function rollDropForKill(enemy, stageIndex, luckBias = 0) {
   const isBoss = enemy.kind === "boss";
   const isElite = enemy.kind === "elite";
-  let chance = 0.24;
-  if (isElite) chance = 0.62;
+  let chance = 0.24 + luckBias;
+  if (isElite) chance = 0.62 + luckBias * 0.5;
   if (isBoss) chance = 1;
 
   if (Math.random() > chance) return null;
 
-  const luck = isBoss ? 0.9 : isElite ? 0.45 : stageIndex * 0.08;
+  const luck = (isBoss ? 0.9 : isElite ? 0.45 : stageIndex * 0.08) + luckBias;
   const slot = Math.random() < 0.55 ? "weapon" : "armor";
   let force = null;
   if (isBoss) force = Math.random() < 0.5 ? "legendary" : "epic";
   else if (isElite && Math.random() < 0.35) force = "rare";
 
-  return generateItem(slot, stageIndex, luck, force);
+  return generateItem(slot, stageIndex, Math.max(0, luck), force);
 }

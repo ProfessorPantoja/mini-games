@@ -141,11 +141,13 @@ export class UI {
       `<div class="recap-row${wide ? " wide" : ""}"><span class="rk">${k}</span><span class="rv">${v}</span></div>`;
     el.innerHTML = [
       cell("Classe", r.className || "—"),
+      cell("Modo", r.difficulty || "Normal"),
       cell("Tempo", formatTime(r.time)),
       cell("Combo", `×${r.maxCombo || 1}`),
       cell("Dano", String(r.damage || 0)),
       cell("Cura", String(r.heal || 0)),
       cell("Kills", String(r.kills ?? "—")),
+      cell("Etapa", r.stage || "—"),
       cell("Arma", r.weapon || "—", true),
       cell("Armadura", r.armor || "—", true),
       `<div class="recap-powers">${r.powers || "Sem poderes"}</div>`,
@@ -311,7 +313,7 @@ export class UI {
             <span class="rn-class">${escapeHtml(e.className || "—")}</span>
           </span>
           <span class="rank-time">${formatTime(e.time)}${dnf}</span>
-          <span class="rank-meta">${e.kills} kills · nv ${e.level} · combo ×${e.maxCombo || 1}</span>
+          <span class="rank-meta">${e.kills} kills · nv ${e.level} · ${escapeHtml(e.difficulty || "Normal")}${e.endless ? ` · Abismo ${e.abyssDepth || 0}` : ""} · ×${e.maxCombo || 1}</span>
         </div>`;
       })
       .join("");
@@ -362,7 +364,15 @@ export class UI {
       if (this.stagePill) {
         this.stagePill.style.visibility = bossUp ? "hidden" : "visible";
         if (!bossUp) {
-          this.stagePill.textContent = `${game.stageIndex + 1}/${STAGES.length} · ${game.stage.name}${hard}`;
+          if (game.endless) {
+            this.stagePill.textContent = `ABISMO · Onda ${game.abyssDepth + 1}${hard}`;
+            this.stagePill.classList.add("endless");
+          } else {
+            this.stagePill.classList.remove("endless");
+            const diffTag = game.difficultyId === "infernal" ? " · 🔥" : "";
+            this.stagePill.textContent =
+              `${game.stageIndex + 1}/${STAGES.length} · ${game.stage.name}${hard}${diffTag}`;
+          }
         }
       }
     }
