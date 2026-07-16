@@ -1370,13 +1370,7 @@ export class Game {
     this._drawEffects(ctx);
     this.particles.draw(ctx);
 
-    // boss hp bar
-    if (
-      this.bossRef && !this.bossRef.dead &&
-      (this.state === "playing" || this.state === "loot" || this.state === "levelup")
-    ) {
-      this._drawBossBar(ctx);
-    }
+    // boss HP bar é HTML (#boss-bar) — legível em qualquer escala
 
     // combo floating
     if (this.combo >= 2 && this.state === "playing") {
@@ -1914,77 +1908,6 @@ export class Game {
     ctx.beginPath();
     ctx.arc(0, r * 0.25, r * 0.35, 0.2, Math.PI - 0.2);
     ctx.stroke();
-  }
-
-  _drawBossBar(ctx) {
-    // Abaixo do HUD superior (stage-pill / kills / chips) para não sobrepor
-    const e = this.bossRef;
-    const bw = 420;
-    const bh = 16;
-    const x = (W - bw) / 2;
-    const y = 72;
-    const pct = clamp(e.hp / e.maxHp, 0, 1);
-    const hpText = `${Math.max(0, Math.ceil(e.hp))} / ${e.maxHp}`;
-
-    // placa de fundo do bloco inteiro (nome + barra)
-    const panelX = x - 12;
-    const panelY = y - 22;
-    const panelW = bw + 24;
-    const panelH = bh + 30;
-    ctx.fillStyle = "rgba(6, 2, 4, 0.82)";
-    ctx.strokeStyle = "rgba(255, 90, 31, 0.4)";
-    ctx.lineWidth = 1;
-    if (typeof ctx.roundRect === "function") {
-      ctx.beginPath();
-      ctx.roundRect(panelX, panelY, panelW, panelH, 6);
-      ctx.fill();
-      ctx.stroke();
-    } else {
-      ctx.fillRect(panelX, panelY, panelW, panelH);
-      ctx.strokeRect(panelX, panelY, panelW, panelH);
-    }
-
-    // nome do chefe (acima da barra, sem colidir com o fill)
-    ctx.fillStyle = "#ff8a6a";
-    ctx.font = '700 12px "Cinzel", serif';
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(e.name.toUpperCase(), W / 2, y - 10);
-
-    // track
-    ctx.fillStyle = "rgba(0,0,0,0.72)";
-    ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
-    ctx.fillStyle = "#1a060a";
-    ctx.fillRect(x, y, bw, bh);
-
-    // fill
-    const g = ctx.createLinearGradient(x, y, x + bw, y);
-    g.addColorStop(0, "#6b0f1a");
-    g.addColorStop(0.45, "#ff3b5c");
-    g.addColorStop(1, "#ff9a6a");
-    ctx.fillStyle = g;
-    ctx.fillRect(x, y, bw * pct, bh);
-
-    // borda
-    ctx.strokeStyle = "rgba(255, 90, 31, 0.55)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, bw, bh);
-
-    // HP numérico DENTRO da barra (legível)
-    ctx.font = '600 11px "Share Tech Mono", monospace';
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillText(hpText, W / 2 + 1, y + bh / 2 + 1);
-    ctx.fillStyle = "#fff5ec";
-    ctx.fillText(hpText, W / 2, y + bh / 2);
-
-    // fase discreta à direita
-    if (e.bossPhase > 0) {
-      ctx.textAlign = "right";
-      ctx.font = '600 9px "Cinzel", serif';
-      ctx.fillStyle = e.bossPhase >= 2 ? "#ffb347" : "rgba(245,235,228,0.65)";
-      ctx.fillText(e.bossPhase >= 2 ? "FASE III" : "FASE II", x + bw, y - 10);
-      ctx.textAlign = "center";
-    }
   }
 
   _drawProjectiles(ctx) {

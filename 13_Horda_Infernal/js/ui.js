@@ -29,6 +29,11 @@ export class UI {
     this.toastEl = document.getElementById("toast");
     this.powerStrip = document.getElementById("power-strip");
     this._powerSig = "";
+    this.bossBar = document.getElementById("boss-bar");
+    this.bossBarFill = document.getElementById("boss-bar-fill");
+    this.bossBarHp = document.getElementById("boss-bar-hp");
+    this.bossBarName = document.getElementById("boss-bar-name");
+    this.bossBarPhase = document.getElementById("boss-bar-phase");
 
     this.screenTitle = document.getElementById("screen-title");
     this.screenPause = document.getElementById("screen-pause");
@@ -47,6 +52,37 @@ export class UI {
 
   showHud(on) {
     this.hud.hidden = !on;
+    if (!on) this.hideBossBar();
+  }
+
+  hideBossBar() {
+    if (this.bossBar) this.bossBar.hidden = true;
+  }
+
+  updateBossBar(game) {
+    if (!this.bossBar) return;
+    const e = game.bossRef;
+    const show = e && !e.dead && game.state !== "title" && game.state !== "defeat" && game.state !== "victory";
+    if (!show) {
+      this.bossBar.hidden = true;
+      return;
+    }
+    this.bossBar.hidden = false;
+    const pct = Math.max(0, Math.min(1, e.hp / e.maxHp));
+    if (this.bossBarFill) this.bossBarFill.style.transform = `scaleX(${pct})`;
+    if (this.bossBarHp) {
+      this.bossBarHp.textContent = `${Math.max(0, Math.ceil(e.hp))} / ${e.maxHp}`;
+    }
+    if (this.bossBarName) {
+      this.bossBarName.textContent = (e.name || "SENHOR DA HORDA").toUpperCase();
+    }
+    const phase = e.bossPhase || 0;
+    this.bossBar.classList.toggle("phase-2", phase === 1);
+    this.bossBar.classList.toggle("phase-3", phase >= 2);
+    if (this.bossBarPhase) {
+      this.bossBarPhase.textContent =
+        phase >= 2 ? "FASE III · FÚRIA" : phase === 1 ? "FASE II" : "FASE I";
+    }
   }
 
   hideAllScreens() {
@@ -321,8 +357,7 @@ export class UI {
 
     if (game.stage) {
       const hard = game.stage.hard ? " ☠" : "";
-      // Durante o chefe a barra de vida ocupa o centro — some com o pill
-      // para não sobrepor o nome/HP do boss no canvas.
+      // Durante o chefe a barra HTML ocupa o centro — esconde o pill de etapa
       const bossUp = game.bossRef && !game.bossRef.dead;
       if (this.stagePill) {
         this.stagePill.style.visibility = bossUp ? "hidden" : "visible";
@@ -339,6 +374,7 @@ export class UI {
     this.hpFill.classList.toggle("critical", hpPct < 0.3);
 
     this._updatePowerStrip(p);
+    this.updateBossBar(game);
   }
 
   _updatePowerStrip(player) {
