@@ -63,6 +63,10 @@ export class Game {
     this.abyssDepth = 0;
     this.throneCleared = false;
 
+    /** Cache estático do chão/paredes da arena (evita redesenhar tiles todo frame) */
+    this._arenaCache = null;
+    this._arenaCacheKey = null;
+
     this._bindInput();
     this._loadBest();
   }
@@ -1744,9 +1748,29 @@ export class Game {
     ctx.restore();
   }
 
+  /** Desenha o chão estático a partir do cache (rebuild só quando a etapa muda). */
   _drawArena(ctx) {
-    const a = this.arena;
     const tint = this.stage?.floorTint ?? 0;
+    if (!this._arenaCache || this._arenaCacheKey !== tint) {
+      this._rebuildArenaCache(tint);
+    }
+    ctx.drawImage(this._arenaCache, 0, 0);
+  }
+
+  _rebuildArenaCache(tint) {
+    if (!this._arenaCache) {
+      this._arenaCache = document.createElement("canvas");
+      this._arenaCache.width = W;
+      this._arenaCache.height = H;
+    }
+    const ctx = this._arenaCache.getContext("2d");
+    this._arenaCacheKey = tint;
+    this._paintArenaStatic(ctx, tint);
+  }
+
+  /** Conteúdo estático da arena (tiles, paredes, pilares) — sem animação. */
+  _paintArenaStatic(ctx, tint) {
+    const a = this.arena;
 
     // paleta por etapa
     const themes = [

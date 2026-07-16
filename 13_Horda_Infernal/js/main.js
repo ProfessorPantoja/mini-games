@@ -302,34 +302,136 @@ window.addEventListener("pointerdown", unlock);
 window.addEventListener("keydown", unlock);
 
 // ─── Frame loop ───
+// O loop antigo rodava a 60 FPS e redesenhava o canvas inteiro mesmo no menu/pausa,
+// esquentando o CPU em idle. Agora:
+//  - combate (playing/loot/levelup): 60 FPS, feeling intacto
+//  - title: ~24 FPS (brasas de fundo ainda fluidas)
+//  - pause/victory/defeat: redesenha só com FX; depois dorme de verdade
+//  - aba oculta: cancela o rAF
 let last = performance.now();
+let rafId = 0;
+let titleDrawAcc = 0;
+/** Força um redraw no próximo frame (ex.: voltar da aba, Escape, botão). */
+let forceDraw = true;
+
+function isCombatState(s) {
+  return s === "playing" || s === "loot" || s === "levelup";
+}
+
+function hasActiveFx() {
+  const p = game.particles;
+  return (
+    p.parts.length > 0
+    || p.floats.length > 0
+    || p.rings.length > 0
+    || game.shake.timer > 0
+    || game.shake.mag > 0.15
+    || Math.abs((game.shake.zoom || 1) - 1) > 0.002
+    || (game.screenFlash || 0) > 0
+  );
+}
+
+function scheduleFrame() {
+  if (rafId || document.hidden) return;
+  rafId = requestAnimationFrame(frame);
+}
+
+function stopFrame() {
+  if (!rafId) return;
+  cancelAnimationFrame(rafId);
+  rafId = 0;
+}
+
+/** Acorda o loop (input, botão, aba voltando). */
+function wakeLoop() {
+  forceDraw = true;
+  last = performance.now();
+  scheduleFrame();
+}
+
 function frame(now) {
+  rafId = 0;
+  if (document.hidden) return;
+
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.05) dt = 0.05;
 
-  // touch só na run
-  // re-sync touch visibility when state changes
+  // touch só na run — re-sync quando state muda
   const wantTouch = isPhoneLike() && game.state === "playing";
   if (wantTouch !== touchUi.classList.contains("on")) syncTouchUi();
 
-  if (game.state === "playing" || game.state === "loot" || game.state === "levelup") {
+  const state = game.state;
+
+  // ── Combate / loot / level-up: full 60 FPS ──
+  if (isCombatState(state)) {
     game.update(dt);
-  } else {
+    game.draw();
+    forceDraw = false;
+    titleDrawAcc = 0;
+    scheduleFrame();
+    return;
+  }
+
+  // ── Title: ambiência a ~24 FPS (visual quase igual, metade do custo) ──
+  if (state === "title") {
+    titleDrawAcc += dt;
+    if (!forceDraw && titleDrawAcc < 1 / 24) {
+      scheduleFrame();
+      return;
+    }
+    const step = forceDraw ? Math.min(dt, 0.05) : titleDrawAcc;
+    titleDrawAcc = 0;
+    forceDraw = false;
+
+    game.shake.update(step);
+    game.particles.update(step);
+    // ~3 brasas/s — mesma “vida” do menu, sem spawmar 60×/s
+    if (Math.random() < 0.14) {
+      game.particles.embers(
+        Math.random() * W,
+        H * 0.7 + Math.random() * H * 0.25,
+        1,
+      );
+    }
+    game.draw();
+    scheduleFrame();
+    return;
+  }
+
+  // ── Pause / victory / defeat / ranking ──
+  // Atualiza FX se existirem; quando tudo parar, dorme (sem rAF).
+  if (forceDraw || hasActiveFx()) {
     game.shake.update(dt);
     game.particles.update(dt);
+    forceDraw = false;
+    game.draw();
+    if (hasActiveFx()) scheduleFrame();
+    // senão: sleep — wakeLoop() acorda no próximo input
+    return;
   }
+  // idle total: não agenda próximo frame
+}
 
-  game.draw();
-  if (game.state === "title" && Math.random() < 0.08) {
-    game.particles.embers(
-      Math.random() * W,
-      H * 0.7 + Math.random() * H * 0.25,
-      1,
-    );
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopFrame();
+    return;
   }
+  wakeLoop();
+});
 
-  requestAnimationFrame(frame);
+// Qualquer input pode mudar state (Escape pause/resume, Enter no title…)
+window.addEventListener("keydown", wakeLoop, { passive: true });
+window.addEventListener("pointerdown", wakeLoop, { passive: true });
+
+// botões de UI que mudam de tela
+for (const id of [
+  "btn-resume", "btn-menu", "btn-menu-win", "btn-start",
+  "btn-retry", "btn-retry-win", "btn-endless",
+  "btn-ranking", "btn-ranking-win", "btn-ranking-defeat", "btn-ranking-back",
+]) {
+  document.getElementById(id)?.addEventListener("click", wakeLoop);
 }
 
 ui.showTitle();
@@ -342,4 +444,4 @@ game.effects = [];
 game.spawnMarks = [];
 game.portalOpen = false;
 syncTouchUi();
-requestAnimationFrame(frame);
+wakeLoop();
