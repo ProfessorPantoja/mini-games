@@ -10,6 +10,83 @@ const canvas = document.getElementById("game");
 canvas.width = W;
 canvas.height = H;
 
+/**
+ * Encaixa o .stage no viewport VISUAL (respeita barra de endereço do mobile).
+ * - Desktop: proporção 960×640, no máximo 960px de largura.
+ * - Celular: leve "achatada" vertical (~6%) + margem mínima, para caber
+ *   na tela horizontal sem cortar e sem forçar scroll.
+ * O buffer do canvas NÃO muda (continua 960×640) — só a caixa CSS escala.
+ * Isso é barato e não mexe na lógica do jogo.
+ */
+function fitStage() {
+  const stage = document.querySelector(".stage");
+  const app = document.getElementById("app");
+  if (!stage || !app) return;
+
+  const vv = window.visualViewport;
+  // tamanho real do que o usuário vê (sem a barra do browser “mentindo” no 100vh)
+  let vw = vv?.width ?? window.innerWidth;
+  let vh = vv?.height ?? window.innerHeight;
+
+  // safe-area (notch / home indicator) — env() no JS não lê bem; usa CSS padding no app
+  // e desconta um pouco no celular
+  const coarse = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+    || window.matchMedia("(max-width: 900px) and (orientation: landscape)").matches
+    || ("ontouchstart" in window && window.innerWidth < 1100);
+
+  // design aspect
+  const designAspect = W / H; // 1.5
+  // no mobile, "chatada": trata como um pouco mais largo (altura virtual menor)
+  const aspect = coarse ? designAspect / 0.94 : designAspect; // ~6% mais baixo
+
+  // margem mínima (px) — no celular quase zero; no desktop um respiro
+  const pad = coarse ? 2 : 12;
+  vw = Math.max(200, vw - pad * 2);
+  vh = Math.max(160, vh - pad * 2);
+
+  // contain: cabe inteiro sem estourar
+  let outW = vw;
+  let outH = outW / aspect;
+  if (outH > vh) {
+    outH = vh;
+    outW = outH * aspect;
+  }
+
+  // teto desktop
+  if (!coarse && outW > 960) {
+    outW = 960;
+    outH = outW / designAspect;
+  }
+
+  stage.style.width = `${Math.floor(outW)}px`;
+  stage.style.height = `${Math.floor(outH)}px`;
+  stage.style.maxWidth = "none";
+  stage.style.maxHeight = "none";
+
+  // se visualViewport tem offset (barra), centraliza no espaço visível
+  if (vv && (vv.offsetTop || vv.offsetLeft)) {
+    app.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop}px)`;
+    app.style.width = `${vv.width}px`;
+    app.style.height = `${vv.height}px`;
+  } else {
+    app.style.transform = "";
+    app.style.width = "100%";
+    app.style.height = "100%";
+  }
+}
+
+fitStage();
+window.addEventListener("resize", fitStage);
+window.addEventListener("orientationchange", () => {
+  // iOS atualiza o visualViewport com atraso
+  setTimeout(fitStage, 80);
+  setTimeout(fitStage, 320);
+});
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", fitStage);
+  window.visualViewport.addEventListener("scroll", fitStage);
+}
+
 const audio = new AudioBus();
 const ui = new UI();
 const game = new Game(canvas, audio, ui);
