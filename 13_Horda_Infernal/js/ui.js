@@ -1,8 +1,10 @@
 /** HUD e telas — Horda Infernal */
 
 import { rarityColor, rarityLabel, compareItems } from "./loot.js";
-import { STAGES } from "./stages.js";
 import { listOwnedPowers } from "./powers.js";
+import {
+  WORLDS, isWorldUnlocked, loadWorldProgress,
+} from "./worlds.js";
 import {
   FLAGS, flagMeta, loadPlayerPref, savePlayerPref,
   loadRanking, buildEntry, addToRanking, formatTime, escapeHtml,
@@ -141,17 +143,44 @@ export class UI {
       `<div class="recap-row${wide ? " wide" : ""}"><span class="rk">${k}</span><span class="rv">${v}</span></div>`;
     el.innerHTML = [
       cell("Classe", r.className || "—"),
+      cell("Mundo", r.worldName || "—"),
       cell("Modo", r.difficulty || "Normal"),
       cell("Tempo", formatTime(r.time)),
       cell("Combo", `×${r.maxCombo || 1}`),
       cell("Dano", String(r.damage || 0)),
       cell("Cura", String(r.heal || 0)),
       cell("Kills", String(r.kills ?? "—")),
-      cell("Etapa", r.stage || "—"),
+      cell("Etapa", r.stage || "—", true),
       cell("Arma", r.weapon || "—", true),
       cell("Armadura", r.armor || "—", true),
       `<div class="recap-powers">${r.powers || "Sem poderes"}</div>`,
     ].join("");
+  }
+
+  /** Seletor de mundos no título */
+  renderWorldRow(selectedIndex = 0) {
+    const row = document.getElementById("world-row");
+    if (!row) return;
+    const prog = loadWorldProgress();
+    row.innerHTML = "";
+    WORLDS.forEach((w) => {
+      const unlocked = isWorldUnlocked(w.index, prog);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "world-card"
+        + (w.index === selectedIndex ? " selected" : "")
+        + (unlocked ? "" : " locked");
+      btn.dataset.world = String(w.index);
+      btn.disabled = !unlocked;
+      btn.innerHTML = `
+        <div class="w-icon">${w.icon}</div>
+        <div class="w-short">${w.short}</div>
+        <div class="w-name">${w.name}</div>
+        <div class="w-boss">${unlocked ? w.bossName : "???"}</div>
+        <div class="w-tag">${unlocked ? w.tagline : "Complete o mundo anterior"}</div>
+      `;
+      row.appendChild(btn);
+    });
   }
 
   showPowerSelect(choices, level) {
@@ -369,9 +398,11 @@ export class UI {
             this.stagePill.classList.add("endless");
           } else {
             this.stagePill.classList.remove("endless");
+            const stages = game.worldStages || [];
             const diffTag = game.difficultyId === "infernal" ? " · 🔥" : "";
+            const wShort = game.world?.short || "Mundo";
             this.stagePill.textContent =
-              `${game.stageIndex + 1}/${STAGES.length} · ${game.stage.name}${hard}${diffTag}`;
+              `${wShort} · ${game.stageIndex + 1}/${stages.length || 1} · ${game.stage.name}${hard}${diffTag}`;
           }
         }
       }

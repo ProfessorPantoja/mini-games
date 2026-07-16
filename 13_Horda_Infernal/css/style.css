@@ -1019,6 +1019,64 @@ body {
   margin-bottom: 28px;
 }
 
+.world-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 720px;
+}
+.world-card {
+  width: 148px;
+  padding: 12px 10px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(14, 8, 10, 0.88);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.world-card:not(.locked):hover {
+  border-color: rgba(255, 90, 31, 0.45);
+  transform: translateY(-2px);
+}
+.world-card.selected {
+  border-color: var(--ember);
+  box-shadow: 0 0 22px rgba(255, 90, 31, 0.28);
+}
+.world-card.locked {
+  opacity: 0.42;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.world-card .w-icon { font-size: 1.35rem; margin-bottom: 4px; }
+.world-card .w-short {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+.world-card .w-name {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  margin: 2px 0 4px;
+}
+.world-card.selected .w-name { color: var(--ember-hot); }
+.world-card .w-boss {
+  font-size: 0.72rem;
+  color: #ff8a6a;
+  margin-bottom: 4px;
+}
+.world-card .w-tag {
+  font-size: 0.64rem;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
 .class-row {
   display: flex;
   gap: 12px;

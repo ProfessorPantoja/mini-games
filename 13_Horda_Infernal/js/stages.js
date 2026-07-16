@@ -12,7 +12,8 @@
  * - groups: [{ type, count, interval }]
  */
 
-export const STAGES = [
+/** Etapas do Mundo 1 (Portal Infernal → Senhor da Horda) */
+export const STAGES_WORLD_0 = [
   {
     id: 0,
     name: "Portal Infernal",
@@ -150,6 +151,9 @@ export const STAGES = [
   },
 ];
 
+/** @deprecated use getWorld(i).stages — alias do mundo 0 */
+export const STAGES = STAGES_WORLD_0;
+
 /** Stats base por tipo de inimigo (escalados por stage no spawn) */
 export const ENEMY_DEFS = {
   imp: {
@@ -240,6 +244,7 @@ export const ENEMY_DEFS = {
   },
   boss: {
     kind: "boss",
+    bossId: "senhor",
     name: "Senhor da Horda",
     radius: 36,
     maxHp: 980,
@@ -249,6 +254,51 @@ export const ENEMY_DEFS = {
     color: "#2a0a12",
     accent: "#ff3b5c",
     contactInterval: 0.65,
+    isBoss: true,
+  },
+  /** Mundo 2 — gera adds, zonas de brasa, cura se ninhada viva */
+  boss_mother: {
+    kind: "boss",
+    bossId: "mother",
+    name: "Mãe das Brasas",
+    radius: 40,
+    maxHp: 1100,
+    damage: 24,
+    moveSpeed: 48,
+    xp: 240,
+    color: "#4a1808",
+    accent: "#ff6a20",
+    contactInterval: 0.7,
+    isBoss: true,
+  },
+  /** Mundo 3 — correntes, puxão, prisão */
+  boss_jailer: {
+    kind: "boss",
+    bossId: "jailer",
+    name: "Carcereiro de Ossos",
+    radius: 38,
+    maxHp: 1200,
+    damage: 26,
+    moveSpeed: 52,
+    xp: 260,
+    color: "#3a3038",
+    accent: "#c8b8a0",
+    contactInterval: 0.68,
+    isBoss: true,
+  },
+  /** Mundo 4 — remix de padrões + gravidade do portal */
+  boss_echo: {
+    kind: "boss",
+    bossId: "echo",
+    name: "Eco do Portal",
+    radius: 34,
+    maxHp: 1350,
+    damage: 27,
+    moveSpeed: 58,
+    xp: 300,
+    color: "#1a0828",
+    accent: "#b44dff",
+    contactInterval: 0.62,
     isBoss: true,
   },
 };

@@ -8,6 +8,10 @@ import {
 } from "./loot.js";
 import { STAGES, ENEMY_DEFS, scaleEnemyStats, DIFFICULTY, makeAbyssWave } from "./stages.js";
 import {
+  WORLDS, getWorld, saveWorldCleared, isWorldUnlocked, loadWorldProgress,
+} from "./worlds.js";
+import { updateBoss as updateBossAI, updateHazards, drawHazards } from "./bosses.js";
+import {
   createEmptyMods, recomputeMods, rollPowerChoices, applyPower, listOwnedPowers,
 } from "./powers.js";
 import { getClass } from "./classes/registry.js";
@@ -62,6 +66,11 @@ export class Game {
     this.endless = false;
     this.abyssDepth = 0;
     this.throneCleared = false;
+    this.worldIndex = 0;
+    this.world = getWorld(0);
+    this.worldStages = this.world.stages;
+    this.hazards = [];
+    this.selectedWorldIndex = 0;
 
     /** Cache estático do chão/paredes da arena (evita redesenhar tiles todo frame) */
     this._arenaCache = null;
@@ -211,9 +220,21 @@ export class Game {
     }
   }
 
-  startRun(classId = null) {
+  setWorld(worldIndex) {
+    const w = getWorld(worldIndex);
+    if (!isWorldUnlocked(w.index)) return false;
+    this.selectedWorldIndex = w.index;
+    this.worldIndex = w.index;
+    this.world = w;
+    this.worldStages = w.stages;
+    return true;
+  }
+
+  startRun(classId = null, worldIndex = null) {
     if (classId) this.setClass(classId);
     this.classDef = getClass(this.selectedClassId);
+    if (worldIndex != null) this.setWorld(worldIndex);
+    else this.setWorld(this.selectedWorldIndex ?? 0);
 
     this.audio.unlock();
     this.audio.startAmbience();
@@ -233,6 +254,7 @@ export class Game {
     this.abyssDepth = 0;
     this.throneCleared = false;
     this.diff = DIFFICULTY[this.difficultyId] || DIFFICULTY.normal;
+    this.hazards = [];
 
     this.particles.clear();
     this.enemies = [];
@@ -353,9 +375,10 @@ export class Game {
     const p = this.player;
     const secs = Math.max(1, Math.round((performance.now() - (this.runStartedAt || performance.now())) / 1000));
     const powers = listOwnedPowers(p);
+    const stages = this.worldStages || STAGES;
     const stageLabel = this.endless
       ? `Abismo ${this.abyssDepth + 1}`
-      : `${(this.stageIndex || 0) + 1}/${STAGES.length}`;
+      : `${this.world?.short || "Mundo"} · ${(this.stageIndex || 0) + 1}/${stages.length}`;
     return {
       kills: this.kills,
       level: p?.level || 1,
@@ -364,6 +387,8 @@ export class Game {
       endless: !!this.endless,
       abyssDepth: this.abyssDepth | 0,
       throneCleared: !!this.throneCleared,
+      worldName: this.world?.name || "—",
+      worldIndex: this.worldIndex | 0,
       stage: stageLabel,
       damage: this.damageDealt,
       maxCombo: this.maxCombo,
@@ -412,8 +437,9 @@ export class Game {
   }
 
   _startStage(idx) {
+    const stages = this.worldStages || STAGES;
     this.stageIndex = idx;
-    this.stage = STAGES[idx];
+    this.stage = stages[idx];
     this.waveIndex = -1;
     this.waveTimer = 0.4;
     this.stageClear = false;
@@ -425,6 +451,7 @@ export class Game {
     this.enemies.length = 0;
     this.projectiles.length = 0;
     this.spawnQueue.length = 0;
+    this.hazards = [];
     // keep loot from previous? clear soft
     this.loot = this.loot.filter(() => false);
 
@@ -513,6 +540,7 @@ export class Game {
     this._updatePlayerAttack(dt);
     this._updateSpawns(dt);
     this._updateEnemies(dt);
+    updateHazards(this, dt);
     this._updateProjectiles(dt);
     this._updateLoot(dt);
     this._updateEffects(dt);
@@ -718,7 +746,7 @@ export class Game {
       this.slowMo = 1.1;
       this.loot.push(createLootDrop(e.x + 20, e.y, generateItem("weapon", this.stageIndex, 1, "legendary")));
       this.loot.push(createLootDrop(e.x - 20, e.y, generateItem("armor", this.stageIndex, 1, "epic")));
-      this.ui.toast("SENHOR DA HORDA DERROTADO");
+      this.ui.toast(`${(e.name || "CHEFE").toUpperCase()} DERROTADO`);
       this.ui.showBanner("CAIU");
     }
   }
@@ -903,9 +931,10 @@ export class Game {
   _spawnEnemyAt(type, x, y, isBossSpawn) {
     const base = ENEMY_DEFS[type];
     if (!base) return;
+    const stagesLen = (this.worldStages || STAGES).length;
     const def = scaleEnemyStats(
       base,
-      this.endless ? STAGES.length - 1 : this.stageIndex,
+      this.endless ? Math.max(3, stagesLen - 1) : this.stageIndex + (this.worldIndex || 0) * 0.5,
       this.diff,
       this.endless ? this.abyssDepth : 0,
     );
@@ -914,6 +943,7 @@ export class Game {
       id: Math.random().toString(36).slice(2),
       type,
       kind: def.kind,
+      bossId: def.bossId || null,
       name: def.name,
       x,
       y,
@@ -971,7 +1001,7 @@ export class Game {
       this.bossSpawned = true;
       this.audio.bossAppear();
       this.audio.setBossAmbience(true);
-      this.ui.showBanner("SENHOR DA HORDA");
+      this.ui.showBanner((e.name || "CHEFE").toUpperCase());
       this.shake.add(10, 0.45);
       this.shake.punch(0.07);
       this._addFlash(0.4);
@@ -1265,107 +1295,7 @@ export class Game {
   }
 
   _updateBoss(e, dt) {
-    const p = this.player;
-    e.bossAtkCd -= dt;
-
-    // phase by hp
-    const hpPct = e.hp / e.maxHp;
-    e.bossPhase = hpPct < 0.33 ? 2 : hpPct < 0.66 ? 1 : 0;
-
-    // anúncio de fase
-    if (e.bossPhase !== e.lastPhase) {
-      e.lastPhase = e.bossPhase;
-      if (e.bossPhase === 1) {
-        this.ui.showBanner("FASE II");
-        this.audio.bossPhase();
-        this.particles.ring(e.x, e.y, "#ffb347", 100, 0.5);
-        this._addFlash(0.3);
-      } else if (e.bossPhase === 2) {
-        this.ui.showBanner("FÚRIA DO TRONO");
-        this.audio.bossPhase();
-        this.audio.furyActivate();
-        this.particles.furyBurst(e.x, e.y);
-        this._addFlash(0.4);
-        this.shake.add(8, 0.3);
-      }
-    }
-
-    if (e.bossWindup > 0) {
-      e.bossWindup -= dt;
-      // pulso no telegraph
-      if (Math.random() < 0.2) {
-        this.particles.embers(e.x + (Math.random() - 0.5) * 40, e.y + (Math.random() - 0.5) * 40, 1);
-      }
-      if (e.bossWindup <= 0 && e.bossTelegraph) {
-        this._bossExecute(e, e.bossTelegraph);
-        e.bossTelegraph = null;
-      }
-      return;
-    }
-
-    // approach
-    const d = norm(p.x - e.x, p.y - e.y);
-    e.x += d.x * e.moveSpeed * (1 + e.bossPhase * 0.18) * dt;
-    e.y += d.y * e.moveSpeed * (1 + e.bossPhase * 0.18) * dt;
-
-    if (e.bossAtkCd <= 0) {
-      const roll = Math.random();
-      let atk = "slam";
-      if (e.bossPhase >= 1 && roll < 0.42) atk = "ring";
-      if (e.bossPhase >= 2 && roll < 0.58) atk = "charge";
-      if (e.bossPhase >= 2 && roll > 0.75) atk = "slam";
-      e.bossTelegraph = atk;
-      e.bossWindup = atk === "charge" ? 0.5 : atk === "ring" ? 0.85 : 0.7;
-      e.bossAtkCd = 2.0 - e.bossPhase * 0.35;
-      const col = atk === "ring" ? "#b44dff" : atk === "charge" ? "#ffb347" : "#ff3b5c";
-      this.particles.ring(e.x, e.y, col, atk === "ring" ? 150 : atk === "slam" ? 95 : 60, e.bossWindup);
-      this.audio.bossTelegraph();
-    }
-  }
-
-  _bossExecute(e, atk) {
-    const p = this.player;
-    if (atk === "slam") {
-      this.shake.add(8, 0.25);
-      this.audio.bossHit();
-      this.particles.burst(e.x, e.y, { count: 20, color: "#ff3b5c", speed: 260, life: 0.4, size: 4 });
-      if (dist(e, p) < 95) {
-        this._hurtPlayer(e.damage * 1.3, ang(p.x - e.x, p.y - e.y));
-      }
-    } else if (atk === "ring") {
-      this.shake.add(6, 0.3);
-      this.audio.bossHit();
-      this.particles.ring(e.x, e.y, "#ff5a1f", 160, 0.4);
-      // radial projectiles
-      const n = 10 + e.bossPhase * 2;
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        this.projectiles.push({
-          x: e.x,
-          y: e.y,
-          vx: Math.cos(a) * 180,
-          vy: Math.sin(a) * 180,
-          damage: Math.round(e.damage * 0.55),
-          radius: 7,
-          life: 2.5,
-          color: "#ff5a1f",
-          fromEnemy: true,
-        });
-      }
-    } else if (atk === "charge") {
-      const dir = norm(p.x - e.x, p.y - e.y);
-      // burst move
-      e.x += dir.x * 140;
-      e.y += dir.y * 140;
-      e.x = clamp(e.x, this.arena.x + e.radius, this.arena.x + this.arena.w - e.radius);
-      e.y = clamp(e.y, this.arena.y + e.radius, this.arena.y + this.arena.h - e.radius);
-      this.particles.burst(e.x, e.y, { count: 14, color: "#c41e3a", speed: 200, life: 0.3, size: 3 });
-      this.shake.add(7, 0.2);
-      this.audio.dash();
-      if (dist(e, p) < e.radius + p.radius + 30) {
-        this._hurtPlayer(e.damage * 1.1, ang(p.x - e.x, p.y - e.y));
-      }
-    }
+    updateBossAI(this, e, dt);
   }
 
   _updateProjectiles(dt) {
@@ -1548,8 +1478,9 @@ export class Game {
   }
 
   _enterPortal() {
+    const stages = this.worldStages || STAGES;
     const next = this.stageIndex + 1;
-    if (next >= STAGES.length) {
+    if (next >= stages.length) {
       this.throneCleared = true;
       this._onVictory();
       return;
@@ -1639,6 +1570,8 @@ export class Game {
     this.audio.victory();
     this.audio.stopAmbience();
     this._saveBest();
+    saveWorldCleared(this.worldIndex | 0);
+    this.throneCleared = true;
     this.ui.showVictory(this);
   }
 
@@ -1659,6 +1592,7 @@ export class Game {
     ctx.translate(this.shake.ox, this.shake.oy);
 
     this._drawArena(ctx);
+    drawHazards(this, ctx);
     this._drawSpawnMarks(ctx);
     this._drawPortal(ctx);
     this._drawLoot(ctx);
@@ -2216,11 +2150,24 @@ export class Game {
   _drawBossBody(ctx, e, flash) {
     const r = e.radius;
     const pulse = 1 + Math.sin(e.pulse) * 0.03;
+    const id = e.bossId || "senhor";
+    const accent = e.accent || "#ff3b5c";
 
     // aura
     const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.6);
-    g.addColorStop(0, "rgba(255,59,92,0.25)");
-    g.addColorStop(1, "rgba(255,59,92,0)");
+    if (id === "mother") {
+      g.addColorStop(0, "rgba(255,106,32,0.35)");
+      g.addColorStop(1, "rgba(255,60,0,0)");
+    } else if (id === "jailer") {
+      g.addColorStop(0, "rgba(200,184,160,0.28)");
+      g.addColorStop(1, "rgba(80,60,40,0)");
+    } else if (id === "echo") {
+      g.addColorStop(0, "rgba(180,77,255,0.35)");
+      g.addColorStop(1, "rgba(80,20,120,0)");
+    } else {
+      g.addColorStop(0, "rgba(255,59,92,0.25)");
+      g.addColorStop(1, "rgba(255,59,92,0)");
+    }
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(0, 0, r * 1.6, 0, Math.PI * 2);
@@ -2229,32 +2176,75 @@ export class Game {
     // body
     ctx.fillStyle = flash ? "#fff0f0" : e.color;
     ctx.beginPath();
-    ctx.ellipse(0, 0, r * 1.05 * pulse, r * pulse, 0, 0, Math.PI * 2);
+    if (id === "mother") {
+      ctx.ellipse(0, 4, r * 1.15 * pulse, r * 0.95 * pulse, 0, 0, Math.PI * 2);
+    } else if (id === "jailer") {
+      ctx.ellipse(0, 0, r * 0.95 * pulse, r * 1.1 * pulse, 0, 0, Math.PI * 2);
+    } else {
+      ctx.ellipse(0, 0, r * 1.05 * pulse, r * pulse, 0, 0, Math.PI * 2);
+    }
     ctx.fill();
 
-    // armor plates
-    ctx.strokeStyle = flash ? "#fff" : e.accent;
+    // detalhes por chefe
+    ctx.strokeStyle = flash ? "#fff" : accent;
     ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.75, 0.2, Math.PI - 0.2);
-    ctx.stroke();
+    if (id === "mother") {
+      // braços de cinza
+      ctx.fillStyle = flash ? "#ffc" : "#8a3010";
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.95, -r * 0.1, r * 0.45, r * 0.22, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(r * 0.95, -r * 0.1, r * 0.45, r * 0.22, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // casulo rachado
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.7, 0.3, Math.PI - 0.3);
+      ctx.stroke();
+    } else if (id === "jailer") {
+      // costelas
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(0, i * 6, r * 0.7, -0.6, 0.6);
+        ctx.stroke();
+      }
+      // máscara
+      ctx.fillStyle = flash ? "#eee" : "#2a2428";
+      ctx.fillRect(-r * 0.35, -r * 0.45, r * 0.7, r * 0.55);
+      ctx.strokeRect(-r * 0.35, -r * 0.45, r * 0.7, r * 0.55);
+    } else if (id === "echo") {
+      // silhueta instável
+      ctx.globalAlpha = 0.55 + Math.sin(e.pulse * 2) * 0.2;
+      ctx.strokeStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * (0.85 + Math.sin(e.pulse * 3) * 0.08), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.55, 0.4, Math.PI - 0.4);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.75, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+    }
 
-    // horns big
-    ctx.fillStyle = flash ? "#fff" : "#5a1018";
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.5, -r * 0.4);
-    ctx.lineTo(-r * 0.9, -r * 1.4);
-    ctx.lineTo(-r * 0.1, -r * 0.6);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(r * 0.5, -r * 0.4);
-    ctx.lineTo(r * 0.9, -r * 1.4);
-    ctx.lineTo(r * 0.1, -r * 0.6);
-    ctx.fill();
+    // chifres (senhor / eco)
+    if (id === "senhor" || id === "echo" || !id) {
+      ctx.fillStyle = flash ? "#fff" : id === "echo" ? "#4a2068" : "#5a1018";
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, -r * 0.4);
+      ctx.lineTo(-r * 0.9, -r * 1.4);
+      ctx.lineTo(-r * 0.1, -r * 0.6);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(r * 0.5, -r * 0.4);
+      ctx.lineTo(r * 0.9, -r * 1.4);
+      ctx.lineTo(r * 0.1, -r * 0.6);
+      ctx.fill();
+    }
 
     // eyes
-    ctx.fillStyle = "#ff3b5c";
-    ctx.shadowColor = "#ff3b5c";
+    ctx.fillStyle = accent;
+    ctx.shadowColor = accent;
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(-r * 0.35, -r * 0.1, r * 0.14, 0, Math.PI * 2);
@@ -2263,7 +2253,7 @@ export class Game {
     ctx.shadowBlur = 0;
 
     // mouth
-    ctx.strokeStyle = "#c41e3a";
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, r * 0.25, r * 0.35, 0.2, Math.PI - 0.2);

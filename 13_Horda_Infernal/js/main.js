@@ -15,6 +15,22 @@ const ui = new UI();
 const game = new Game(canvas, audio, ui);
 
 let selectedClass = "barbarian";
+let selectedWorld = 0;
+
+// mundos (chefões)
+ui.renderWorldRow(selectedWorld);
+document.getElementById("world-row")?.addEventListener("click", (e) => {
+  const card = e.target.closest(".world-card");
+  if (!card || card.disabled || card.classList.contains("locked")) return;
+  const idx = parseInt(card.dataset.world, 10);
+  if (Number.isNaN(idx)) return;
+  if (!game.setWorld(idx)) return;
+  selectedWorld = idx;
+  document.querySelectorAll(".world-card").forEach((c) => {
+    c.classList.toggle("selected", parseInt(c.dataset.world, 10) === idx);
+  });
+  audio.uiClick();
+});
 
 // seletor de classe no título
 document.getElementById("class-row")?.addEventListener("click", (e) => {
@@ -47,17 +63,17 @@ document.getElementById("diff-row")?.addEventListener("click", (e) => {
 
 // ─── Buttons ───
 document.getElementById("btn-start").addEventListener("click", () => {
-  game.startRun(selectedClass);
+  game.startRun(selectedClass, selectedWorld);
   syncTouchUi();
 });
 
 document.getElementById("btn-resume")?.addEventListener("click", () => game.resume());
 document.getElementById("btn-retry")?.addEventListener("click", () => {
-  game.startRun(selectedClass);
+  game.startRun(selectedClass, selectedWorld);
   syncTouchUi();
 });
 document.getElementById("btn-retry-win")?.addEventListener("click", () => {
-  game.startRun(selectedClass);
+  game.startRun(selectedClass, selectedWorld);
   syncTouchUi();
 });
 document.getElementById("btn-endless")?.addEventListener("click", () => {
@@ -68,12 +84,14 @@ document.getElementById("btn-menu")?.addEventListener("click", () => {
   audio.stopAmbience();
   game.state = "title";
   ui.showTitle();
+  ui.renderWorldRow(selectedWorld);
   syncTouchUi();
 });
 document.getElementById("btn-menu-win")?.addEventListener("click", () => {
   audio.stopAmbience();
   game.state = "title";
   ui.showTitle();
+  ui.renderWorldRow(selectedWorld);
   syncTouchUi();
 });
 
