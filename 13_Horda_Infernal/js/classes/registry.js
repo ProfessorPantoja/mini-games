@@ -13,16 +13,18 @@
 import barbarian from "./barbarian.js";
 import archer from "./archer.js";
 import mage from "./mage.js";
+import monk from "./monk.js";
 
 /** @type {Record<string, import('./barbarian.js').default>} */
 export const CLASSES = {
   barbarian,
   archer,
   mage,
+  monk,
 };
 
 /** Ordem de exibição no seletor */
-export const CLASS_ORDER = ["barbarian", "archer", "mage"];
+export const CLASS_ORDER = ["barbarian", "archer", "mage", "monk"];
 
 export function getClass(id) {
   return CLASSES[id] || CLASSES.barbarian;

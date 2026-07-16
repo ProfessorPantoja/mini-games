@@ -88,19 +88,21 @@ export const POWERS = {
     },
   },
 
-  // ── Bárbaro ─────────────────────────────────────────────
+  // ── Melee genérico (bárbaro + monge) ────────────────────
   wideSlash: {
     id: "wideSlash",
     name: "Corte Amplo",
     icon: "🪓",
-    desc: "+alcance e arco do machado",
+    desc: "+alcance e arco do golpe",
     max: 3,
-    classes: ["barbarian"],
+    classes: ["barbarian", "monk"],
     apply(p) {
       p.mods.rangeMult += 0.14;
       p.mods.arcMult += 0.12;
     },
   },
+
+  // ── Bárbaro ─────────────────────────────────────────────
   rawFury: {
     id: "rawFury",
     name: "Fúria Bruta",
@@ -220,6 +222,56 @@ export const POWERS = {
     classes: ["mage"],
     apply(p) {
       p.mods.splashRadiusMult += 0.22;
+    },
+  },
+
+  // ── Monge ───────────────────────────────────────────────
+  ironFist: {
+    id: "ironFist",
+    name: "Punho de Ferro",
+    icon: "👊",
+    desc: "Socos mais fortes e críticos",
+    max: 3,
+    classes: ["monk"],
+    apply(p) {
+      p.mods.critChance += 0.05;
+      p.mods.critMult += 0.1;
+      p.mods.rangeMult += 0.06;
+    },
+  },
+  flowingChi: {
+    id: "flowingChi",
+    name: "Chi Fluente",
+    icon: "☯️",
+    desc: "Chi enche e dura mais",
+    max: 3,
+    classes: ["monk"],
+    apply(p) {
+      p.mods.furyGainMult += 0.22;
+      p.mods.furyDurationMult += 0.14;
+    },
+  },
+  windStep: {
+    id: "windStep",
+    name: "Passo do Vento",
+    icon: "🍃",
+    desc: "Dash bem mais disponível",
+    max: 3,
+    classes: ["monk"],
+    apply(p) {
+      p.mods.dashCdMult *= 0.78;
+    },
+  },
+  palmWave: {
+    id: "palmWave",
+    name: "Onda de Palma",
+    icon: "✋",
+    desc: "Alcance e arco dos punhos",
+    max: 3,
+    classes: ["monk"],
+    apply(p) {
+      p.mods.rangeMult += 0.12;
+      p.mods.arcMult += 0.14;
     },
   },
 };

@@ -10,25 +10,25 @@ export function drawPlayer(game, ctx) {
 
   if (cls.style === "caster") drawCasterHero(game, ctx);
   else if (cls.style === "ranged") drawRangedHero(game, ctx);
-  else if (cls.id === "monk") drawMonkHero(game, ctx); // futuro: reutiliza visual "monge"
+  else if (cls.id === "monk") drawMonkHero(game, ctx);
   else drawBarbarianHero(game, ctx);
 }
 
 /**
- * Visual "monge" — corpo arredondado, tom claro, aparência serena.
- * Reservado para a futura classe Monge (não apagar).
- * Antes era o body do bárbaro v1.
+ * Monge — corpo leve, manto, punhos (glow no Chi).
  */
 function drawMonkHero(game, ctx) {
   const p = game.player;
   const colors = game.classDef?.colors || {};
   const active = game.isResourceActive();
+  const r = p.radius;
+  const accent = colors.accent || "#c4a0ff";
 
   for (const t of p.trail) {
-    ctx.globalAlpha = (t.life / 0.22) * 0.4;
-    ctx.fillStyle = active ? colors.accent || "#c4a0ff" : "#d0c0e8";
+    ctx.globalAlpha = (t.life / 0.22) * 0.45;
+    ctx.fillStyle = active ? accent : "#d0c0e8";
     ctx.beginPath();
-    ctx.arc(t.x, t.y, p.radius * 0.85, 0, Math.PI * 2);
+    ctx.arc(t.x, t.y, r * 0.8, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -38,58 +38,84 @@ function drawMonkHero(game, ctx) {
 
   ctx.fillStyle = COLORS.shadow;
   ctx.beginPath();
-  ctx.ellipse(0, 10, 14, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 10, 13, 5.5, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  if (active) {
+    const pulse = 1 + Math.sin(game.time * 14) * 0.08;
+    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, r * 2.2 * pulse);
+    g.addColorStop(0, "rgba(196,160,255,0.35)");
+    g.addColorStop(1, "rgba(196,160,255,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.2 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   if (p.invuln > 0 && Math.floor(game.time * 20) % 2 === 0 && p.dashing <= 0) {
     ctx.globalAlpha = 0.45;
   }
 
   const flash = p.flash > 0;
+  // torso
   ctx.fillStyle = flash ? "#fff" : (colors.body || "#e8d5c4");
   ctx.beginPath();
-  ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = flash ? "#ccc" : (colors.armor || "#6a5a78");
+  // manto
+  ctx.fillStyle = flash ? "#ccc" : (colors.armor || "#5a4a68");
   ctx.beginPath();
-  ctx.ellipse(0, 2, p.radius * 0.75, p.radius * 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 3, r * 0.8, r * 0.72, 0, 0, Math.PI * 2);
   ctx.fill();
+  // faixa
+  ctx.fillStyle = flash ? "#eee" : accent;
+  ctx.fillRect(-r * 0.55, 1, r * 1.1, 3);
 
+  // cabeça
   ctx.fillStyle = flash ? "#fff" : "#c4a88a";
   ctx.beginPath();
-  ctx.arc(0, -4, p.radius * 0.55, 0, Math.PI * 2);
+  ctx.arc(0, -5, r * 0.52, 0, Math.PI * 2);
   ctx.fill();
 
-  // barba curta / queixo
-  ctx.fillStyle = flash ? "#ddd" : "#5a3a28";
+  // cabelo raspado / topete
+  ctx.fillStyle = flash ? "#ddd" : "#2a1a28";
   ctx.beginPath();
-  ctx.moveTo(-6, 0);
-  ctx.lineTo(0, 10);
-  ctx.lineTo(6, 0);
+  ctx.ellipse(0, -9, r * 0.4, r * 0.28, 0, Math.PI, 0);
   ctx.fill();
 
-  const ex = Math.cos(p.facing) * 4;
-  const ey = Math.sin(p.facing) * 4;
+  const ex = Math.cos(p.facing) * 3.5;
+  const ey = Math.sin(p.facing) * 3.5;
   ctx.fillStyle = "#1a0a08";
   ctx.beginPath();
-  ctx.arc(ex - 3, -5 + ey * 0.3, 2, 0, Math.PI * 2);
-  ctx.arc(ex + 3, -5 + ey * 0.3, 2, 0, Math.PI * 2);
+  ctx.arc(ex - 2.8, -6 + ey * 0.3, 1.8, 0, Math.PI * 2);
+  ctx.arc(ex + 2.8, -6 + ey * 0.3, 1.8, 0, Math.PI * 2);
   ctx.fill();
 
-  // cajado simples do monge (placeholder arma)
+  // punhos à frente (sem cajado)
   ctx.rotate(p.facing);
-  ctx.strokeStyle = "#5a4030";
-  ctx.lineWidth = 3.5;
-  ctx.lineCap = "round";
+  const fistGlow = active || (p.atkPhase === "active");
+  const fistCol = fistGlow ? accent : "#d4b898";
+  if (fistGlow) {
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 10;
+  }
+  // punho principal
+  ctx.fillStyle = flash ? "#fff" : fistCol;
   ctx.beginPath();
-  ctx.moveTo(6, 0);
-  ctx.lineTo(34, 0);
-  ctx.stroke();
-  ctx.fillStyle = "#c8b090";
-  ctx.beginPath();
-  ctx.arc(34, 0, 4, 0, Math.PI * 2);
+  ctx.arc(22, -5, 5.5, 0, Math.PI * 2);
   ctx.fill();
+  // punho secundário
+  ctx.beginPath();
+  ctx.arc(16, 7, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // bandagens
+  ctx.strokeStyle = "rgba(255,245,236,0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(22, -5, 3.5, 0.2, Math.PI);
+  ctx.stroke();
   ctx.restore();
 }
 

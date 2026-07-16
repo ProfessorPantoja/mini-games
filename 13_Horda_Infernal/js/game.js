@@ -2014,13 +2014,11 @@ export class Game {
         ctx.closePath();
         ctx.fill();
       } else if (e.kind === "wraith") {
-        // aura fantasma
-        if (e.phasing) ctx.globalAlpha = 0.35;
-        else ctx.globalAlpha = 0.85;
+        // véu / cauda
         ctx.beginPath();
-        ctx.ellipse(0, -r * 0.15, r * 0.7, r * 1.05, 0, 0, Math.PI * 2);
+        ctx.moveTo(-r * 0.4, r * 0.4);
+        ctx.quadraticCurveTo(0, r * 1.3, r * 0.4, r * 0.4);
         ctx.fill();
-        ctx.globalAlpha = e.phasing ? 0.5 : 1;
       } else {
         // horns
         ctx.beginPath();
@@ -2041,6 +2039,7 @@ export class Game {
       ctx.arc(-r * 0.3, -r * 0.15, r * 0.15, 0, Math.PI * 2);
       ctx.arc(r * 0.3, -r * 0.15, r * 0.15, 0, Math.PI * 2);
       ctx.fill();
+      if (e.kind === "wraith") ctx.globalAlpha = 1;
     }
 
     // hp bar if damaged
@@ -2220,10 +2219,13 @@ export class Game {
         ctx.save();
         ctx.translate(fx.x, fx.y);
         ctx.rotate(fx.facing);
+        const col = fx.monk
+          ? (fx.fury ? "#c4a0ff" : "#e8d0ff")
+          : (fx.fury ? "#ff5a1f" : "#ffb347");
         ctx.globalAlpha = (1 - t) * (fx.fury ? 0.75 : 0.55);
-        ctx.strokeStyle = fx.fury ? "#ff5a1f" : "#ffb347";
+        ctx.strokeStyle = col;
         ctx.lineWidth = (fx.fury ? 6 : 4) - t * 2;
-        ctx.shadowColor = fx.fury ? "#ff5a1f" : "#ffb347";
+        ctx.shadowColor = col;
         ctx.shadowBlur = fx.fury ? 16 : 8;
         ctx.beginPath();
         ctx.arc(0, 0, fx.range * (0.7 + t * 0.3), -fx.arc / 2, fx.arc / 2);

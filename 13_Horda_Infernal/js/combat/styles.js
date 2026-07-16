@@ -69,6 +69,7 @@ function updateMelee(game, dt) {
 
     const range = game.getAttackRange();
     const arc = game.getAttackArc();
+    const isMonk = game.classDef?.id === "monk";
     game.effects.push({
       type: "slash",
       x: p.x,
@@ -79,6 +80,7 @@ function updateMelee(game, dt) {
       range,
       arc,
       fury: furyOn,
+      monk: isMonk,
     });
     game.particles.slashDebris(
       p.x + Math.cos(p.facing) * 40,
