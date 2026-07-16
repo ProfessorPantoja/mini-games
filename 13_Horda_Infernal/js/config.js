@@ -25,6 +25,10 @@ export const SHARED = {
   hitstopCrit: 0.04,
   hitstopBoss: 0.045,
   comboWindow: 1.35,
+  /** Segundos após limpar a etapa do chefe antes da tela de vitória (pegar loot) */
+  bossVictoryDelay: 5.0,
+  /** Segundos curtos entre etapas normais e portal */
+  stageClearDelay: 0.8,
 };
 
 /** @deprecated use SHARED + classDef.stats — mantido só p/ imports legados */

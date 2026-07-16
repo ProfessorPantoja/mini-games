@@ -871,7 +871,14 @@ export class Game {
     const waves = this.stage.waves.filter((w) => !w.supportOnly);
     if (this.waveIndex >= waves.length) {
       this.stageClear = true;
-      this.waveTimer = 0.8;
+      // Após o chefe: tempo longo para captar o espólio final
+      if (this.stage?.boss) {
+        this.waveTimer = SHARED.bossVictoryDelay ?? 5;
+        this.ui.toast("PEGUE O ESPÓLIO");
+        this.ui.showBanner("ESPÓLIO DO CHEFE");
+      } else {
+        this.waveTimer = SHARED.stageClearDelay ?? 0.8;
+      }
       return;
     }
 
