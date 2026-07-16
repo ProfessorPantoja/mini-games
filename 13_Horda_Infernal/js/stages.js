@@ -154,6 +154,404 @@ export const STAGES_WORLD_0 = [
 /** @deprecated use getWorld(i).stages — alias do mundo 0 */
 export const STAGES = STAGES_WORLD_0;
 
+/** Mundo 2 — Ninho de Cinzas → Mãe das Brasas (4 etapas) */
+export const STAGES_WORLD_1 = [
+  {
+    id: 0,
+    name: "Campo de Cinzas",
+    subtitle: "O chão ainda queima",
+    hard: false,
+    boss: false,
+    floorTint: 1,
+    waves: [
+      {
+        delay: 0.55,
+        groups: [
+          { type: "imp", count: 7, interval: 0.38 },
+          { type: "reaver", count: 1, interval: 0 },
+        ],
+      },
+      {
+        delay: 0.95,
+        groups: [
+          { type: "imp", count: 6, interval: 0.3 },
+          { type: "brute", count: 2, interval: 0.75 },
+          { type: "ember_egg", count: 2, interval: 0.6 },
+        ],
+      },
+      {
+        delay: 1.1,
+        groups: [
+          { type: "imp", count: 8, interval: 0.26 },
+          { type: "reaver", count: 2, interval: 0.7 },
+          { type: "spitter", count: 2, interval: 0.9 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 1,
+    name: "Corredores do Ninho",
+    subtitle: "Algo choca nas paredes",
+    hard: false,
+    boss: false,
+    floorTint: 1,
+    waves: [
+      {
+        delay: 0.5,
+        groups: [
+          { type: "imp", count: 6, interval: 0.28 },
+          { type: "ember_egg", count: 3, interval: 0.55 },
+          { type: "spitter", count: 2, interval: 1.0 },
+        ],
+      },
+      {
+        delay: 0.9,
+        groups: [
+          { type: "brute", count: 3, interval: 0.5 },
+          { type: "reaver", count: 2, interval: 0.6 },
+          { type: "imp", count: 6, interval: 0.24 },
+          { type: "ember_egg", count: 2, interval: 0.5 },
+        ],
+      },
+      {
+        delay: 1.05,
+        groups: [
+          { type: "imp", count: 9, interval: 0.2 },
+          { type: "wraith", count: 3, interval: 0.4 },
+          { type: "spitter", count: 2, interval: 0.75 },
+          { type: "elite", count: 1, interval: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 2,
+    name: "Berçário Infernal",
+    subtitle: "A ninhada engrossa",
+    hard: true,
+    boss: false,
+    floorTint: 2,
+    waves: [
+      {
+        delay: 0.45,
+        groups: [
+          { type: "ember_egg", count: 4, interval: 0.4 },
+          { type: "imp", count: 8, interval: 0.22 },
+          { type: "spitter", count: 2, interval: 0.7 },
+        ],
+      },
+      {
+        delay: 0.85,
+        groups: [
+          { type: "brute", count: 3, interval: 0.48 },
+          { type: "reaver", count: 3, interval: 0.52 },
+          { type: "wraith", count: 3, interval: 0.38 },
+          { type: "elite", count: 1, interval: 0 },
+        ],
+      },
+      {
+        delay: 1.0,
+        groups: [
+          { type: "imp", count: 10, interval: 0.18 },
+          { type: "ember_egg", count: 4, interval: 0.35 },
+          { type: "spitter", count: 3, interval: 0.55 },
+          { type: "elite", count: 2, interval: 0.9 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Útero de Magma",
+    subtitle: "A mãe desperta",
+    hard: true,
+    boss: true,
+    floorTint: 2,
+    waves: [
+      {
+        delay: 0.7,
+        groups: [
+          { type: "imp", count: 6, interval: 0.28 },
+          { type: "ember_egg", count: 3, interval: 0.45 },
+          { type: "reaver", count: 2, interval: 0.55 },
+        ],
+      },
+      {
+        delay: 1.15,
+        groups: [{ type: "boss_mother", count: 1, interval: 0 }],
+      },
+      { delay: 9999, groups: [], supportOnly: true },
+    ],
+  },
+];
+
+/** Mundo 3 — Pátio dos Ossos → Carcereiro (4 etapas) */
+export const STAGES_WORLD_2 = [
+  {
+    id: 0,
+    name: "Portão de Ferro",
+    subtitle: "As correntes tilintam",
+    hard: false,
+    boss: false,
+    floorTint: 2,
+    waves: [
+      {
+        delay: 0.55,
+        groups: [
+          { type: "brute", count: 3, interval: 0.55 },
+          { type: "imp", count: 5, interval: 0.35 },
+        ],
+      },
+      {
+        delay: 0.95,
+        groups: [
+          { type: "reaver", count: 3, interval: 0.6 },
+          { type: "brute", count: 2, interval: 0.7 },
+          { type: "spitter", count: 2, interval: 0.95 },
+        ],
+      },
+      {
+        delay: 1.1,
+        groups: [
+          { type: "imp", count: 7, interval: 0.25 },
+          { type: "brute", count: 3, interval: 0.5 },
+          { type: "reaver", count: 2, interval: 0.65 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 1,
+    name: "Corredor das Correntes",
+    subtitle: "Não fique no caminho",
+    hard: false,
+    boss: false,
+    floorTint: 2,
+    waves: [
+      {
+        delay: 0.5,
+        groups: [
+          { type: "reaver", count: 3, interval: 0.5 },
+          { type: "spitter", count: 3, interval: 0.8 },
+          { type: "imp", count: 5, interval: 0.28 },
+        ],
+      },
+      {
+        delay: 0.9,
+        groups: [
+          { type: "brute", count: 4, interval: 0.45 },
+          { type: "elite", count: 1, interval: 0 },
+          { type: "wraith", count: 2, interval: 0.45 },
+        ],
+      },
+      {
+        delay: 1.05,
+        groups: [
+          { type: "reaver", count: 4, interval: 0.48 },
+          { type: "brute", count: 3, interval: 0.5 },
+          { type: "spitter", count: 2, interval: 0.7 },
+          { type: "imp", count: 6, interval: 0.22 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 2,
+    name: "Pátio dos Condenados",
+    subtitle: "Aqui a fuga é cara",
+    hard: true,
+    boss: false,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.45,
+        groups: [
+          { type: "brute", count: 4, interval: 0.42 },
+          { type: "reaver", count: 3, interval: 0.5 },
+          { type: "spitter", count: 2, interval: 0.7 },
+        ],
+      },
+      {
+        delay: 0.85,
+        groups: [
+          { type: "elite", count: 2, interval: 1.0 },
+          { type: "wraith", count: 3, interval: 0.38 },
+          { type: "imp", count: 8, interval: 0.2 },
+          { type: "brute", count: 2, interval: 0.55 },
+        ],
+      },
+      {
+        delay: 1.0,
+        groups: [
+          { type: "reaver", count: 4, interval: 0.42 },
+          { type: "brute", count: 4, interval: 0.45 },
+          { type: "spitter", count: 3, interval: 0.55 },
+          { type: "elite", count: 2, interval: 0.85 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Cela do Carcereiro",
+    subtitle: "Você é o preso",
+    hard: true,
+    boss: true,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.7,
+        groups: [
+          { type: "brute", count: 3, interval: 0.45 },
+          { type: "reaver", count: 2, interval: 0.5 },
+          { type: "spitter", count: 2, interval: 0.7 },
+        ],
+      },
+      {
+        delay: 1.15,
+        groups: [{ type: "boss_jailer", count: 1, interval: 0 }],
+      },
+      { delay: 9999, groups: [], supportOnly: true },
+    ],
+  },
+];
+
+/** Mundo 4 — Fenda do Portal → Eco do Portal (4 etapas) */
+export const STAGES_WORLD_3 = [
+  {
+    id: 0,
+    name: "Limiar Rachado",
+    subtitle: "O ar vibra errado",
+    hard: false,
+    boss: false,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.5,
+        groups: [
+          { type: "wraith", count: 4, interval: 0.4 },
+          { type: "imp", count: 6, interval: 0.3 },
+        ],
+      },
+      {
+        delay: 0.9,
+        groups: [
+          { type: "wraith", count: 3, interval: 0.35 },
+          { type: "reaver", count: 2, interval: 0.6 },
+          { type: "spitter", count: 2, interval: 0.85 },
+          { type: "imp", count: 5, interval: 0.28 },
+        ],
+      },
+      {
+        delay: 1.05,
+        groups: [
+          { type: "wraith", count: 4, interval: 0.32 },
+          { type: "brute", count: 2, interval: 0.55 },
+          { type: "reaver", count: 2, interval: 0.55 },
+          { type: "spitter", count: 2, interval: 0.75 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 1,
+    name: "Espelho de Sombras",
+    subtitle: "O que pisca não é real",
+    hard: false,
+    boss: false,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.5,
+        groups: [
+          { type: "echo_decoy", count: 2, interval: 0.3 },
+          { type: "wraith", count: 3, interval: 0.4 },
+          { type: "imp", count: 6, interval: 0.26 },
+        ],
+      },
+      {
+        delay: 0.9,
+        groups: [
+          { type: "echo_decoy", count: 3, interval: 0.35 },
+          { type: "spitter", count: 3, interval: 0.7 },
+          { type: "reaver", count: 2, interval: 0.55 },
+          { type: "elite", count: 1, interval: 0 },
+        ],
+      },
+      {
+        delay: 1.05,
+        groups: [
+          { type: "wraith", count: 5, interval: 0.28 },
+          { type: "echo_decoy", count: 2, interval: 0.4 },
+          { type: "imp", count: 8, interval: 0.2 },
+          { type: "spitter", count: 2, interval: 0.65 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 2,
+    name: "Voragem Violeta",
+    subtitle: "A fenda engole a horda",
+    hard: true,
+    boss: false,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.4,
+        groups: [
+          { type: "wraith", count: 5, interval: 0.28 },
+          { type: "echo_decoy", count: 3, interval: 0.35 },
+          { type: "reaver", count: 3, interval: 0.5 },
+        ],
+      },
+      {
+        delay: 0.85,
+        groups: [
+          { type: "elite", count: 2, interval: 0.9 },
+          { type: "spitter", count: 3, interval: 0.55 },
+          { type: "brute", count: 3, interval: 0.48 },
+          { type: "wraith", count: 4, interval: 0.3 },
+        ],
+      },
+      {
+        delay: 1.0,
+        groups: [
+          { type: "imp", count: 10, interval: 0.16 },
+          { type: "wraith", count: 5, interval: 0.25 },
+          { type: "echo_decoy", count: 3, interval: 0.3 },
+          { type: "elite", count: 2, interval: 0.8 },
+          { type: "reaver", count: 3, interval: 0.45 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Coração do Portal",
+    subtitle: "O eco responde",
+    hard: true,
+    boss: true,
+    floorTint: 3,
+    waves: [
+      {
+        delay: 0.7,
+        groups: [
+          { type: "wraith", count: 3, interval: 0.35 },
+          { type: "echo_decoy", count: 2, interval: 0.4 },
+          { type: "elite", count: 1, interval: 0 },
+        ],
+      },
+      {
+        delay: 1.15,
+        groups: [{ type: "boss_echo", count: 1, interval: 0 }],
+      },
+      { delay: 9999, groups: [], supportOnly: true },
+    ],
+  },
+];
+
 /** Stats base por tipo de inimigo (escalados por stage no spawn) */
 export const ENEMY_DEFS = {
   imp: {

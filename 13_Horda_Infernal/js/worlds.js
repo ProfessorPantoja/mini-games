@@ -1,38 +1,19 @@
 /**
- * Mundos da campanha.
- * Mundo 1 = campanha completa (4 etapas → Senhor da Horda).
- * Mundos 2–4 = SOMENTE a luta do chefão (validação de mecânica).
+ * Mundos da campanha — cada um com 4 etapas (como o Mundo I).
+ * Etapa final = chefão do mundo.
  */
 
-import { STAGES_WORLD_0 } from "./stages.js";
+import {
+  STAGES_WORLD_0,
+  STAGES_WORLD_1,
+  STAGES_WORLD_2,
+  STAGES_WORLD_3,
+} from "./stages.js";
 
 export const WORLD_UNLOCK_KEY = "horda_infernal_worlds_v1";
 
 /** Playtest: todos os mundos liberados. */
 export const PLAYTEST_UNLOCK_ALL = true;
-
-function bossOnlyStage({
-  name, subtitle, floorTint, bossType, accent,
-}) {
-  return [
-    {
-      id: 0,
-      name,
-      subtitle,
-      hard: true,
-      boss: true,
-      floorTint,
-      accent,
-      waves: [
-        {
-          delay: 0.9,
-          groups: [{ type: bossType, count: 1, interval: 0 }],
-        },
-        { delay: 9999, groups: [], supportOnly: true },
-      ],
-    },
-  ];
-}
 
 export const WORLDS = [
   {
@@ -42,7 +23,7 @@ export const WORLDS = [
     short: "I",
     label: "Mundo I",
     bossName: "Senhor da Horda",
-    tagline: "Campanha clássica · 4 etapas",
+    tagline: "4 etapas · trono do abismo",
     icon: "🔥",
     accent: "#ff5a1f",
     stages: STAGES_WORLD_0,
@@ -54,16 +35,10 @@ export const WORLDS = [
     short: "II",
     label: "Mundo II",
     bossName: "Mãe das Brasas",
-    tagline: "Direto no chefão · fábrica de ovos",
+    tagline: "4 etapas · fábrica de ovos",
     icon: "🌋",
     accent: "#ff6a20",
-    stages: bossOnlyStage({
-      name: "Útero de Magma",
-      subtitle: "Mate a fábrica — ou a ninhada te come",
-      floorTint: 2,
-      bossType: "boss_mother",
-      accent: "#ff6a20",
-    }),
+    stages: STAGES_WORLD_1,
   },
   {
     id: "carcere",
@@ -72,16 +47,10 @@ export const WORLDS = [
     short: "III",
     label: "Mundo III",
     bossName: "Carcereiro de Ossos",
-    tagline: "Direto no chefão · correntes e puxão",
+    tagline: "4 etapas · correntes e puxão",
     icon: "⛓️",
     accent: "#c8b8a0",
-    stages: bossOnlyStage({
-      name: "Cela do Carcereiro",
-      subtitle: "O chão é a arma — não fique parado",
-      floorTint: 3,
-      bossType: "boss_jailer",
-      accent: "#c8b8a0",
-    }),
+    stages: STAGES_WORLD_2,
   },
   {
     id: "fenda",
@@ -90,16 +59,10 @@ export const WORLDS = [
     short: "IV",
     label: "Mundo IV",
     bossName: "Eco do Portal",
-    tagline: "Direto no chefão · piscadas e ecos",
+    tagline: "4 etapas · ilusões e ecos",
     icon: "🌀",
     accent: "#b44dff",
-    stages: bossOnlyStage({
-      name: "Coração do Portal",
-      subtitle: "Não confie no que pisca",
-      floorTint: 3,
-      bossType: "boss_echo",
-      accent: "#b44dff",
-    }),
+    stages: STAGES_WORLD_3,
   },
 ];
 
