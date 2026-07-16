@@ -1,6 +1,10 @@
 /**
- * AI e execução de ataques dos chefões.
- * game.js despacha; este módulo especializa por bossId.
+ * Chefões — cada um é um JOGO diferente, não reskin.
+ *
+ * mother  → fábrica: ovos no chão, cura se ninhada viva, erupções
+ * jailer  → espaço: correntes no chão, gancho, prisão (quase sem chase)
+ * echo    → ilusão: blink, decoys, afterimages (não é tanque)
+ * senhor  → clássico: persegue + slam/ring/charge
  */
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -13,24 +17,19 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export function updateBoss(game, e, dt) {
   const id = e.bossId || "senhor";
-  // fases por HP (compartilhado)
   const hpPct = e.hp / e.maxHp;
   e.bossPhase = hpPct < 0.33 ? 2 : hpPct < 0.66 ? 1 : 0;
   announcePhase(game, e);
 
   if (e.bossWindup > 0) {
     e.bossWindup -= dt;
-    if (Math.random() < 0.18) {
-      game.particles.embers?.(
-        e.x + (Math.random() - 0.5) * 40,
-        e.y + (Math.random() - 0.5) * 40,
-        1,
-      ) || game.particles.burst(e.x, e.y, {
-        count: 1, color: e.accent, speed: 30, life: 0.15, size: 2,
+    if (Math.random() < 0.15) {
+      game.particles.burst(e.x + (Math.random() - 0.5) * 30, e.y + (Math.random() - 0.5) * 30, {
+        count: 1, color: e.accent, speed: 25, life: 0.15, size: 2,
       });
     }
     if (e.bossWindup <= 0 && e.bossTelegraph) {
-      executeBoss(game, e, e.bossTelegraph);
+      execute(game, e, e.bossTelegraph);
       e.bossTelegraph = null;
     }
     return;
@@ -46,497 +45,723 @@ function announcePhase(game, e) {
   if (e.bossPhase === e.lastPhase) return;
   e.lastPhase = e.bossPhase;
   if (e.bossPhase === 1) {
-    game.ui.showBanner(phaseBanner(e, 1));
+    game.ui.showBanner(banner(e, 1));
     game.audio.bossPhase();
-    game.particles.ring(e.x, e.y, e.accent || "#ffb347", 100, 0.5);
+    game.particles.ring(e.x, e.y, e.accent, 110, 0.5);
     game._addFlash(0.3);
   } else if (e.bossPhase === 2) {
-    game.ui.showBanner(phaseBanner(e, 2));
+    game.ui.showBanner(banner(e, 2));
     game.audio.bossPhase();
     game.audio.furyActivate();
     game.particles.furyBurst(e.x, e.y);
-    game._addFlash(0.4);
-    game.shake.add(8, 0.3);
+    game._addFlash(0.45);
+    game.shake.add(10, 0.35);
   }
 }
 
-function phaseBanner(e, phase) {
+function banner(e, phase) {
   const id = e.bossId || "senhor";
   if (phase === 1) {
-    if (id === "mother") return "NINHO ABERTO";
-    if (id === "jailer") return "CORRENTES";
-    if (id === "echo") return "ECO II";
+    if (id === "mother") return "POSTURA DE NINHO";
+    if (id === "jailer") return "CORRENTES NO CHÃO";
+    if (id === "echo") return "MULTIPLICAÇÃO";
     return "FASE II";
   }
-  if (id === "mother") return "PARTO EM CHAMAS";
-  if (id === "jailer") return "PRISÃO TOTAL";
-  if (id === "echo") return "O PORTAL GRITA";
+  if (id === "mother") return "ERUPÇÃO MATERNA";
+  if (id === "jailer") return "NENHUMA FUGA";
+  if (id === "echo") return "VOCÊ É O ECO";
   return "FÚRIA DO TRONO";
 }
 
-// ─── Senhor da Horda (original) ───
+function telegraph(game, e, atk, windup, opts = {}) {
+  e.bossTelegraph = atk;
+  e.bossWindup = windup;
+  const p = game.player;
+  e._aimX = p?.x ?? e.x;
+  e._aimY = p?.y ?? e.y;
+  e._aimAng = p ? ang(p.x - e.x, p.y - e.y) : 0;
+  Object.assign(e, opts);
+
+  const col = opts.color || e.accent || "#ff3b5c";
+  const r = opts.ringR || 60;
+  game.particles.ring(e.x, e.y, col, r, windup);
+  game.audio.bossTelegraph();
+
+  if (opts.preview === "line") {
+    game.hazards.push({
+      type: "line_preview",
+      x: e.x, y: e.y,
+      ang: e._aimAng,
+      len: opts.len || 300,
+      width: opts.width || 20,
+      life: windup, maxLife: windup,
+      color: opts.previewColor || "rgba(200,184,160,0.5)",
+    });
+  }
+  if (opts.preview === "ring") {
+    game.hazards.push({
+      type: "ring_preview",
+      x: opts.hx ?? e.x, y: opts.hy ?? e.y,
+      r: opts.ringR || 100,
+      life: windup, maxLife: windup,
+      color: opts.previewColor || "rgba(255,106,32,0.4)",
+    });
+  }
+  if (opts.preview === "expand") {
+    game.hazards.push({
+      type: "expand_preview",
+      x: e.x, y: e.y,
+      r0: 30, r1: opts.ringR || 160,
+      life: windup, maxLife: windup,
+      color: opts.previewColor || "rgba(255,90,31,0.45)",
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+// SENHOR — chase clássico (Mundo 1, intacto)
+// ═══════════════════════════════════════════
 function updateSenhor(game, e, dt) {
   const p = game.player;
-  e.bossAtkCd -= dt;
+  e.bossAtkCd = (e.bossAtkCd ?? 1.5) - dt;
   const d = norm(p.x - e.x, p.y - e.y);
   e.x += d.x * e.moveSpeed * (1 + e.bossPhase * 0.18) * dt;
   e.y += d.y * e.moveSpeed * (1 + e.bossPhase * 0.18) * dt;
-
   if (e.bossAtkCd > 0) return;
   const roll = Math.random();
   let atk = "slam";
   if (e.bossPhase >= 1 && roll < 0.42) atk = "ring";
-  if (e.bossPhase >= 2 && roll < 0.58) atk = "charge";
-  if (e.bossPhase >= 2 && roll > 0.75) atk = "slam";
-  startTelegraph(game, e, atk, atk === "charge" ? 0.5 : atk === "ring" ? 0.85 : 0.7);
+  if (e.bossPhase >= 2 && roll < 0.55) atk = "charge";
+  telegraph(game, e, atk, atk === "charge" ? 0.5 : atk === "ring" ? 0.85 : 0.7, {
+    ringR: atk === "ring" ? 150 : atk === "slam" ? 95 : 55,
+    color: atk === "ring" ? "#b44dff" : "#ff3b5c",
+  });
   e.bossAtkCd = 2.0 - e.bossPhase * 0.35;
 }
 
-// ─── Mãe das Brasas ───
+// ═══════════════════════════════════════════
+// MÃE — FÁBRICA (quase parada, ovos = ameaça)
+// ═══════════════════════════════════════════
 function updateMother(game, e, dt) {
   const p = game.player;
-  e.bossAtkCd -= dt;
-  // lenta, orbita um pouco
-  const d = norm(p.x - e.x, p.y - e.y);
-  const side = Math.sin(e.pulse * 0.5) * 0.35;
-  const spd = e.moveSpeed * (1 + e.bossPhase * 0.12);
-  e.x += (d.x * 0.7 + -d.y * side) * spd * dt;
-  e.y += (d.y * 0.7 + d.x * side) * spd * dt;
+  e.bossAtkCd = (e.bossAtkCd ?? 1.2) - dt;
 
-  // cura leve se muitos adds vivos (fase 2+)
-  if (e.bossPhase >= 2) {
-    e._healTick = (e._healTick || 0) - dt;
-    if (e._healTick <= 0) {
-      e._healTick = 1.2;
-      const adds = game.enemies.filter((o) => !o.dead && o !== e && o.kind !== "boss").length;
-      if (adds >= 3) {
-        const heal = Math.round(e.maxHp * 0.012 * Math.min(6, adds));
-        e.hp = Math.min(e.maxHp, e.hp + heal);
-        game.particles.burst(e.x, e.y, {
-          count: 6, color: "#ff6a20", speed: 60, life: 0.3, size: 2, gravity: -30,
-        });
-      }
+  // Move POUCO: orbita o centro / se afasta se o player cola
+  const cx = game.arena.x + game.arena.w / 2;
+  const cy = game.arena.y + game.arena.h * 0.38;
+  const toHome = norm(cx - e.x, cy - e.y);
+  const toP = norm(p.x - e.x, p.y - e.y);
+  const dP = dist(e, p);
+  if (dP < 90) {
+    e.x -= toP.x * e.moveSpeed * 1.4 * dt;
+    e.y -= toP.y * e.moveSpeed * 1.4 * dt;
+  } else {
+    e.x += toHome.x * e.moveSpeed * 0.55 * dt;
+    e.y += toHome.y * e.moveSpeed * 0.55 * dt;
+    // deriva lateral lenta
+    e.x += -toP.y * e.moveSpeed * 0.25 * Math.sin(e.pulse * 0.4) * dt;
+  }
+  clampBoss(game, e);
+
+  // Cura se ninhada (ovos + imps) estiver grande — PRESSÃO DE PRIORIDADE
+  e._healTick = (e._healTick || 0) - dt;
+  if (e._healTick <= 0) {
+    e._healTick = 1.0;
+    const brood = countBrood(game, e);
+    if (brood >= 3) {
+      const heal = Math.round(e.maxHp * (0.008 + brood * 0.003));
+      e.hp = Math.min(e.maxHp, e.hp + heal);
+      game.particles.burst(e.x, e.y - e.radius, {
+        count: 5, color: "#ff8a40", speed: 50, life: 0.35, size: 2.5, gravity: -40,
+      });
+      if (brood >= 5) game.ui.toast("A NINHADA A ALIMENTA");
     }
   }
 
   if (e.bossAtkCd > 0) return;
+
+  // Kit: lay_eggs (principal) | erupt (anel expansivo) | spit (secundário)
   const roll = Math.random();
-  let atk = "spit";
-  if (e.bossPhase >= 0 && roll < 0.4) atk = "spawn";
-  if (e.bossPhase >= 1 && roll < 0.55) atk = "embrace";
-  if (e.bossPhase >= 1 && roll > 0.7) atk = "nest";
-  if (e.bossPhase >= 2 && roll < 0.35) atk = "spawn";
-  startTelegraph(game, e, atk, atk === "embrace" ? 0.75 : atk === "nest" ? 0.9 : 0.55);
-  e.bossAtkCd = 1.85 - e.bossPhase * 0.28;
+  let atk = "lay_eggs";
+  if (e.bossPhase === 0) {
+    atk = roll < 0.7 ? "lay_eggs" : "spit";
+  } else if (e.bossPhase === 1) {
+    atk = roll < 0.45 ? "lay_eggs" : roll < 0.75 ? "erupt" : "spit";
+  } else {
+    atk = roll < 0.4 ? "lay_eggs" : roll < 0.75 ? "erupt" : "spit";
+  }
+
+  if (atk === "lay_eggs") {
+    telegraph(game, e, atk, 0.85, {
+      ringR: 70, color: "#ff6a20", preview: "ring",
+      previewColor: "rgba(255,106,32,0.35)",
+    });
+    e.bossAtkCd = 2.4 - e.bossPhase * 0.25;
+  } else if (atk === "erupt") {
+    telegraph(game, e, atk, 1.05, {
+      ringR: 170, color: "#ff3b1f", preview: "expand",
+      previewColor: "rgba(255,60,20,0.4)",
+    });
+    e.bossAtkCd = 3.0 - e.bossPhase * 0.3;
+  } else {
+    telegraph(game, e, atk, 0.55, { ringR: 40, color: "#ff8a30" });
+    e.bossAtkCd = 1.9;
+  }
 }
 
-// ─── Carcereiro ───
+function countBrood(game, e) {
+  let n = 0;
+  for (const o of game.enemies) {
+    if (o.dead || o === e) continue;
+    if (o.kind === "egg" || o.kind === "fodder") n++;
+  }
+  return n;
+}
+
+// ═══════════════════════════════════════════
+// CARCEREIRO — ESPAÇO (correntes, gancho)
+// ═══════════════════════════════════════════
 function updateJailer(game, e, dt) {
   const p = game.player;
-  e.bossAtkCd -= dt;
-  const d = norm(p.x - e.x, p.y - e.y);
-  e.x += d.x * e.moveSpeed * (1 + e.bossPhase * 0.1) * dt;
-  e.y += d.y * e.moveSpeed * (1 + e.bossPhase * 0.1) * dt;
+  e.bossAtkCd = (e.bossAtkCd ?? 1.4) - dt;
+
+  // Anda LENTO; não chase agressivo
+  const dP = dist(e, p);
+  if (dP > 140) {
+    const d = norm(p.x - e.x, p.y - e.y);
+    e.x += d.x * e.moveSpeed * 0.7 * dt;
+    e.y += d.y * e.moveSpeed * 0.7 * dt;
+  } else if (dP < 70) {
+    const d = norm(p.x - e.x, p.y - e.y);
+    e.x -= d.x * e.moveSpeed * 0.5 * dt;
+    e.y -= d.y * e.moveSpeed * 0.5 * dt;
+  }
+  clampBoss(game, e);
 
   if (e.bossAtkCd > 0) return;
+
   const roll = Math.random();
-  let atk = "whip";
-  if (roll < 0.35) atk = "stomp";
-  if (e.bossPhase >= 1 && roll < 0.5) atk = "hook";
-  if (e.bossPhase >= 2 && roll < 0.4) atk = "prison";
-  if (e.bossPhase >= 2 && roll > 0.75) atk = "whip";
-  startTelegraph(
-    game, e, atk,
-    atk === "prison" ? 1.0 : atk === "hook" ? 0.55 : atk === "whip" ? 0.65 : 0.7,
-  );
-  e.bossAtkCd = 1.95 - e.bossPhase * 0.3;
+  let atk = "chain_floor";
+  if (e.bossPhase === 0) {
+    atk = roll < 0.55 ? "chain_floor" : roll < 0.85 ? "whip" : "stomp";
+  } else if (e.bossPhase === 1) {
+    atk = roll < 0.35 ? "chain_floor" : roll < 0.7 ? "hook" : "whip";
+  } else {
+    atk = roll < 0.3 ? "prison" : roll < 0.6 ? "hook" : roll < 0.85 ? "chain_floor" : "whip";
+  }
+
+  if (atk === "chain_floor") {
+    telegraph(game, e, atk, 0.7, {
+      ringR: 50, color: "#c8b8a0",
+    });
+    e.bossAtkCd = 2.2 - e.bossPhase * 0.2;
+  } else if (atk === "whip") {
+    telegraph(game, e, atk, 0.6, {
+      preview: "line", len: 340, width: 22, color: "#e8dcc8",
+    });
+    e.bossAtkCd = 2.0;
+  } else if (atk === "hook") {
+    telegraph(game, e, atk, 0.5, {
+      preview: "line", len: 300, width: 18, color: "#f0e6d0",
+      previewColor: "rgba(240,200,120,0.55)",
+    });
+    e.bossAtkCd = 2.5;
+  } else if (atk === "stomp") {
+    telegraph(game, e, atk, 0.65, { ringR: 100, color: "#a09080" });
+    e.bossAtkCd = 2.3;
+  } else if (atk === "prison") {
+    telegraph(game, e, atk, 1.0, {
+      preview: "ring", ringR: 120, color: "#c8b8a0",
+      previewColor: "rgba(200,184,160,0.5)",
+    });
+    e.bossAtkCd = 3.4;
+  }
 }
 
-// ─── Eco do Portal ───
+// ═══════════════════════════════════════════
+// ECO — ILUSÃO (blink, decoys, afterimages)
+// ═══════════════════════════════════════════
 function updateEcho(game, e, dt) {
   const p = game.player;
-  e.bossAtkCd -= dt;
+  e.bossAtkCd = (e.bossAtkCd ?? 1.0) - dt;
+
+  // Strafe rápido, NÃO tank chase
   const d = norm(p.x - e.x, p.y - e.y);
-  // gravidade leve no player (fase 1+)
-  if (e.bossPhase >= 1 && p && !p.dead) {
-    const pull = 28 + e.bossPhase * 18;
-    const pd = norm(e.x - p.x, e.y - p.y);
-    p.x += pd.x * pull * dt;
-    p.y += pd.y * pull * dt;
+  const side = Math.sin(e.pulse * 1.2) * 0.9;
+  const prefer = 150;
+  const dP = dist(e, p);
+  if (dP > prefer + 30) {
+    e.x += (d.x + -d.y * side) * e.moveSpeed * dt;
+    e.y += (d.y + d.x * side) * e.moveSpeed * dt;
+  } else if (dP < prefer - 40) {
+    e.x -= d.x * e.moveSpeed * 1.1 * dt;
+    e.y -= d.y * e.moveSpeed * 1.1 * dt;
+  } else {
+    e.x += -d.y * e.moveSpeed * 1.15 * dt;
+    e.y += d.x * e.moveSpeed * 1.15 * dt;
   }
-  e.x += d.x * e.moveSpeed * (1 + e.bossPhase * 0.15) * dt;
-  e.y += d.y * e.moveSpeed * (1 + e.bossPhase * 0.15) * dt;
+  clampBoss(game, e);
 
   if (e.bossAtkCd > 0) return;
+
   const roll = Math.random();
-  let atk = "slam";
+  let atk = "blink";
   if (e.bossPhase === 0) {
-    atk = roll < 0.45 ? "ring" : "slam";
+    atk = roll < 0.55 ? "blink" : "afterimage";
   } else if (e.bossPhase === 1) {
-    atk = roll < 0.4 ? "nest" : roll < 0.7 ? "spawn" : "spit";
+    atk = roll < 0.35 ? "blink" : roll < 0.7 ? "decoys" : "afterimage";
   } else {
-    atk = roll < 0.3 ? "ring" : roll < 0.55 ? "prison" : roll < 0.8 ? "ghost" : "charge";
+    atk = roll < 0.3 ? "blink" : roll < 0.55 ? "decoys" : roll < 0.8 ? "afterimage" : "split_burst";
   }
-  startTelegraph(
-    game, e, atk,
-    atk === "ghost" ? 0.4 : atk === "prison" ? 0.9 : atk === "charge" ? 0.45 : 0.7,
-  );
-  e.bossAtkCd = 1.7 - e.bossPhase * 0.25;
-}
 
-function startTelegraph(game, e, atk, windup) {
-  e.bossTelegraph = atk;
-  e.bossWindup = windup;
-  // guarda aim para whip/hook
-  const p = game.player;
-  e._aimX = p.x;
-  e._aimY = p.y;
-  e._aimAng = ang(p.x - e.x, p.y - e.y);
-
-  const col =
-    atk === "ring" || atk === "ghost" ? "#b44dff"
-      : atk === "nest" || atk === "spit" || atk === "embrace" ? "#ff6a20"
-        : atk === "whip" || atk === "hook" || atk === "prison" ? "#c8b8a0"
-          : e.accent || "#ff3b5c";
-
-  const r =
-    atk === "ring" ? 150
-      : atk === "slam" || atk === "stomp" ? 95
-        : atk === "embrace" ? 110
-          : atk === "prison" ? 120
-            : atk === "nest" ? 70
-              : 55;
-  game.particles.ring(e.x, e.y, col, r, windup);
-  game.audio.bossTelegraph();
-
-  // hazard preview para linha / cone
-  if (atk === "whip" || atk === "hook") {
-    game.hazards.push({
-      type: "line_preview",
-      x: e.x,
-      y: e.y,
-      ang: e._aimAng,
-      len: atk === "hook" ? 280 : 320,
-      width: atk === "hook" ? 18 : 22,
-      life: windup,
-      maxLife: windup,
-      color: "rgba(200,184,160,0.45)",
+  if (atk === "blink") {
+    // mirar ponto perto do player
+    const a = Math.random() * Math.PI * 2;
+    e._blinkX = clamp(p.x + Math.cos(a) * 70, game.arena.x + 50, game.arena.x + game.arena.w - 50);
+    e._blinkY = clamp(p.y + Math.sin(a) * 70, game.arena.y + 50, game.arena.y + game.arena.h - 50);
+    telegraph(game, e, atk, 0.45, {
+      ringR: 40, color: "#b44dff",
+      hx: e._blinkX, hy: e._blinkY, preview: "ring",
+      previewColor: "rgba(180,77,255,0.5)",
     });
-  }
-  if (atk === "embrace") {
-    game.hazards.push({
-      type: "cone_preview",
-      x: e.x,
-      y: e.y,
-      ang: e._aimAng,
-      range: 130,
-      halfArc: 0.7,
-      life: windup,
-      maxLife: windup,
-      color: "rgba(255,106,32,0.35)",
-    });
-  }
-  if (atk === "prison") {
+    // preview no destino
     game.hazards.push({
       type: "ring_preview",
-      x: e.x,
-      y: e.y,
-      r: 130,
-      life: windup,
-      maxLife: windup,
-      color: "rgba(200,184,160,0.4)",
+      x: e._blinkX, y: e._blinkY,
+      r: 45, life: 0.45, maxLife: 0.45,
+      color: "rgba(180,77,255,0.55)",
     });
+    e.bossAtkCd = 1.8 - e.bossPhase * 0.15;
+  } else if (atk === "afterimage") {
+    telegraph(game, e, atk, 0.35, { ringR: 35, color: "#9b8cff" });
+    e.bossAtkCd = 1.6;
+  } else if (atk === "decoys") {
+    telegraph(game, e, atk, 0.7, { ringR: 55, color: "#c4a0ff" });
+    e.bossAtkCd = 2.8;
+  } else {
+    telegraph(game, e, atk, 0.8, {
+      preview: "expand", ringR: 140, color: "#b44dff",
+      previewColor: "rgba(180,77,255,0.4)",
+    });
+    e.bossAtkCd = 2.6;
   }
 }
 
-export function executeBoss(game, e, atk) {
-  const p = game.player;
-  const id = e.bossId || "senhor";
+function clampBoss(game, e) {
+  const a = game.arena;
+  e.x = clamp(e.x, a.x + e.radius, a.x + a.w - e.radius);
+  e.y = clamp(e.y, a.y + e.radius, a.y + a.h - e.radius);
+}
 
+// ═══════════════════════════════════════════
+// EXECUTE
+// ═══════════════════════════════════════════
+function execute(game, e, atk) {
+  const p = game.player;
+  if (!p || p.dead) return;
+
+  // ── Senhor ──
   if (atk === "slam" || atk === "stomp") {
     game.shake.add(8, 0.25);
     game.audio.bossHit();
-    game.particles.burst(e.x, e.y, {
-      count: 20, color: e.accent, speed: 260, life: 0.4, size: 4,
-    });
-    const rad = atk === "stomp" ? 100 : 95;
-    if (dist(e, p) < rad) {
+    game.particles.burst(e.x, e.y, { count: 20, color: e.accent, speed: 250, life: 0.4, size: 4 });
+    if (dist(e, p) < (atk === "stomp" ? 100 : 95)) {
       game._hurtPlayer(e.damage * 1.3, ang(p.x - e.x, p.y - e.y));
     }
-  } else if (atk === "ring") {
+    return;
+  }
+  if (atk === "ring") {
     game.shake.add(6, 0.3);
     game.audio.bossHit();
-    game.particles.ring(e.x, e.y, e.accent, 160, 0.4);
-    const n = 10 + e.bossPhase * 2;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      game.projectiles.push({
-        x: e.x, y: e.y,
-        vx: Math.cos(a) * 180, vy: Math.sin(a) * 180,
-        damage: Math.round(e.damage * 0.55),
-        radius: 7, life: 2.5,
-        color: e.accent, fromEnemy: true,
-      });
-    }
-  } else if (atk === "charge") {
+    radialShots(game, e, 10 + e.bossPhase * 2, 180, e.accent, 0.55);
+    return;
+  }
+  if (atk === "charge") {
     const dir = norm(p.x - e.x, p.y - e.y);
     e.x += dir.x * 140;
     e.y += dir.y * 140;
-    e.x = clamp(e.x, game.arena.x + e.radius, game.arena.x + game.arena.w - e.radius);
-    e.y = clamp(e.y, game.arena.y + e.radius, game.arena.y + game.arena.h - e.radius);
-    game.particles.burst(e.x, e.y, {
-      count: 14, color: e.accent, speed: 200, life: 0.3, size: 3,
-    });
-    game.shake.add(7, 0.2);
+    clampBoss(game, e);
     game.audio.dash();
+    game.shake.add(7, 0.2);
     if (dist(e, p) < e.radius + p.radius + 30) {
       game._hurtPlayer(e.damage * 1.1, ang(p.x - e.x, p.y - e.y));
     }
-  } else if (atk === "spit") {
-    // 3 bolas de magma
+    return;
+  }
+
+  // ── Mãe ──
+  if (atk === "lay_eggs") {
+    const n = e.bossPhase >= 2 ? 4 : e.bossPhase >= 1 ? 3 : 2;
+    game.audio.bossHit();
+    game.ui.toast("OVOS");
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+      const d = 70 + Math.random() * 90;
+      const ex = clamp(e.x + Math.cos(a) * d, game.arena.x + 40, game.arena.x + game.arena.w - 40);
+      const ey = clamp(e.y + Math.sin(a) * d, game.arena.y + 40, game.arena.y + game.arena.h - 40);
+      game._spawnEnemyAt("ember_egg", ex, ey, false);
+      game.particles.ring(ex, ey, "#ff6a20", 22, 0.35);
+    }
+    return;
+  }
+  if (atk === "erupt") {
+    // Anel expansivo: 3 pulsos de dano em raios crescentes
+    game.shake.add(10, 0.35);
+    game.audio.bossHit();
+    game.ui.toast("ERUPÇÃO");
+    for (let wave = 0; wave < 3; wave++) {
+      game.hazards.push({
+        type: "erupt_wave",
+        x: e.x, y: e.y,
+        r: 40 + wave * 55,
+        life: 0.22 + wave * 0.18,
+        maxLife: 0.22 + wave * 0.18,
+        damage: Math.round(e.damage * (0.7 + wave * 0.15)),
+        hit: false,
+        color: "#ff5a1f",
+      });
+    }
+    game.particles.ring(e.x, e.y, "#ff6a20", 160, 0.5);
+    return;
+  }
+  if (atk === "spit") {
     const base = e._aimAng ?? ang(p.x - e.x, p.y - e.y);
     for (let i = -1; i <= 1; i++) {
-      const a = base + i * 0.18;
+      const a = base + i * 0.2;
       game.projectiles.push({
-        x: e.x + Math.cos(a) * 30,
-        y: e.y + Math.sin(a) * 30,
-        vx: Math.cos(a) * 240,
-        vy: Math.sin(a) * 240,
-        damage: Math.round(e.damage * 0.7),
-        radius: 9,
-        life: 2.2,
-        color: "#ff6a20",
-        fromEnemy: true,
-        magma: true,
+        x: e.x + Math.cos(a) * 28, y: e.y + Math.sin(a) * 28,
+        vx: Math.cos(a) * 250, vy: Math.sin(a) * 250,
+        damage: Math.round(e.damage * 0.65),
+        radius: 8, life: 2.0,
+        color: "#ff6a20", fromEnemy: true,
       });
     }
     if (typeof game.audio.castFire === "function") game.audio.castFire(false);
     else game.audio.bossHit();
-    game.particles.burst(e.x, e.y, {
-      count: 10, color: "#ff6a20", speed: 160, life: 0.3, size: 3,
-    });
-  } else if (atk === "spawn") {
-    const n = e.bossPhase >= 2 ? 4 : e.bossPhase >= 1 ? 3 : 2;
+    return;
+  }
+
+  // ── Carcereiro ──
+  if (atk === "chain_floor") {
+    // 2–3 segmentos de corrente no chão (persistentes)
+    const n = e.bossPhase >= 2 ? 3 : 2;
+    game.audio.dash();
+    game.ui.toast("CORRENTES");
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
-      const sx = e.x + Math.cos(a) * 50;
-      const sy = e.y + Math.sin(a) * 50;
-      game._spawnEnemyAt("imp", sx, sy, false);
-    }
-    game.ui.toast(id === "echo" ? "ECOS" : "NINHADA");
-    game.particles.ring(e.x, e.y, "#ff6a20", 70, 0.35);
-    game.audio.bossHit();
-  } else if (atk === "nest") {
-    // 2–3 zonas de brasa no chão
-    const count = e.bossPhase >= 2 ? 3 : 2;
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = 60 + Math.random() * 120;
-      const hx = clamp(e.x + Math.cos(a) * d, game.arena.x + 40, game.arena.x + game.arena.w - 40);
-      const hy = clamp(e.y + Math.sin(a) * d, game.arena.y + 40, game.arena.y + game.arena.h - 40);
+      const a = e._aimAng + (i - (n - 1) / 2) * 0.55 + (Math.random() - 0.5) * 0.2;
+      const len = 220 + Math.random() * 80;
       game.hazards.push({
-        type: "ember",
-        x: hx,
-        y: hy,
-        r: 48,
-        life: 5.5,
-        maxLife: 5.5,
-        damage: Math.round(e.damage * 0.35),
-        tick: 0.35,
-        cd: 0,
-        color: "#ff5a1f",
+        type: "chain",
+        x: e.x, y: e.y,
+        ang: a, len,
+        width: 16,
+        life: 4.5 + e.bossPhase * 0.8,
+        maxLife: 4.5 + e.bossPhase * 0.8,
+        damage: Math.round(e.damage * 0.4),
+        tick: 0.3, cd: 0,
+        color: "#c8b8a0",
       });
-      game.particles.ring(hx, hy, "#ff6a20", 48, 0.4);
     }
-    game.audio.bossTelegraph();
-  } else if (atk === "embrace") {
-    const a0 = e._aimAng ?? ang(p.x - e.x, p.y - e.y);
-    const half = 0.75;
-    const range = 135;
-    game.shake.add(7, 0.22);
-    game.audio.cleaveHit(3);
-    game.particles.burst(
-      e.x + Math.cos(a0) * 40,
-      e.y + Math.sin(a0) * 40,
-      { count: 18, color: "#ff6a20", speed: 220, life: 0.35, size: 3.5, angle: a0, spread: 1.2 },
-    );
-    const dx = p.x - e.x;
-    const dy = p.y - e.y;
-    const d = Math.hypot(dx, dy);
-    if (d < range + p.radius) {
-      let da = Math.atan2(dy, dx) - a0;
-      while (da > Math.PI) da -= Math.PI * 2;
-      while (da < -Math.PI) da += Math.PI * 2;
-      if (Math.abs(da) < half) {
-        game._hurtPlayer(e.damage * 1.4, a0);
-      }
-    }
-  } else if (atk === "whip") {
-    const a0 = e._aimAng ?? ang(p.x - e.x, p.y - e.y);
-    const len = 320;
+    return;
+  }
+  if (atk === "whip") {
     game.shake.add(5, 0.15);
     game.audio.dash();
     game.hazards.push({
       type: "line_hit",
-      x: e.x,
-      y: e.y,
-      ang: a0,
-      len,
-      width: 24,
-      life: 0.18,
-      maxLife: 0.18,
-      damage: Math.round(e.damage * 1.15),
-      hit: false,
-      color: "#e8dcc8",
+      x: e.x, y: e.y,
+      ang: e._aimAng, len: 340, width: 24,
+      life: 0.16, maxLife: 0.16,
+      damage: Math.round(e.damage * 1.2),
+      hit: false, color: "#e8dcc8",
     });
-  } else if (atk === "hook") {
-    const a0 = e._aimAng ?? ang(p.x - e.x, p.y - e.y);
-    // hit se player alinhado
+    return;
+  }
+  if (atk === "hook") {
+    const a0 = e._aimAng;
+    const dir = { x: Math.cos(a0), y: Math.sin(a0) };
     const dx = p.x - e.x;
     const dy = p.y - e.y;
-    const d = Math.hypot(dx, dy);
-    const dir = norm(Math.cos(a0), Math.sin(a0));
     const along = dx * dir.x + dy * dir.y;
     const perp = Math.abs(dx * -dir.y + dy * dir.x);
     game.audio.dash();
-    game.particles.burst(e.x + dir.x * 40, e.y + dir.y * 40, {
-      count: 10, color: "#c8b8a0", speed: 180, life: 0.25, size: 2.5, angle: a0, spread: 0.2,
+    game.particles.burst(e.x + dir.x * 50, e.y + dir.y * 50, {
+      count: 12, color: "#f0c14b", speed: 160, life: 0.25, size: 2.5, angle: a0, spread: 0.25,
     });
-    if (along > 0 && along < 290 && perp < 28) {
-      // puxão curto (não stun longo)
-      const pull = Math.min(110, along * 0.55);
+    // linha visual do gancho
+    game.hazards.push({
+      type: "line_hit",
+      x: e.x, y: e.y, ang: a0, len: 300, width: 14,
+      life: 0.12, maxLife: 0.12, damage: 0, hit: true, color: "#f0c14b",
+    });
+    if (along > 20 && along < 300 && perp < 32) {
+      const pull = Math.min(130, along * 0.6);
       p.x -= dir.x * pull;
       p.y -= dir.y * pull;
       p.x = clamp(p.x, game.arena.x + p.radius, game.arena.x + game.arena.w - p.radius);
       p.y = clamp(p.y, game.arena.y + p.radius, game.arena.y + game.arena.h - p.radius);
-      game._hurtPlayer(Math.round(e.damage * 0.85), a0);
-      game.ui.toast("GANCHO");
-      game.shake.add(6, 0.18);
+      game._hurtPlayer(Math.round(e.damage * 0.8), a0);
+      game.ui.toast("GANCHO!");
+      game.shake.add(7, 0.2);
     }
-  } else if (atk === "prison") {
+    return;
+  }
+  if (atk === "prison") {
     game.shake.add(9, 0.3);
     game.audio.bossHit();
+    game.ui.toast("PRISÃO");
     game.hazards.push({
       type: "prison",
-      x: e.x,
-      y: e.y,
-      r: 125,
-      life: 3.2,
-      maxLife: 3.2,
-      damage: Math.round(e.damage * 0.45),
-      tick: 0.45,
-      cd: 0.2,
+      x: e.x, y: e.y,
+      r: 115,
+      life: 3.6, maxLife: 3.6,
+      damage: Math.round(e.damage * 0.5),
+      tick: 0.4, cd: 0.15,
       color: "#c8b8a0",
     });
-    // reforços fora
-    if (Math.random() < 0.7) game._spawnEnemyAt("spitter", e.x + 160, e.y, false);
-    if (Math.random() < 0.7) game._spawnEnemyAt("spitter", e.x - 160, e.y, false);
-    game.ui.toast("PRISÃO");
-  } else if (atk === "ghost") {
-    // clone atraso: projéteis no anel com delay visual
-    game.audio.bossPhase();
-    game.particles.ring(e.x, e.y, "#b44dff", 80, 0.5);
-    const n = 8;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      game.projectiles.push({
-        x: e.x, y: e.y,
-        vx: Math.cos(a) * 160, vy: Math.sin(a) * 160,
-        damage: Math.round(e.damage * 0.5),
-        radius: 6, life: 2.2,
-        color: "#9b8cff", fromEnemy: true, ghost: true,
-      });
-    }
-    // segundo anel com atraso (via hazard que spawna projéteis)
+    return;
+  }
+
+  // ── Eco ──
+  if (atk === "blink") {
+    // afterimage explode onde ESTAVA
     game.hazards.push({
-      type: "delayed_ring",
-      x: e.x,
-      y: e.y,
-      life: 0.55,
-      maxLife: 0.55,
-      damage: Math.round(e.damage * 0.5),
-      fired: false,
+      type: "afterimage_bomb",
+      x: e.x, y: e.y,
+      r: 55,
+      life: 0.55, maxLife: 0.55,
+      damage: Math.round(e.damage * 0.9),
+      hit: false,
+      color: "#b44dff",
+    });
+    game.particles.burst(e.x, e.y, {
+      count: 14, color: "#b44dff", speed: 140, life: 0.3, size: 3,
+    });
+    e.x = e._blinkX ?? e.x;
+    e.y = e._blinkY ?? e.y;
+    clampBoss(game, e);
+    e.invulnFlash = 0.25;
+    game.audio.dash();
+    game.particles.ring(e.x, e.y, "#c4a0ff", 40, 0.3);
+    // dano se pisou no destino
+    if (dist(e, p) < e.radius + p.radius + 20) {
+      game._hurtPlayer(Math.round(e.damage * 0.7), ang(p.x - e.x, p.y - e.y));
+    }
+    return;
+  }
+  if (atk === "afterimage") {
+    // deixa 2 bombas no caminho do player
+    game.ui.toast("ECO");
+    for (let i = 0; i < 2; i++) {
+      const t = 0.35 + i * 0.25;
+      const ax = e.x + (p.x - e.x) * t + (Math.random() - 0.5) * 40;
+      const ay = e.y + (p.y - e.y) * t + (Math.random() - 0.5) * 40;
+      game.hazards.push({
+        type: "afterimage_bomb",
+        x: ax, y: ay,
+        r: 48,
+        life: 0.85 + i * 0.15,
+        maxLife: 0.85 + i * 0.15,
+        damage: Math.round(e.damage * 0.75),
+        hit: false,
+        color: "#9b8cff",
+      });
+      game.particles.ring(ax, ay, "#9b8cff", 30, 0.4);
+    }
+    game.audio.bossTelegraph();
+    return;
+  }
+  if (atk === "decoys") {
+    game.ui.toast("FALSOS ECOS");
+    game.audio.bossPhase();
+    const n = e.bossPhase >= 2 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random();
+      const d = 100 + Math.random() * 40;
+      const dx = clamp(e.x + Math.cos(a) * d, game.arena.x + 40, game.arena.x + game.arena.w - 40);
+      const dy = clamp(e.y + Math.sin(a) * d, game.arena.y + 40, game.arena.y + game.arena.h - 40);
+      game._spawnEnemyAt("echo_decoy", dx, dy, false);
+    }
+    // o real pisca para outro lugar
+    const a = Math.random() * Math.PI * 2;
+    e.x = clamp(p.x + Math.cos(a) * 120, game.arena.x + 50, game.arena.x + game.arena.w - 50);
+    e.y = clamp(p.y + Math.sin(a) * 120, game.arena.y + 50, game.arena.y + game.arena.h - 50);
+    game.particles.ring(e.x, e.y, "#b44dff", 50, 0.35);
+    return;
+  }
+  if (atk === "split_burst") {
+    game.shake.add(8, 0.28);
+    game.audio.bossHit();
+    radialShots(game, e, 12, 200, "#b44dff", 0.5);
+    // decoys no anel
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      game._spawnEnemyAt(
+        "echo_decoy",
+        e.x + Math.cos(a) * 90,
+        e.y + Math.sin(a) * 90,
+        false,
+      );
+    }
+  }
+}
+
+function radialShots(game, e, n, spd, color, dmgMult) {
+  game.particles.ring(e.x, e.y, color, 140, 0.35);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    game.projectiles.push({
+      x: e.x, y: e.y,
+      vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+      damage: Math.round(e.damage * dmgMult),
+      radius: 7, life: 2.4,
+      color, fromEnemy: true,
     });
   }
 }
 
-/** Atualiza hazards de arena (brasas, prisão, linhas) */
+// ═══════════════════════════════════════════
+// HAZARDS + EGGS (chamado pelo game)
+// ═══════════════════════════════════════════
 export function updateHazards(game, dt) {
   const p = game.player;
   if (!game.hazards) return;
+
   for (let i = game.hazards.length - 1; i >= 0; i--) {
     const h = game.hazards[i];
     h.life -= dt;
     if (h.life <= 0) {
+      // afterimage explode no fim
+      if (h.type === "afterimage_bomb" && !h.hit && p && !p.dead) {
+        explodeAt(game, h, p);
+      }
       game.hazards.splice(i, 1);
       continue;
     }
 
-    if (h.type === "ember" && p && !p.dead) {
+    if (!p || p.dead) continue;
+
+    if (h.type === "ember") {
       h.cd = (h.cd || 0) - dt;
       if (h.cd <= 0 && dist(p, h) < h.r + p.radius) {
         h.cd = h.tick || 0.35;
         game._hurtPlayer(h.damage, ang(p.x - h.x, p.y - h.y));
+      }
+    } else if (h.type === "chain") {
+      // corrente no chão: dano se pisar na linha
+      h.cd = (h.cd || 0) - dt;
+      if (h.cd <= 0 && pointNearSegment(p.x, p.y, h.x, h.y, h.ang, h.len, h.width)) {
+        h.cd = h.tick || 0.3;
+        game._hurtPlayer(h.damage, h.ang);
         game.particles.burst(p.x, p.y, {
-          count: 3, color: "#ff6a20", speed: 50, life: 0.2, size: 2,
+          count: 3, color: "#c8b8a0", speed: 40, life: 0.15, size: 2,
         });
       }
-    } else if (h.type === "prison" && p && !p.dead) {
-      // empurra para dentro se estiver na borda saindo
+    } else if (h.type === "prison") {
       const d = dist(p, h);
-      if (d > h.r - 8 && d < h.r + 40) {
+      if (d > h.r - 6 && d < h.r + 50) {
         const dir = norm(h.x - p.x, h.y - p.y);
-        // se player tenta sair, puxa de volta
-        if (d > h.r - 4) {
-          p.x += dir.x * 120 * dt;
-          p.y += dir.y * 120 * dt;
+        if (d > h.r - 2) {
+          p.x += dir.x * 140 * dt;
+          p.y += dir.y * 140 * dt;
         }
       }
       h.cd = (h.cd || 0) - dt;
       if (h.cd <= 0 && d < h.r) {
-        h.cd = h.tick || 0.45;
-        // dano só perto do carcereiro se existir
         const boss = game.bossRef;
-        if (boss && !boss.dead && dist(p, boss) < 90) {
+        if (boss && !boss.dead && dist(p, boss) < 95) {
+          h.cd = h.tick || 0.4;
           game._hurtPlayer(h.damage, ang(p.x - boss.x, p.y - boss.y));
         }
       }
-    } else if (h.type === "line_hit" && p && !p.dead && !h.hit) {
-      const dir = { x: Math.cos(h.ang), y: Math.sin(h.ang) };
-      const dx = p.x - h.x;
-      const dy = p.y - h.y;
-      const along = dx * dir.x + dy * dir.y;
-      const perp = Math.abs(dx * -dir.y + dy * dir.x);
-      if (along > 0 && along < h.len && perp < h.width) {
+    } else if (h.type === "line_hit" && !h.hit) {
+      if (pointNearSegment(p.x, p.y, h.x, h.y, h.ang, h.len, h.width)) {
         h.hit = true;
-        game._hurtPlayer(h.damage, h.ang);
-        game.shake.add(4, 0.12);
+        if (h.damage > 0) {
+          game._hurtPlayer(h.damage, h.ang);
+          game.shake.add(4, 0.12);
+        }
+      }
+    } else if (h.type === "erupt_wave" && !h.hit) {
+      // anel fino: dano se player está na “borda” do raio
+      const d = dist(p, h);
+      if (Math.abs(d - h.r) < 22 + p.radius) {
+        h.hit = true;
+        game._hurtPlayer(h.damage, ang(p.x - h.x, p.y - h.y));
+        game.shake.add(5, 0.12);
+      }
+    } else if (h.type === "afterimage_bomb") {
+      // telegrapha e explode no final (handled on life<=0) ou se player colar cedo
+      if (!h.hit && dist(p, h) < h.r * 0.35) {
+        // ainda não explode cedo — só visual
       }
     } else if (h.type === "delayed_ring" && !h.fired && h.life < 0.08) {
       h.fired = true;
-      const n = 10;
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * Math.PI * 2 + 0.2;
-        game.projectiles.push({
-          x: h.x, y: h.y,
-          vx: Math.cos(a) * 170, vy: Math.sin(a) * 170,
-          damage: h.damage,
-          radius: 6, life: 2.0,
-          color: "#c4a0ff", fromEnemy: true, ghost: true,
-        });
-      }
-      game.particles.ring(h.x, h.y, "#b44dff", 90, 0.3);
+      radialShots(game, { x: h.x, y: h.y, damage: h.damage / 0.5, accent: "#b44dff" }, 10, 170, "#c4a0ff", 0.5);
     }
   }
 }
 
+function explodeAt(game, h, p) {
+  h.hit = true;
+  game.particles.burst(h.x, h.y, {
+    count: 18, color: h.color || "#b44dff", speed: 200, life: 0.35, size: 3.5,
+  });
+  game.particles.ring(h.x, h.y, h.color || "#b44dff", h.r, 0.3);
+  game.shake.add(5, 0.15);
+  game.audio.bossHit();
+  if (dist(p, h) < h.r + p.radius) {
+    game._hurtPlayer(h.damage, ang(p.x - h.x, p.y - h.y));
+  }
+}
+
+function pointNearSegment(px, py, x, y, ang0, len, width) {
+  const dirx = Math.cos(ang0);
+  const diry = Math.sin(ang0);
+  const dx = px - x;
+  const dy = py - y;
+  const along = dx * dirx + dy * diry;
+  if (along < 0 || along > len) return false;
+  const perp = Math.abs(dx * -diry + dy * dirx);
+  return perp < width;
+}
+
 export function drawHazards(game, ctx) {
   if (!game.hazards?.length) return;
+  const tnow = game.time || 0;
+
   for (const h of game.hazards) {
     const t = h.maxLife ? 1 - h.life / h.maxLife : 0;
     ctx.save();
-    if (h.type === "ember") {
-      const pulse = 1 + Math.sin((game.time || 0) * 6 + h.x) * 0.06;
+
+    if (h.type === "chain") {
+      const x2 = h.x + Math.cos(h.ang) * h.len;
+      const y2 = h.y + Math.sin(h.ang) * h.len;
+      ctx.strokeStyle = "rgba(40,30,28,0.85)";
+      ctx.lineWidth = h.width + 4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(h.x, h.y);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(200,184,160,${0.55 + Math.sin(tnow * 8) * 0.1})`;
+      ctx.lineWidth = h.width;
+      ctx.beginPath();
+      ctx.moveTo(h.x, h.y);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      // elos
+      ctx.fillStyle = "#a89880";
+      const steps = Math.floor(h.len / 28);
+      for (let s = 1; s < steps; s++) {
+        const lx = h.x + Math.cos(h.ang) * (s * 28);
+        const ly = h.y + Math.sin(h.ang) * (s * 28);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (h.type === "ember") {
+      const pulse = 1 + Math.sin(tnow * 6 + h.x) * 0.06;
       const g = ctx.createRadialGradient(h.x, h.y, 4, h.x, h.y, h.r * pulse);
       g.addColorStop(0, "rgba(255,120,40,0.45)");
       g.addColorStop(0.6, "rgba(200,40,20,0.22)");
@@ -545,32 +770,61 @@ export function drawHazards(game, ctx) {
       ctx.beginPath();
       ctx.arc(h.x, h.y, h.r * pulse, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,140,50,0.5)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
     } else if (h.type === "prison" || h.type === "ring_preview") {
-      ctx.strokeStyle = h.type === "prison" ? "rgba(200,184,160,0.75)" : h.color;
-      ctx.lineWidth = h.type === "prison" ? 3 : 2;
+      ctx.strokeStyle = h.type === "prison" ? "rgba(200,184,160,0.8)" : (h.color || "rgba(255,255,255,0.4)");
+      ctx.lineWidth = h.type === "prison" ? 3.5 : 2;
       ctx.setLineDash(h.type === "prison" ? [] : [6, 5]);
       ctx.beginPath();
-      ctx.arc(h.x, h.y, h.r || 130, 0, Math.PI * 2);
+      ctx.arc(h.x, h.y, h.r || 120, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
       if (h.type === "prison") {
-        ctx.fillStyle = "rgba(40,30,40,0.12)";
+        ctx.fillStyle = "rgba(30,25,30,0.15)";
         ctx.fill();
       }
     } else if (h.type === "line_preview" || h.type === "line_hit") {
-      const alpha = h.type === "line_hit" ? 0.9 : 0.4 + t * 0.3;
       ctx.strokeStyle = h.type === "line_hit"
-        ? `rgba(232,220,200,${alpha})`
-        : h.color || `rgba(200,184,160,${alpha})`;
+        ? "rgba(232,220,200,0.9)"
+        : (h.color || "rgba(200,184,160,0.45)");
       ctx.lineWidth = h.width || 20;
       ctx.lineCap = "round";
+      ctx.globalAlpha = h.type === "line_hit" ? 0.9 : 0.45 + t * 0.35;
       ctx.beginPath();
       ctx.moveTo(h.x, h.y);
       ctx.lineTo(h.x + Math.cos(h.ang) * h.len, h.y + Math.sin(h.ang) * h.len);
       ctx.stroke();
+    } else if (h.type === "expand_preview") {
+      const r = h.r0 + (h.r1 - h.r0) * t;
+      ctx.strokeStyle = h.color || "rgba(255,90,31,0.5)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (h.type === "erupt_wave") {
+      ctx.strokeStyle = `rgba(255,90,31,${0.85 - t * 0.5})`;
+      ctx.lineWidth = 8;
+      ctx.shadowColor = "#ff5a1f";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (h.type === "afterimage_bomb") {
+      const pulse = 0.5 + t * 0.5;
+      ctx.globalAlpha = 0.35 + t * 0.5;
+      ctx.fillStyle = h.color || "#b44dff";
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, 16 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = h.color || "#b44dff";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, h.r * (0.4 + t * 0.6), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     } else if (h.type === "cone_preview") {
       ctx.fillStyle = h.color || "rgba(255,106,32,0.3)";
       ctx.beginPath();
@@ -578,15 +832,8 @@ export function drawHazards(game, ctx) {
       ctx.arc(h.x, h.y, h.range, h.ang - h.halfArc, h.ang + h.halfArc);
       ctx.closePath();
       ctx.fill();
-    } else if (h.type === "delayed_ring") {
-      ctx.strokeStyle = "rgba(180,77,255,0.55)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(h.x, h.y, 70 * (1 - h.life / h.maxLife), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
+
     ctx.restore();
   }
 }

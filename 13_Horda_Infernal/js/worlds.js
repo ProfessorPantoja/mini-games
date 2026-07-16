@@ -1,203 +1,105 @@
 /**
- * Mundos da campanha — cada um termina num chefão.
- * Mundo 0 = conteúdo clássico (4 etapas → Senhor da Horda).
- * Mundos 1–3 = caminho curto → chefão novo (para validar no combate).
+ * Mundos da campanha.
+ * Mundo 1 = campanha completa (4 etapas → Senhor da Horda).
+ * Mundos 2–4 = SOMENTE a luta do chefão (validação de mecânica).
  */
 
 import { STAGES_WORLD_0 } from "./stages.js";
 
 export const WORLD_UNLOCK_KEY = "horda_infernal_worlds_v1";
 
-/** Todos liberados no playtest dos chefões (progressão real depois). */
+/** Playtest: todos os mundos liberados. */
 export const PLAYTEST_UNLOCK_ALL = true;
+
+function bossOnlyStage({
+  name, subtitle, floorTint, bossType, accent,
+}) {
+  return [
+    {
+      id: 0,
+      name,
+      subtitle,
+      hard: true,
+      boss: true,
+      floorTint,
+      accent,
+      waves: [
+        {
+          delay: 0.9,
+          groups: [{ type: bossType, count: 1, interval: 0 }],
+        },
+        { delay: 9999, groups: [], supportOnly: true },
+      ],
+    },
+  ];
+}
 
 export const WORLDS = [
   {
     id: "portal",
     index: 0,
     name: "Portal Infernal",
-    short: "Mundo 1",
+    short: "I",
+    label: "Mundo I",
     bossName: "Senhor da Horda",
-    tagline: "A horda clássica · trono do abismo",
+    tagline: "Campanha clássica · 4 etapas",
     icon: "🔥",
+    accent: "#ff5a1f",
     stages: STAGES_WORLD_0,
   },
   {
     id: "ninho",
     index: 1,
     name: "Ninho de Cinzas",
-    short: "Mundo 2",
+    short: "II",
+    label: "Mundo II",
     bossName: "Mãe das Brasas",
-    tagline: "Limpe a ninhada · foque a mãe",
+    tagline: "Direto no chefão · fábrica de ovos",
     icon: "🌋",
-    stages: [
-      {
-        id: 0,
-        name: "Berçário em Brasas",
-        subtitle: "Algo choca sob o chão",
-        hard: false,
-        boss: false,
-        floorTint: 1,
-        waves: [
-          {
-            delay: 0.5,
-            groups: [
-              { type: "imp", count: 8, interval: 0.28 },
-              { type: "reaver", count: 2, interval: 0.7 },
-            ],
-          },
-          {
-            delay: 0.8,
-            groups: [
-              { type: "imp", count: 10, interval: 0.2 },
-              { type: "spitter", count: 2, interval: 0.75 },
-              { type: "brute", count: 2, interval: 0.55 },
-            ],
-          },
-        ],
-      },
-      {
-        id: 1,
-        name: "Útero de Magma",
-        subtitle: "A mãe desperta",
-        hard: true,
-        boss: true,
-        floorTint: 2,
-        waves: [
-          {
-            delay: 0.7,
-            groups: [
-              { type: "imp", count: 5, interval: 0.3 },
-              { type: "wraith", count: 2, interval: 0.45 },
-            ],
-          },
-          {
-            delay: 1.0,
-            groups: [{ type: "boss_mother", count: 1, interval: 0 }],
-          },
-          { delay: 9999, groups: [], supportOnly: true },
-        ],
-      },
-    ],
+    accent: "#ff6a20",
+    stages: bossOnlyStage({
+      name: "Útero de Magma",
+      subtitle: "Mate a fábrica — ou a ninhada te come",
+      floorTint: 2,
+      bossType: "boss_mother",
+      accent: "#ff6a20",
+    }),
   },
   {
     id: "carcere",
     index: 2,
     name: "Pátio dos Ossos",
-    short: "Mundo 3",
+    short: "III",
+    label: "Mundo III",
     bossName: "Carcereiro de Ossos",
-    tagline: "Correntes · não seja arrastado",
+    tagline: "Direto no chefão · correntes e puxão",
     icon: "⛓️",
-    stages: [
-      {
-        id: 0,
-        name: "Corredor de Correntes",
-        subtitle: "O metal range",
-        hard: true,
-        boss: false,
-        floorTint: 2,
-        waves: [
-          {
-            delay: 0.5,
-            groups: [
-              { type: "brute", count: 3, interval: 0.5 },
-              { type: "reaver", count: 3, interval: 0.55 },
-              { type: "spitter", count: 2, interval: 0.8 },
-            ],
-          },
-          {
-            delay: 0.9,
-            groups: [
-              { type: "elite", count: 1, interval: 0 },
-              { type: "wraith", count: 3, interval: 0.4 },
-              { type: "imp", count: 8, interval: 0.22 },
-            ],
-          },
-        ],
-      },
-      {
-        id: 1,
-        name: "Cela do Carcereiro",
-        subtitle: "Você é o preso",
-        hard: true,
-        boss: true,
-        floorTint: 3,
-        waves: [
-          {
-            delay: 0.6,
-            groups: [
-              { type: "brute", count: 3, interval: 0.45 },
-              { type: "reaver", count: 2, interval: 0.5 },
-            ],
-          },
-          {
-            delay: 1.0,
-            groups: [{ type: "boss_jailer", count: 1, interval: 0 }],
-          },
-          { delay: 9999, groups: [], supportOnly: true },
-        ],
-      },
-    ],
+    accent: "#c8b8a0",
+    stages: bossOnlyStage({
+      name: "Cela do Carcereiro",
+      subtitle: "O chão é a arma — não fique parado",
+      floorTint: 3,
+      bossType: "boss_jailer",
+      accent: "#c8b8a0",
+    }),
   },
   {
     id: "fenda",
     index: 3,
     name: "Fenda do Portal",
-    short: "Mundo 4",
+    short: "IV",
+    label: "Mundo IV",
     bossName: "Eco do Portal",
-    tagline: "O abismo responde · exame final",
+    tagline: "Direto no chefão · piscadas e ecos",
     icon: "🌀",
-    stages: [
-      {
-        id: 0,
-        name: "Limiar Rachado",
-        subtitle: "O ar dói",
-        hard: true,
-        boss: false,
-        floorTint: 3,
-        waves: [
-          {
-            delay: 0.4,
-            groups: [
-              { type: "imp", count: 8, interval: 0.2 },
-              { type: "wraith", count: 3, interval: 0.35 },
-              { type: "reaver", count: 3, interval: 0.5 },
-              { type: "spitter", count: 2, interval: 0.65 },
-            ],
-          },
-          {
-            delay: 0.85,
-            groups: [
-              { type: "elite", count: 2, interval: 0.8 },
-              { type: "brute", count: 3, interval: 0.45 },
-              { type: "wraith", count: 4, interval: 0.3 },
-            ],
-          },
-        ],
-      },
-      {
-        id: 1,
-        name: "Coração do Portal",
-        subtitle: "O que vem depois do trono",
-        hard: true,
-        boss: true,
-        floorTint: 3,
-        waves: [
-          {
-            delay: 0.7,
-            groups: [
-              { type: "imp", count: 6, interval: 0.25 },
-              { type: "elite", count: 1, interval: 0 },
-            ],
-          },
-          {
-            delay: 1.1,
-            groups: [{ type: "boss_echo", count: 1, interval: 0 }],
-          },
-          { delay: 9999, groups: [], supportOnly: true },
-        ],
-      },
-    ],
+    accent: "#b44dff",
+    stages: bossOnlyStage({
+      name: "Coração do Portal",
+      subtitle: "Não confie no que pisca",
+      floorTint: 3,
+      bossType: "boss_echo",
+      accent: "#b44dff",
+    }),
   },
 ];
 
@@ -230,7 +132,6 @@ export function saveWorldCleared(worldIndex) {
   return prog;
 }
 
-/** Mundo 0 sempre livre; N liberado se N-1 foi limpo (ou playtest all). */
 export function isWorldUnlocked(worldIndex, progress = null) {
   if (worldIndex <= 0) return true;
   if (PLAYTEST_UNLOCK_ALL) return true;

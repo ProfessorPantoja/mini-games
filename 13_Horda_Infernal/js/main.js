@@ -20,13 +20,13 @@ let selectedWorld = 0;
 // mundos (chefões)
 ui.renderWorldRow(selectedWorld);
 document.getElementById("world-row")?.addEventListener("click", (e) => {
-  const card = e.target.closest(".world-card");
+  const card = e.target.closest(".world-path");
   if (!card || card.disabled || card.classList.contains("locked")) return;
   const idx = parseInt(card.dataset.world, 10);
   if (Number.isNaN(idx)) return;
   if (!game.setWorld(idx)) return;
   selectedWorld = idx;
-  document.querySelectorAll(".world-card").forEach((c) => {
+  document.querySelectorAll(".world-path").forEach((c) => {
     c.classList.toggle("selected", parseInt(c.dataset.world, 10) === idx);
   });
   audio.uiClick();

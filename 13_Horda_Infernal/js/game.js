@@ -843,12 +843,21 @@ export class Game {
     const living = this.enemies.some((e) => !e.dead);
     if (living || this.spawnQueue.length > 0 || this.spawnMarks.length > 0) {
       // boss support adds
+      // reforços só no Senhor (clássico) e Mãe (fábrica)
       if (this.bossRef && !this.bossRef.dead) {
-        this.supportTimer -= dt;
-        if (this.supportTimer <= 0) {
-          this.supportTimer = 4.5;
-          this._spawnEnemy("imp");
-          if (Math.random() < 0.5) this._spawnEnemy("imp");
+        const bid = this.bossRef.bossId || "senhor";
+        if (bid === "senhor" || bid === "mother") {
+          this.supportTimer -= dt;
+          if (this.supportTimer <= 0) {
+            this.supportTimer = bid === "mother" ? 6.5 : 4.5;
+            if (bid === "mother") {
+              // mãe: reforço vira ovo, não imp solto
+              this._spawnEnemy("ember_egg");
+            } else {
+              this._spawnEnemy("imp");
+              if (Math.random() < 0.5) this._spawnEnemy("imp");
+            }
+          }
         }
       }
       return;
@@ -990,6 +999,9 @@ export class Game {
       phaseDuration: def.phaseDuration || 0,
       skillCooldown: def.skillCooldown || 0,
       speedBuffT: 0,
+      hatchTime: def.hatchTime || 0,
+      hatchT: def.hatchTime || 0,
+      lifeT: def.kind === "decoy" ? 5.5 : 0,
     };
 
     if (def.isBoss || isBossSpawn) {
@@ -1047,6 +1059,48 @@ export class Game {
       e.shootCd = Math.max(0, e.shootCd - dt);
 
       if (e.hitStun > 0 || e.spawnGrace > 0.15) continue;
+
+      // ── Ovo da Mãe: countdown → imp ──
+      if (e.kind === "egg") {
+        e.hatchT = (e.hatchT ?? e.hatchTime ?? 4.2) - dt;
+        e.pulse = (e.pulse || 0) + dt * 4;
+        if (e.hatchT < 1.1) e.flash = Math.max(e.flash || 0, 0.1);
+        if (e.hatchT <= 0) {
+          e.dead = true;
+          this.particles.burst(e.x, e.y, {
+            count: 12, color: "#ff6a20", speed: 140, life: 0.35, size: 3,
+          });
+          this._spawnEnemyAt("imp", e.x, e.y, false);
+          this.audio.bossHit();
+        }
+        continue;
+      }
+
+      // ── Decoy do Eco: some sozinho ──
+      if (e.kind === "decoy") {
+        e.lifeT = (e.lifeT ?? 5.5) - dt;
+        e.pulse = (e.pulse || 0) + dt * 5;
+        if (e.lifeT <= 0) {
+          e.dead = true;
+          this.particles.burst(e.x, e.y, {
+            count: 10, color: "#9b8cff", speed: 100, life: 0.3, size: 2.5,
+          });
+        }
+        // contato leve
+        if (
+          e.spawnGrace <= 0 &&
+          e.contactCd <= 0 &&
+          dist(e, p) < e.radius + p.radius + 2
+        ) {
+          this._hurtPlayer(e.damage, ang(p.x - e.x, p.y - e.y));
+          e.contactCd = e.contactInterval;
+          e.dead = true;
+          this.particles.burst(e.x, e.y, {
+            count: 8, color: "#b44dff", speed: 120, life: 0.25, size: 2,
+          });
+        }
+        continue;
+      }
 
       if (e.kind === "boss") {
         this._updateBoss(e, dt);
@@ -2034,6 +2088,10 @@ export class Game {
 
     if (e.kind === "boss") {
       this._drawBossBody(ctx, e, flash);
+    } else if (e.kind === "egg") {
+      this._drawEgg(ctx, e, flash);
+    } else if (e.kind === "decoy") {
+      this._drawDecoy(ctx, e, flash);
     } else {
       const r = e.radius;
       if (e.kind === "wraith") {
@@ -2106,8 +2164,16 @@ export class Game {
       if (e.kind === "wraith") ctx.globalAlpha = 1;
     }
 
-    // hp bar if damaged
-    if (e.hp < e.maxHp && e.kind !== "boss") {
+    // hp bar if damaged (ovos sempre mostram hatch)
+    if (e.kind === "egg") {
+      const bw = e.radius * 2.4;
+      const bh = 4;
+      const pct = clamp((e.hatchT ?? 1) / (e.hatchTime || 4.2), 0, 1);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(-bw / 2, -e.radius - 14, bw, bh);
+      ctx.fillStyle = "#ff6a20";
+      ctx.fillRect(-bw / 2, -e.radius - 14, bw * (1 - pct), bh);
+    } else if (e.hp < e.maxHp && e.kind !== "boss" && e.kind !== "decoy") {
       const bw = e.radius * 2.2;
       const bh = 4;
       const pct = clamp(e.hp / e.maxHp, 0, 1);
@@ -2145,6 +2211,51 @@ export class Game {
     }
 
     ctx.restore();
+  }
+
+  _drawEgg(ctx, e, flash) {
+    const r = e.radius;
+    const pulse = 1 + Math.sin((e.pulse || 0)) * 0.06;
+    ctx.fillStyle = flash ? "#fff" : e.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.85 * pulse, r * 1.15 * pulse, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // rachadura
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.6);
+    ctx.lineTo(r * 0.15, 0);
+    ctx.lineTo(-r * 0.1, r * 0.5);
+    ctx.stroke();
+    ctx.fillStyle = e.accent;
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.15, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _drawDecoy(ctx, e, flash) {
+    const r = e.radius;
+    const a = 0.35 + Math.sin((e.pulse || 0) * 2) * 0.15;
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = e.accent;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = e.accent;
+    ctx.beginPath();
+    ctx.arc(-r * 0.25, -r * 0.1, r * 0.12, 0, Math.PI * 2);
+    ctx.arc(r * 0.25, -r * 0.1, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   _drawBossBody(ctx, e, flash) {

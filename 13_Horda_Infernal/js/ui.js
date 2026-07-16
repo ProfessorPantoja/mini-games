@@ -157,7 +157,7 @@ export class UI {
     ].join("");
   }
 
-  /** Seletor de mundos no título */
+  /** Seletor de mundos — visual de CAMPANHA (não de classe) */
   renderWorldRow(selectedIndex = 0) {
     const row = document.getElementById("world-row");
     if (!row) return;
@@ -165,19 +165,29 @@ export class UI {
     row.innerHTML = "";
     WORLDS.forEach((w) => {
       const unlocked = isWorldUnlocked(w.index, prog);
+      const cleared = prog.cleared.includes(w.index);
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "world-card"
+      btn.className = "world-path"
         + (w.index === selectedIndex ? " selected" : "")
-        + (unlocked ? "" : " locked");
+        + (unlocked ? "" : " locked")
+        + (cleared ? " cleared" : "");
       btn.dataset.world = String(w.index);
       btn.disabled = !unlocked;
+      btn.style.setProperty("--w-accent", w.accent || "#ff5a1f");
       btn.innerHTML = `
-        <div class="w-icon">${w.icon}</div>
-        <div class="w-short">${w.short}</div>
-        <div class="w-name">${w.name}</div>
-        <div class="w-boss">${unlocked ? w.bossName : "???"}</div>
-        <div class="w-tag">${unlocked ? w.tagline : "Complete o mundo anterior"}</div>
+        <div class="wp-rail" aria-hidden="true"></div>
+        <div class="wp-num">${w.short}</div>
+        <div class="wp-body">
+          <div class="wp-label">${w.label || w.short}</div>
+          <div class="wp-name">${w.name}</div>
+          <div class="wp-boss">
+            <span class="wp-boss-k">CHEFE</span>
+            ${unlocked ? w.bossName : "???"}
+          </div>
+          <div class="wp-tag">${unlocked ? w.tagline : "Bloqueado"}</div>
+        </div>
+        ${cleared ? '<span class="wp-check">✓</span>' : ""}
       `;
       row.appendChild(btn);
     });
